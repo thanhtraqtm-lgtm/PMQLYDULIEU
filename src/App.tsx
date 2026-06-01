@@ -2317,4 +2317,7 @@ export default function App() {
                       <div className="bg-[#111827]/80 p-4 rounded-xl border border-emerald-500/10 space-y-2.5">
                         <span className="text-[10px] font-bold text-emerald-400 tracking-widest uppercase font-mono block">Cấu hình định dạng báo cáo đầu ra</span>
                         <div className="space-y-2">
-                          <label className="flex items-start gap-2.5 text-xs text-gray-
+                          <label className="flex items-start gap-2.5 text-xs text-gray-400 font-mono">
+    {/* Nội dung bên trong label nếu có */}
+</label>
+                          
