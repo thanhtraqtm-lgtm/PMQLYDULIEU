@@ -2318,4 +2318,39 @@ export default function App() {
                             onClick={() => handleStandardizeSectors(true)} // useAI = true
                             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-green-900/30 font-sans cursor-pointer flex items-center justify-center gap-1.5"
                           >
-                            <Brain className="w-4 h-4" />
+                            <Brain className="w-4 h-4" /> SỬ DỤNG AI PHÂN TÍCH & KHỚP MÃ (Đề xuất)
+                          </button>
+                          
+                          {/* NÚT SỬ DỤNG PHÂN TÍCH CỤC BỘ */}
+                          <button 
+                            onClick={() => handleStandardizeSectors(false)} // useAI = false
+                            className="w-full bg-gray-700 hover:bg-gray-800 text-gray-300 font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md font-sans cursor-pointer flex items-center justify-center gap-1.5 border border-gray-600"
+                          >
+                            <Activity className="w-4 h-4" /> KHỚP MÃ THÔNG MINH (Cục bộ)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-[#1f2937]/40 border-2 border-dashed border-[#374151] p-12 text-center rounded-2xl space-y-4">
+                    <Database className="w-12 h-12 text-[#4b5563] mx-auto animate-pulse" />
+                    <div>
+                      <h4 className="text-base font-bold text-white">Chưa có dữ liệu để phân tích</h4>
+                      <p className="text-xs text-gray-400 max-w-md mx-auto pt-1 leading-relaxed">
+                        Hãy nạp tệp dữ liệu chính ở Tab "Xem Dữ Liệu & Định Nghĩa Cột" trước khi sử dụng chức năng này.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Các tab khác sẽ được đặt ở đây nếu có */}
+
+        </main>
+      </div>
+    </div>
+  );
+}
