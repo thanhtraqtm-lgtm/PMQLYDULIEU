@@ -2285,6 +2285,7 @@ export default function App() {
 
                         <div className="space-y-2 border-t border-gray-800 pt-3">
                           <label className="text-[10.5px] font-bold text-gray-400 block uppercase">Danh sách chỉ tiêu tổng hợp:</label>
+
                           {aggRules.length === 0 ? (
                             <div className="text-[11px] text-gray-500 italic">Chưa có chỉ tiêu nào được lập...</div>
                           ) : (
