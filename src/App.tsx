@@ -2290,5 +2290,8 @@ export default function App() {
                             <div className="space-y-1 max-h-[140px] overflow-y-auto">
                               {aggRules.map((rule, idx) => (
                                 <div key={idx} className="flex justify-between items-center bg-[#111827] px-3 py-1.5 rounded-lg border border-gray-800 text-xs">
-                                  <span className="text-gray-300 font-mono">
-                                    🔴 Phép <strong className="text-amber
+  <span className="text-gray-300 font-mono">
+    🔴 Phép <strong className="text-amber-400">Tính Toán</strong> {/* Hoặc nội dung bạn muốn hiển thị */}
+  </span>
+  {/* Có thể có thêm các phần tử khác ở đây */}
+</div>
