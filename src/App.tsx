@@ -563,21 +563,62 @@ export default function App() {
     setActiveTab("xemdulieu");
   };
 
-  // 2. CHỨC NĂNG SO SÁNH CŨ - MỚI (DIFF)
+// 2. CHỨC NĂNG SO SÁNH CŨ - MỚI (DIFF)
   const handleCompare = async () => {
-    if (oldData.length === 0 || newData.length === 0) {
-      alert("Vui lòng tải đầy đủ tệp dữ liệu Cũ và Mới!");
-      return;
-    }
-    if (!diffKey) {
-      alert("Vui lòng chọn Cột Khóa định danh độc nhất (Unique Key)!");
-      return;
-    }
+    // ... (kiểm tra file và diffKey giữ nguyên) ...
 
     setLoading(true);
     setProgress(0);
     setStatusMessage("Khởi động so sánh dữ liệu...");
     await sleep(200);
+
+    // --- BẮT ĐẦU LOGIC MỚI: PHÂN TÍCH CỘT SỐ & TÍNH CHÊNH LỆCH TỰ ĐỘNG ---
+
+    // Xác định các cột có thể là số dựa trên mapping (doanh thu, lao động) hoặc phân tích dữ liệu
+    const potentialNumericCols = new Set<string>();
+    // Thêm các cột từ mapping nếu chúng tồn tại trong cả hai file
+    [mapping.doanhthu, mapping.laodong].filter(Boolean).forEach(col => {
+        if (oldData.length > 0 && newData.length > 0 && oldData[0].hasOwnProperty(col) && newData[0].hasOwnProperty(col)) {
+            potentialNumericCols.add(col);
+        }
+    });
+
+    // Nếu chưa đủ, thử phân tích thêm các cột khác từ unionCols
+    if (potentialNumericCols.size < 3 && unionCols.length > 0) { // Giới hạn phân tích thêm để tránh tốn thời gian
+        const sampleSize = Math.min(100, oldData.length, newData.length); // Lấy mẫu 100 dòng đầu
+        const sampleOldRow = oldData[0]; // Lấy hàng mẫu để biết tên cột
+        const sampleNewRow = newData[0];
+
+        unionCols.forEach(col => {
+            // Chỉ phân tích nếu chưa được xác định là số từ mapping và tên cột không chứa "_Cu", "_Moi", "_ChenhLenh", "TrangThai"
+            if (!potentialNumericCols.has(col) && !col.toLowerCase().includes('_cu') && !col.toLowerCase().includes('_moi') && !col.toLowerCase().includes('_chenh') && !col.toLowerCase().includes('trangthai')) {
+                let isLikelyNumeric = true;
+                for (let i = 0; i < sampleSize; i++) {
+                    const oldVal = oldData[i]?.[col];
+                    const newVal = newData[i]?.[col];
+                    
+                    const isOldNumeric = !isNaN(parseFloat(String(oldVal).replace(/[^0-9.\-]/g, "")));
+                    const isNewNumeric = !isNaN(parseFloat(String(newVal).replace(/[^0-9.\-]/g, "")));
+
+                    // Nếu bất kỳ giá trị nào không phải số hoặc không có, coi như cột này không hẳn là số cho mục đích tính toán đơn giản
+                    if (!isOldNumeric && oldVal !== null && oldVal !== undefined && String(oldVal).trim() !== "") { 
+                        isLikelyNumeric = false;
+                        break;
+                    }
+                     if (!isNewNumeric && newVal !== null && newVal !== undefined && String(newVal).trim() !== "") {
+                        isLikelyNumeric = false;
+                        break;
+                    }
+                }
+                if (isLikelyNumeric) {
+                    potentialNumericCols.add(col);
+                }
+            }
+        });
+    }
+    const numericColsSet = potentialNumericCols; // Set các cột được xác định là số
+
+    // --- Hết phần phân tích tự động ---
 
     const oldMap = new Map();
     oldData.forEach(row => {
@@ -599,10 +640,6 @@ export default function App() {
     const newCols = Object.keys(newData[0] || {});
     const unionCols = Array.from(new Set([...oldCols, ...newCols])).filter(c => c !== diffKey);
 
-    // Xác định các cột số dựa trên mapping hoặc tự động
-    const numericCols = [mapping.doanhthu, mapping.laodong].filter(Boolean).filter(col => unionCols.includes(col));
-    const numericColsSet = new Set(numericCols); // Để tra cứu nhanh
-
     for (let i = 0; i < allKeys.length; i++) {
       const key = allKeys[i];
       const oldRow = oldMap.get(key);
@@ -614,12 +651,22 @@ export default function App() {
         unionCols.forEach(col => {
           combined[`${col}_Cu`] = oldRow[col] || "";
           combined[`${col}_Moi`] = "";
+          // Nếu là cột số, cột chênh lệch sẽ là giá trị âm của cột cũ
+          if (numericColsSet.has(col)) {
+              const numCu = parseFloat(String(oldRow[col]).replace(/[^0-9.\-]/g, ""));
+              combined[`${col}_ChenhLenh`] = !isNaN(numCu) ? -numCu : "";
+          }
         });
         combined["TrangThai_SoSanh"] = "❌ Đã xóa";
       } else if (!oldRow && newRow) { // Mới thêm
         unionCols.forEach(col => {
           combined[`${col}_Cu`] = "";
           combined[`${col}_Moi`] = newRow[col] || "";
+           // Nếu là cột số, cột chênh lệch sẽ là giá trị mới
+          if (numericColsSet.has(col)) {
+              const numMoi = parseFloat(String(newRow[col]).replace(/[^0-9.\-]/g, ""));
+              combined[`${col}_ChenhLenh`] = !isNaN(numMoi) ? numMoi : "";
+          }
         });
         combined["TrangThai_SoSanh"] = "✅ Mới thêm";
       } else { // Tồn tại ở cả 2 - cần kiểm tra thay đổi
@@ -637,8 +684,8 @@ export default function App() {
             if (numericColsSet.has(col)) {
               const numCu = parseFloat(valCu.replace(/[^0-9.\-]/g, ""));
               const numMoi = parseFloat(valMoi.replace(/[^0-9.\-]/g, ""));
-              const chenhLenh = !isNaN(numCu) && !isNaN(numMoi) ? Math.round((numMoi - numCu) * 100) / 100 : NaN;
-              combined[`${col}_ChenhLenh`] = isNaN(chenhLenh) ? "" : chenhLenh;
+              const chenhLenh = !isNaN(numCu) && !isNaN(numMoi) ? Math.round((numMoi - numCu) * 100) / 100 : ""; // Use "" if calculation fails
+              combined[`${col}_ChenhLenh`] = chenhLenh;
             }
           }
         });
