@@ -33,8 +33,9 @@ import {
   getSectorHierarchy, 
   smartSuggestSectorByDescription,
   getSectorLevel,
-  getParentSectorCode
-} from "./data/vsic";
+  getParentSectorCode,
+  formatVSICName // Import thêm hàm này để chuẩn hóa tên ngành
+} from "./data/vsic"; // Giả định file vsic.ts nằm ở đây
 
 // Interface define
 interface ColumnMapping {
@@ -223,7 +224,12 @@ export default function App() {
             return {
               originalName: c,
               use: true,
-              newName: c, // giữ nguyên tên ban đầu, cho phép người dùng sửa đổi trực tiếp
+              newName: c === "MoTa" ? "Mô Tả Hoạt Động" :
+                       c === "MaNganhDTV" ? "Mã Ngành Đăng Ký" :
+                       c === "Xa" ? "Địa bàn (Xã)" :
+                       c === "DoanhThu" ? "Doanh Thu" :
+                       c === "LaoDong" ? "Tổng số Lao Động" :
+                       c === "MaST" ? "Mã Số Thuế" : c,
               role
             };
           });
@@ -562,7 +568,7 @@ export default function App() {
     const groups = new Map<string, any[]>();
     mainData.forEach(row => {
       const val = String(row[splitCol] || "Rong").trim();
-      const safeVal = val.replace(/[^a-zA-Z0-9_\-À-ỹ\s]/g, "");
+      const safeVal = val.replace(/[^a-zA-Z0-9_\-À-ỹ\s]/g, ""); // Replace invalid chars for filename
       if (!groups.has(safeVal)) {
         groups.set(safeVal, []);
       }
@@ -692,7 +698,7 @@ export default function App() {
         const colValues = rows.map(r => r[col]).filter(v => v !== undefined && v !== null && v !== "");
         const numValues = colValues.map(v => Number(v)).filter(v => !isNaN(v));
 
-        let calcVal: number = 0;
+        let calcVal: number | string = 0; // Thay đổi kiểu trả về để handle string count/nunique
         const colHeader = `${col}_${op}`;
 
         if (op === "count") {
@@ -727,6 +733,7 @@ export default function App() {
     setMainData(summaryRows);
     setColumns(Object.keys(summaryRows[0] || {}));
     setFileName(`BaoCaoTongHop_${fileName}`);
+
     setProgress(100);
     setStatusMessage(`Báo cáo tổng hợp nhóm hoàn tất thành công! Tạo thành ${summaryRows.length} dòng báo cáo.`);
     await sleep(400);
@@ -752,34 +759,42 @@ export default function App() {
 
     // Gom dữ liệu mỏng và phân tách bằng bộ nhớ mã ngành chuẩn
     const processedData = mainData.map(row => {
-      const mng = normalizeSectorCode(row[mapping.manganh]);
+      const mngRaw = row[mapping.manganh];
+      const mng = normalizeSectorCode(mngRaw);
       
+      // Lấy thông tin cấp 5, cấp 2, cấp 1
+      const hierarchy = getSectorHierarchy(mng);
+      const cap5Info = hierarchy["5"];
+      const cap2Info = hierarchy["2"];
+      const cap1Info = hierarchy["1"];
+
+      // Tên ngành cấp 5, cấp 2, cấp 1
+      const tenNganhCap5 = cap5Info?.ten || (mng ? `[Không tìm thấy tên Cấp 5 cho mã ${mng}]` : "[Mã ngành rỗng]");
+      const tenNganhCap2 = cap2Info?.ten || (mng && mng.length >= 2 ? `[Không tìm thấy tên Cấp 2 cho mã ${mng.slice(0, 2)}]` : "[Ngành cấp 2 chưa xác định]");
+      const tenNganhCap1 = cap1Info?.ten || (mng && mng.length >= 1 ? `[Không tìm thấy tên Cấp 1 cho mã ${mng[0]}]` : "[Ngành cấp 1 chưa xác định]");
+
+      // Tạo nhãn ngành dựa trên cấp độ yêu cầu
       let tenNganhLabel = "";
       if (level === 2) {
-        // Tách 2 chữ số đầu của cột mã ngành do người dùng chỉ định
+        // Lấy 2 số đầu của cột mã ngành do người dùng chỉ định
         const sec2Code = mng ? mng.slice(0, 2) : "";
-        // Tra cứu trong bộ nhớ tên của mã ngành cấp 2
-        const sec2Name = vsicRawData[sec2Code] || "Ngành cấp 2 chưa định nghĩa";
-        tenNganhLabel = sec2Code ? `${sec2Code} - ${sec2Name}` : "Chưa xác định - Ngành cấp 2 chưa định nghĩa";
+        tenNganhLabel = sec2Code ? `${sec2Code} - ${tenNganhCap2}` : `[Chưa xác định - Cấp 2]`;
       } else {
         // level === 1 (Quá trình quy nạp cấp 1)
-        let sec1Code = "";
-        if (mng) {
-          if (/^[a-zA-Z]$/.test(mng)) {
-            sec1Code = mng.toUpperCase();
-          } else {
-            const sec2Code = mng.slice(0, 2);
-            sec1Code = getParentSectorCode(sec2Code) || "";
-          }
-        }
-        const sec1Name = vsicRawData[sec1Code] || "Ngành cấp 1 chưa định nghĩa";
-        tenNganhLabel = sec1Code ? `${sec1Code} - ${sec1Name}` : "Chưa xác định - Ngành cấp 1 chưa định nghĩa";
+        const sec1Code = cap1Info?.ma || "";
+        tenNganhLabel = sec1Code ? `${sec1Code} - ${tenNganhCap1}` : "[Chưa xác định - Cấp 1]";
       }
 
       return {
         ...row,
-        _temNganhCap: tenNganhLabel,
-        _tempXa: String(row[mapping.xa] || "Khác").trim()
+        _tenNganhCap1: tenNganhCap1, // Tên ngành Cấp 1
+        _tenNganhCap2: tenNganhCap2, // Tên ngành Cấp 2
+        _tenNganhCap5: tenNganhCap5, // Tên ngành Cấp 5
+        _maNganhCap1: cap1Info?.ma || "", // Mã ngành Cấp 1
+        _maNganhCap2: cap2Info?.ma || "", // Mã ngành Cấp 2
+        _maNganhCap5: mng, // Mã ngành Cấp 5 đã chuẩn hóa
+        _tenNganhLabel: tenNganhLabel, // Nhãn ngành hiển thị cho cấp độ báo cáo
+        _tempXa: String(row[mapping.xa] || "Khác").trim() // Địa bàn Xã đã chuẩn hóa
       };
     });
 
@@ -790,7 +805,7 @@ export default function App() {
       await sleep(150);
 
       const communes = Array.from(new Set(processedData.map(r => r._tempXa))).sort();
-      const sectorLabels = Array.from(new Set(processedData.map(r => r._temNganhCap))).sort();
+      const sectorLabels = Array.from(new Set(processedData.map(r => r._tenNganhLabel))).sort(); // Sử dụng nhãn ngành đã tạo
 
       communes.forEach((commune, cIdx) => {
         const communeObj: any = {
@@ -801,8 +816,9 @@ export default function App() {
         let totalCommuneDoanhThu = 0;
         let totalCommuneLaoDong = 0;
 
-        sectorLabels.forEach(sector => {
-          const matchedRows = processedData.filter(r => r._tempXa === commune && r._temNganhCap === sector);
+        sectorLabels.forEach(sectorLabel => {
+          // Lọc các dòng thuộc về xã hiện tại và có nhãn ngành tương ứng
+          const matchedRows = processedData.filter(r => r._tempXa === commune && r._tenNganhLabel === sectorLabel);
           let sumDoanhThu = 0;
           let sumLaoDong = 0;
 
@@ -818,8 +834,8 @@ export default function App() {
           });
 
           // Hiển thị kề nhau 2 cột Tổng Doanh Thu và Tổng Lao Động cho đúng ngành
-          communeObj[`${sector} - Tổng Doanh Thu`] = Math.round(sumDoanhThu * 100) / 100;
-          communeObj[`${sector} - Tổng Lao Động`] = Math.round(sumLaoDong);
+          communeObj[`${sectorLabel} - Tổng Doanh Thu`] = Math.round(sumDoanhThu * 100) / 100;
+          communeObj[`${sectorLabel} - Tổng Lao Động`] = Math.round(sumLaoDong);
 
           totalCommuneDN += matchedRows.length;
           totalCommuneDoanhThu += sumDoanhThu;
@@ -836,7 +852,16 @@ export default function App() {
       // Gom nhóm phẳng truyền thống
       const groups = new Map<string, any[]>();
       processedData.forEach(row => {
-        const key = JSON.stringify({ Ngành: row._temNganhCap, Xã: row._tempXa });
+        // Sử dụng các trường ngành đã được chuẩn hóa để tạo khóa gom nhóm
+        const key = JSON.stringify({
+          Ngành_Cấp_1: row._tenNganhCap1,
+          Mã_Ngành_Cấp_1: row._maNganhCap1,
+          Ngành_Cấp_2: row._tenNganhCap2,
+          Mã_Ngành_Cấp_2: row._maNganhCap2,
+          Ngành_Cấp_5: row._tenNganhCap5,
+          Mã_Ngành_Cấp_5: row._maNganhCap5,
+          Địa_Bàn_Xã: row._tempXa
+        });
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key)?.push(row);
       });
@@ -861,8 +886,10 @@ export default function App() {
         });
 
         finalReportRows.push({
-          [`Ngành_Cấp_${level}`]: dims.Ngành,
-          "Địa_Bàn_Xã": dims.Xã,
+          [`Ngành_Cấp_${level}`]: dims.Ngành_Cấp_1, // Hiển thị tên ngành dựa trên cấp độ báo cáo
+          "Mã_Ngành_Cấp_Báo_Cáo": level === 1 ? dims.Mã_Ngành_Cấp_1 : dims.Mã_Ngành_Cấp_2, // Mã ngành tương ứng với cấp độ báo cáo
+          "Tên_Ngành_Cấp_Báo_Cáo": level === 1 ? dims.Ngành_Cấp_1 : dims.Ngành_Cấp_2, // Tên ngành tương ứng
+          "Địa_Bàn_Xã": dims.Địa_Bàn_Xã,
           "Số_Lượng_Doanh_Nghiệp": rowsObj.length,
           "Tổng_Doanh_Thu_Tích_Lũy": Math.round(sumDoanhThu * 100) / 100,
           "Tổng_Lao_Động_Hợp_Lực": Math.round(sumLaoDong)
@@ -903,7 +930,8 @@ export default function App() {
     for (let index = 0; index < mainData.length; index++) {
       const row = mainData[index];
       const motaVal = String(row[mapping.mota] || "").trim();
-      const maDtvVal = normalizeSectorCode(row[mapping.manganh]);
+      const maNganhRaw = row[mapping.manganh]; // Lấy mã ngành gốc từ cột được mapping
+      const maDtvVal = normalizeSectorCode(maNganhRaw); // Chuẩn hóa mã ngành
 
       // Phân cấp mã ngành ĐTV đăng ký
       const hier = getSectorHierarchy(maDtvVal);
@@ -918,13 +946,13 @@ export default function App() {
       let goiyTen = "";
       let diemTuongDong = "0.00";
       let giaiThich = "";
-      let linhvucSuggest = "";
+      let linhvucSuggest = ""; // Lĩnh vực cấp 1 gợi ý từ AI/Matcher
 
       if (useAI) {
         // Thực hiện cuộc gọi Gemini API Server proxy
         setStatusMessage(`[Phân tích AI] Đang dịch nghĩa dòng ${index + 1}/${mainData.length}: "${motaVal.slice(0, 30)}..."`);
         try {
-          const res = await fetch("/api/gemini/analyze", {
+          const res = await fetch("/api/gemini/analyze", { // Giả định có API endpoint /api/gemini/analyze
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ description: motaVal })
@@ -933,37 +961,39 @@ export default function App() {
           if (data && !data.error) {
             goiyMa = normalizeSectorCode(data.goiy_ma);
             goiyTen = data.goiy_ten || "";
-            linhvucSuggest = data.cap_1_tin_cay || "";
+            linhvucSuggest = data.cap_1_tin_cay || ""; // Lĩnh vực gợi ý từ AI
             giaiThich = data.giai_thich || "";
-            diemTuongDong = "0.95"; // Ước lượng độ tinh cậy AI
+            diemTuongDong = "0.95"; // Ước lượng độ tin cậy AI
           } else {
             // Trục trặc hoặc chưa cấu hình API key -> fall back qua Smart Matcher cục bộ
             const local = smartSuggestSectorByDescription(motaVal);
             if (local) {
-              goiyMa = local.ma;
+              goiyMa = normalizeSectorCode(local.ma);
               goiyTen = local.ten;
               diemTuongDong = local.diem.toFixed(2);
               giaiThich = `Mô hình cục bộ đề xuất phân nhóm (AI Server fallback)`;
+              linhvucSuggest = getSectorHierarchy(goiyMa)["1"]?.ma || "";
             }
           }
         } catch (e) {
-          // Fall back
+          // Fall back nếu có lỗi mạng
           const local = smartSuggestSectorByDescription(motaVal);
           if (local) {
-            goiyMa = local.ma;
+            goiyMa = normalizeSectorCode(local.ma);
             goiyTen = local.ten;
             diemTuongDong = local.diem.toFixed(2);
             giaiThich = `Mô hình cục bộ đề xuất phân nhóm (Network error fallback)`;
+            linhvucSuggest = getSectorHierarchy(goiyMa)["1"]?.ma || "";
           }
         }
       } else {
         // Chạy hoàn toàn bằng thuật toán so khớp từ khóa tiếng Việt thông minh siêu tốc (Smart Matcher)
         const local = smartSuggestSectorByDescription(motaVal);
         if (local) {
-          goiyMa = local.ma;
+          goiyMa = normalizeSectorCode(local.ma);
           goiyTen = local.ten;
           diemTuongDong = local.diem.toFixed(2);
-          giaiThich = `Khớp từ khóa thông minh thành công dạt hiệu số tích hợp`;
+          giaiThich = `Khớp từ khóa thông minh thành công đạt hiệu số tích hợp`;
           
           const sugHier = getSectorHierarchy(goiyMa);
           linhvucSuggest = sugHier["1"]?.ma || "";
@@ -971,19 +1001,23 @@ export default function App() {
       }
 
       // Đọc trong danh mục bộ nhớ chuẩn mã ngành cấp 5 của DTV nhập
-      const stdCap5Ten = vsicRawData[maDtvVal] || "";
+      const stdCap5Ten = vsicRawData[maDtvVal] || `[Không tìm thấy tên ngành Cấp 5 cho mã ${maDtvVal}]`;
+      
+      // Lấy tên ngành Cấp 2 và Cấp 1 đã chuẩn hóa
+      const stdCap2Ten = cap2Info?.ten || `[Không tìm thấy tên ngành Cấp 2 cho mã ${maDtvVal?.slice(0, 2)}]`;
+      const stdCap1Ten = cap1Info?.ten || `[Không tìm thấy tên ngành Cấp 1 cho mã ${maDtvVal?.[0]}]`;
 
       // Đánh giá Trạng thái logic khớp mã
       let trangThai = "✅ Hợp lệ";
-
-      // Lấy cấp 1 thực tế của DN đăng ký
+      
+      // Lấy mã lĩnh vực cấp 1 từ mã đăng ký
       const dtvLinhVuc = cap1Info?.ma || "";
 
       // Phân tích đối chiếu tương đồng và phát hiện sai lệch thực tế theo mẫu ĐTV ghi
       const lcMota = motaVal.toLowerCase();
       
-      const hasTradeKeywords = ["bán", "mua", "thương mại", "đại lý", "cửa hàng", "phân phối", "wholesale", "retail", "shop"].some(kw => lcMota.includes(kw));
-      const hasIndustrialKeywords = ["sản xuất", "gia công", "chế tạo", "làm mộc", "chế biến", "lắp ráp", "chế tác", "luyện kim", "nhà xưởng", "nhà máy"].some(kw => lcMota.includes(kw));
+      const hasTradeKeywords = ["bán", "mua", "thương mại", "đại lý", "cửa hàng", "phân phối", "wholesale", "retail", "shop", "kinh doanh", "buôn bán", "bán lẻ"].some(kw => lcMota.includes(kw));
+      const hasIndustrialKeywords = ["sản xuất", "gia công", "chế tạo", "làm mộc", "chế biến", "lắp ráp", "chế tác", "luyện kim", "nhà xưởng", "nhà máy", "cơ khí", "dệt", "may", "in ấn"].some(kw => lcMota.includes(kw));
 
       // Nhận diện mã ngành Công nghiệp: Cấp hai từ 10 tới 33 hoặc là thuộc nhóm C (Công nghiệp chế biến chế tạo)
       const activeSub2 = maDtvVal ? maDtvVal.slice(0, 2) : "";
@@ -993,9 +1027,9 @@ export default function App() {
       if (!vsicRawData[maDtvVal]) {
         trangThai = "❌ Lỗi: Mã ngành ĐTV không tồn tại trên danh mục VSIC chuẩn";
       } else if (hasTradeKeywords && !hasIndustrialKeywords && isIndustrialCode) {
-        trangThai = "❌ Lỗi: Ghi ngành thương mại/đại lý bán lẻ nhưng gán mã ngành Công nghiệp (Bắt đầu bằng 10-33, Nhóm C)";
-      } else if (hasIndustrialKeywords && !isIndustrialCode) {
-        trangThai = "❌ Lỗi: Ghi ngành Sản xuất/Gia công/Làm mộc nhưng lại gán mã ngành dịch vụ/thương mại (không phải công nghiệp)";
+        trangThai = "❌ Lỗi: Mô tả hoạt động nghiêng về Thương mại/Bán lẻ nhưng Mã đăng ký lại thuộc nhóm Công nghiệp (Cấp 2: 10-33, hoặc nhóm C)";
+      } else if (hasIndustrialKeywords && !isIndustrialCode && dtvLinhVuc !== "C") { // Kiểm tra thêm nếu mã DTV không phải nhóm C
+        trangThai = "❌ Lỗi: Mô tả hoạt động nghiêng về Sản xuất/Công nghiệp nhưng Mã đăng ký lại thuộc nhóm ngoài Công nghiệp (không phải nhóm C và cấp 2 không phải 10-33)";
       } else if (linhvucSuggest && dtvLinhVuc && linhvucSuggest !== dtvLinhVuc) {
         trangThai = `❌ Lỗi (LỆCH LĨNH VỰC): Mô tả hoạt động kinh doanh thiên về Nhóm [${linhvucSuggest}] nhưng Mã đăng ký thuộc Nhóm [${dtvLinhVuc}]`;
       } else if (goiyMa && parseFloat(diemTuongDong) > 0.6) {
@@ -1005,29 +1039,25 @@ export default function App() {
         const sugCap2 = sugHier["2"]?.ma || "";
 
         if (regCap2 && sugCap2 && regCap2 !== sugCap2) {
-          trangThai = `⚠️ Cảnh báo (LỆCH CHI TIẾT CẤP 2): Hệ thống gợi ý mã [${goiyMa}] (${sugHier["2"]?.ten}), đăng ký thực nhập mã [${maDtvVal}]`;
+          trangThai = `⚠️ Cảnh báo (LỆCH CHI TIẾT CẤP 2): Hệ thống gợi ý mã [${goiyMa}] (${sugHier["2"]?.ten}), nhưng đăng ký thực tế mã [${maDtvVal}]`;
         }
       }
 
       standardizedResults.push({
         ...row,
-        "Hiệu_Chỉnh_ĐTV_Ghi": motaVal,
-        "Tên_Ngành_Cấp_5_Chuẩn_VSIC": stdCap5Ten, // Đặt cạnh tên ngành ĐTV ghi
-        "TrangThai_KiemTra_VSIC": trangThai,
-        "Goiy_MaNganh_GoiY": goiyMa,
-        "Goiy_TenNganh_GoiY": goiyTen,
-        "Do_Tin_Cay_Matcher": diemTuongDong,
-        "Giai_Thich_Phan_Tich": giaiThich,
-        "Nganh_Cap_1": cap1Info?.ma || "",
-        "Ten_Nganh_Cap_1": cap1Info?.ten || "",
-        "Nganh_Cap_2": cap2Info?.ma || "",
-        "Ten_Nganh_Cap_2": cap2Info?.ten || "",
-        "Nganh_Cap_3": cap3Info?.ma || "",
-        "Ten_Nganh_Cap_3": cap3Info?.ten || "",
-        "Nganh_Cap_4": cap4Info?.ma || "",
-        "Ten_Nganh_Cap_4": cap4Info?.ten || "",
-        "Nganh_Cap_5": maDtvVal,
-        "Ten_Nganh_Cap_5": cap5Info?.ten || stdCap5Ten
+        "Mã_Ngành_Đăng_Ký_Chuẩn": maDtvVal, // Mã ngành đã chuẩn hóa
+        "Tên_Ngành_Cấp_5_VSIC": stdCap5Ten, // Tên ngành Cấp 5 chuẩn
+        "Mã_Ngành_Cấp_2": cap2Info?.ma || "", // Mã ngành Cấp 2
+        "Tên_Ngành_Cấp_2": stdCap2Ten, // Tên ngành Cấp 2
+        "Mã_Ngành_Cấp_1": cap1Info?.ma || "", // Mã ngành Cấp 1
+        "Tên_Ngành_Cấp_1": stdCap1Ten, // Tên ngành Cấp 1
+        "Trạng_Thái_Kiểm_Tra_VSIC": trangThai, // Trạng thái kiểm tra logic
+        "Mô_Tả_Hoạt_Động": motaVal, // Mô tả hoạt động (để cạnh tên ngành)
+        "Mã_Ngành_Gợi_Ý_AI": goiyMa, // Mã ngành gợi ý từ AI/Matcher
+        "Tên_Ngành_Gợi_Ý": goiyTen, // Tên ngành gợi ý
+        "Độ_Tin_Cậy_Matcher": diemTuongDong, // Độ tin cậy của gợi ý
+        "Giải_Thích_Phân_Tích": giaiThich, // Giải thích từ AI/Matcher
+        "Lĩnh_Vực_KD_Gợi_Ý": linhvucSuggest // Lĩnh vực gợi ý (Cấp 1)
       });
 
       // Chỉ nghỉ ngắn để UI giữ responsive và mượt mà
@@ -1044,7 +1074,7 @@ export default function App() {
     setFileName(`ChuanHoaNganh_VSIC_${fileName}`);
 
     setProgress(100);
-    setStatusMessage(`Phân tích & Chuẩn hóa hoàn tất! Đã rà soát và phân tách 5 cấp cho ${standardizedResults.length} dòng dữ liệu.`);
+    setStatusMessage(`Phân tích & Chuẩn hóa hoàn tất! Đã rà soát và phân tách thông tin ngành cho ${standardizedResults.length} dòng dữ liệu.`);
     await sleep(400);
     setLoading(false);
     setActiveTab("xemdulieu");
@@ -1145,7 +1175,7 @@ export default function App() {
         ...row,
         "Loi_Logic": biViPham 
           ? (existingLoi ? existingLoi + noteLoi : noteLoi) 
-          : (existingLoi || "✅ Đạt")
+          : (existingLoi || "✅ Đạt") // Ghi đè nếu không có lỗi logic trước đó
       };
     });
 
@@ -2161,7 +2191,9 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-500 italic">Vui lòng nạp dữ liệu nguồn chính trước...</div>
+                    <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
+                      ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước!
+                    </div>
                   )}
                 </div>
 
@@ -2201,10 +2233,10 @@ export default function App() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       
                       {/* CÁCH 1: ALGORITHM MATCHER - SIÊU TỐC */}
-                      <div className="bg-[#111827] rounded-xl p-5 border border-gray-800 flex flex-col justify-between">
+                      <div className="bg-[#111827] rounded-xl p-5 border border-emerald-500/10 flex flex-col justify-between">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <span className="bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded-md">Khuyên dùng</span>
+                            <span className="bg-emerald-950/50 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded-md">Khuyên dùng</span>
                             <h4 className="text-sm font-bold text-white">Cách 1: Thuật toán so khớp thông minh (Siêu tốc 100% Offline)</h4>
                           </div>
                           <p className="text-xs text-gray-400 leading-relaxed font-sans">
@@ -2213,232 +2245,4 @@ export default function App() {
                         </div>
                         <button 
                           onClick={() => handleStandardizeSectors(false)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all w-full mt-6 shadow-md shadow-emerald-900/10 cursor-pointer"
-                        >
-                          Chạy nhanh bằng thuật toán thông minh
-                        </button>
-                      </div>
-
-                      {/* CÁCH 2: GEMINI API SERVER-SIDE PROXY */}
-                      <div className="bg-[#111827] rounded-xl p-5 border border-[#374151] flex flex-col justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="bg-indigo-950/40 border border-indigo-500/30 text-indigo-400 font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded-md">Trí tuệ nhân tạo</span>
-                            <h4 className="text-sm font-bold text-white">Cách 2: Giải pháp phân tích lập luận Gemini 3.5 AI</h4>
-                          </div>
-                          <p className="text-xs text-gray-400 leading-relaxed font-sans">
-                            Hệ thống sẽ gửi mô tả hoạt động qua cổng dịch vụ an toàn (server-side secrets) của Gemini 3.5 Flash để dịch hoạt động, suy luận logic lĩnh vực chuẩn xác và lý giải nguyên nhân tự nhiên. Thích hợp cho mẫu dữ liệu nhỏ hoặc muốn rà soát chiều sâu tinh xảo.
-                          </p>
-                        </div>
-                        
-                        <button 
-                          onClick={() => handleStandardizeSectors(true)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all w-full mt-6 shadow-md shadow-indigo-900/10 cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <Brain className="w-4 h-4 text-pink-400" /> Chạy bằng Trí Tuệ Nhân Tạo (Gemini 3.5 API)
-                        </button>
-                      </div>
-
-                    </div>
-
-                  </div>
-                ) : (
-                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
-                    ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước!
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 8. TAB CỖ MÁY KIỂM TRA LOGIC ĐA ĐIỀU KIỆN */}
-          {activeTab === "kiemtralogic" && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
-                <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <CheckSquare className="w-5 h-5 text-emerald-400" /> CỖ MÁY KIỂM TRA LOGIC ĐA CHỈ TIÊU (RULE ENGINE)
-                  </h3>
-                  <p className="text-xs text-gray-400">Tạo ra các quy tắc ràng buộc rà quét dữ liệu dạng: NẾU thỏa mãn (Điều kiện bước 1) THÌ PHẢI bắt buộc thỏa mãn (Điều kiện bước 2). Hệ thống tự rà rà soát và ghi chú dòng sai phạm vào cột "Loi_Logic".</p>
-                </div>
-
-                {mainData.length > 0 ? (
-                  <div className="space-y-6 border-t border-gray-800 pt-6">
-                    
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      
-                      {/* ĐIỀU KIỆN 1: BƯỚC NẾU */}
-                      <div className="bg-[#111827] rounded-xl p-5 border border-indigo-500/10 space-y-4">
-                        <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider font-mono">BƯỚC 1: ĐIỀU KIỆN NẾU (IF CONDITIONS)</div>
-                        <p className="text-[11px] text-gray-400">Thiết lập các điều kiện để tìm mục tiêu cần kiểm tra rà soát:</p>
-                        
-                        <div className="grid grid-cols-3 gap-2">
-                          <select 
-                            value={newIfRule.col} 
-                            onChange={(e) => setNewIfRule({ ...newIfRule, col: e.target.value })}
-                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                          >
-                            <option value="">Cột</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                          
-                          <select 
-                            value={newIfRule.op} 
-                            onChange={(e) => setNewIfRule({ ...newIfRule, op: e.target.value })}
-                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                          >
-                            <option value="==">bằng (==)</option>
-                            <option value="!=">khác (!=)</option>
-                            <option value=">">lớn hơn (&gt;)</option>
-                            <option value="<">nhỏ hơn (&lt;)</option>
-                            <option value=">=">lớn hơn bằng (&gt;=)</option>
-                            <option value="<=">nhỏ hơn bằng (&lt;=)</option>
-                            <option value="chứa">chứa (string)</option>
-                            <option value="không chứa">không chứa (string)</option>
-                            <option value="trống">để rỗng (empty)</option>
-                            <option value="không trống">có dữ liệu</option>
-                          </select>
-
-                          {newIfRule.op !== "trống" && newIfRule.op !== "không trống" && (
-                            <input 
-                              type="text"
-                              placeholder="Giá trị..."
-                              value={newIfRule.val}
-                              onChange={(e) => setNewIfRule({ ...newIfRule, val: e.target.value })}
-                              className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                            />
-                          )}
-                        </div>
-
-                        <button 
-                          onClick={() => handleLogicRuleAdd("if")}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-all w-full cursor-pointer"
-                        >
-                          Thêm dòng NẾU
-                        </button>
-
-                        <div className="space-y-1 max-h-[140px] overflow-y-auto border-t border-gray-800 pt-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-gray-400">QUY TẮC "NẾU" HIỆN TẠI:</span>
-                            <div className="flex gap-2 text-[10px]">
-                              <label className="flex items-center gap-1 text-gray-300">
-                                <input type="radio" checked={ifCombine === "AND"} onChange={() => setIfCombine("AND")} className="scale-75" /> VÀ (AND)
-                              </label>
-                              <label className="flex items-center gap-1 text-gray-300">
-                                <input type="radio" checked={ifCombine === "OR"} onChange={() => setIfCombine("OR")} className="scale-75" /> HOẶC (OR)
-                              </label>
-                            </div>
-                          </div>
-                          {ifRules.length === 0 ? (
-                            <div className="text-[11px] text-gray-500 italic">Chưa dựng quy tắc...</div>
-                          ) : (
-                            ifRules.map((rule, idx) => (
-                              <div key={idx} className="flex justify-between items-center bg-[#181d29] px-3 py-1.5 rounded-lg border border-gray-800 text-xs text-gray-300">
-                                <span>{rule.col} {rule.op} {rule.op !== "trống" && rule.op !== "không trống" ? `'${rule.val}'` : ""}</span>
-                                <button onClick={() => setIfRules(ifRules.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 cursor-pointer">X</button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                      {/* ĐIỀU KIỆN 2: BƯỚC THÌ PHẢI */}
-                      <div className="bg-[#111827] rounded-xl p-5 border border-emerald-500/10 space-y-4">
-                        <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono">BƯỚC 2: THÌ BẮT BUỘC PHẢI (THEN MUST CONDITIONS)</div>
-                        <p className="text-[11px] text-gray-400">Nếu thỏa mãn Bước 1, thì dữ liệu bắt buộc PHẢI đạt tất cả ràng buộc sau:</p>
-                        
-                        <div className="grid grid-cols-3 gap-2">
-                          <select 
-                            value={newThenRule.col} 
-                            onChange={(e) => setNewThenRule({ ...newThenRule, col: e.target.value })}
-                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                          >
-                            <option value="">Cột</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                          
-                          <select 
-                            value={newThenRule.op} 
-                            onChange={(e) => setNewThenRule({ ...newThenRule, op: e.target.value })}
-                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                          >
-                            <option value="==">bằng (==)</option>
-                            <option value="!=">khác (!=)</option>
-                            <option value=">">lớn hơn (&gt;)</option>
-                            <option value="<">nhỏ hơn (&lt;)</option>
-                            <option value=">=">lớn hơn bằng (&gt;=)</option>
-                            <option value="<=">nhỏ hơn bằng (&lt;=)</option>
-                            <option value="chứa">chứa (string)</option>
-                            <option value="không chứa">không chứa (string)</option>
-                            <option value="trống">để rỗng (empty)</option>
-                            <option value="không trống">có dữ liệu</option>
-                          </select>
-
-                          {newThenRule.op !== "trống" && newThenRule.op !== "không trống" && (
-                            <input 
-                              type="text"
-                              placeholder="Giá trị..."
-                              value={newThenRule.val}
-                              onChange={(e) => setNewThenRule({ ...newThenRule, val: e.target.value })}
-                              className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                            />
-                          )}
-                        </div>
-
-                        <button 
-                          onClick={() => handleLogicRuleAdd("then")}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-all w-full cursor-pointer"
-                        >
-                          Thêm dòng THÌ PHẢI
-                        </button>
-
-                        <div className="space-y-1 max-h-[140px] overflow-y-auto border-t border-gray-800 pt-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-gray-400">QUY TẮC "THÌ PHẢI" HIỆN TẠI:</span>
-                            <div className="flex gap-2 text-[10px]">
-                              <label className="flex items-center gap-1 text-gray-300">
-                                <input type="radio" checked={thenCombine === "AND"} onChange={() => setThenCombine("AND")} className="scale-75" /> VÀ (AND)
-                              </label>
-                              <label className="flex items-center gap-1 text-gray-300">
-                                <input type="radio" checked={thenCombine === "OR"} onChange={() => setThenCombine("OR")} className="scale-75" /> HOẶC (OR)
-                              </label>
-                            </div>
-                          </div>
-                          {thenRules.length === 0 ? (
-                            <div className="text-[11px] text-gray-500 italic">Chưa dựng quy tắc...</div>
-                          ) : (
-                            thenRules.map((rule, idx) => (
-                              <div key={idx} className="flex justify-between items-center bg-[#15241e] px-3 py-1.5 rounded-lg border border-gray-800 text-xs text-gray-300">
-                                <span>{rule.col} {rule.op} {rule.op !== "trống" && rule.op !== "không trống" ? `'${rule.val}'` : ""}</span>
-                                <button onClick={() => setThenRules(thenRules.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 cursor-pointer">X</button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                    </div>
-
-                    <button 
-                      onClick={handleLogicCheck}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all w-full flex items-center justify-center gap-2 cursor-pointer shadow-md"
-                    >
-                      <CheckSquare className="w-5 h-5 text-purple-300" /> BẮT ĐẦU CHẠY KIỂM TRA LỌC LOGIC ĐA QUY TẮC
-                    </button>
-
-                  </div>
-                ) : (
-                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
-                    ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước!
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-        </main>
-      </div>
-
-    </div>
-  );
-}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all w-full mt-6 shadow-md shadow-emerald-900/10 cursor-pointer
