@@ -565,7 +565,14 @@ export default function App() {
 
 // 2. CHỨC NĂNG SO SÁNH CŨ - MỚI (DIFF)
   const handleCompare = async () => {
-    // ... (kiểm tra file và diffKey giữ nguyên) ...
+    if (!oldData.length || !newData.length) {
+        alert("Vui lòng tải lên cả hai tệp dữ liệu cũ và mới để so sánh.");
+        return;
+    }
+    if (!diffKey) {
+        alert("Vui lòng chọn cột khóa để đối chiếu.");
+        return;
+    }
 
     setLoading(true);
     setProgress(0);
@@ -584,11 +591,13 @@ export default function App() {
     });
 
     // Nếu chưa đủ, thử phân tích thêm các cột khác từ unionCols
+    const oldCols = Object.keys(oldData[0] || {});
+    const newCols = Object.keys(newData[0] || {});
+    const unionCols = Array.from(new Set([...oldCols, ...newCols])).filter(c => c !== diffKey); // Lấy tất cả cột trừ khóa
+
     if (potentialNumericCols.size < 3 && unionCols.length > 0) { // Giới hạn phân tích thêm để tránh tốn thời gian
         const sampleSize = Math.min(100, oldData.length, newData.length); // Lấy mẫu 100 dòng đầu
-        const sampleOldRow = oldData[0]; // Lấy hàng mẫu để biết tên cột
-        const sampleNewRow = newData[0];
-
+        
         unionCols.forEach(col => {
             // Chỉ phân tích nếu chưa được xác định là số từ mapping và tên cột không chứa "_Cu", "_Moi", "_ChenhLenh", "TrangThai"
             if (!potentialNumericCols.has(col) && !col.toLowerCase().includes('_cu') && !col.toLowerCase().includes('_moi') && !col.toLowerCase().includes('_chenh') && !col.toLowerCase().includes('trangthai')) {
@@ -597,15 +606,20 @@ export default function App() {
                     const oldVal = oldData[i]?.[col];
                     const newVal = newData[i]?.[col];
                     
+                    // Check if oldVal is numeric or empty/null
                     const isOldNumeric = !isNaN(parseFloat(String(oldVal).replace(/[^0-9.\-]/g, "")));
-                    const isNewNumeric = !isNaN(parseFloat(String(newVal).replace(/[^0-9.\-]/g, "")));
+                    const isOldEmpty = oldVal === null || oldVal === undefined || String(oldVal).trim() === "";
 
-                    // Nếu bất kỳ giá trị nào không phải số hoặc không có, coi như cột này không hẳn là số cho mục đích tính toán đơn giản
-                    if (!isOldNumeric && oldVal !== null && oldVal !== undefined && String(oldVal).trim() !== "") { 
+                    // Check if newVal is numeric or empty/null
+                    const isNewNumeric = !isNaN(parseFloat(String(newVal).replace(/[^0-9.\-]/g, "")));
+                    const isNewEmpty = newVal === null || newVal === undefined || String(newVal).trim() === "";
+
+                    // If a value exists and is not numeric, then this column is not purely numeric
+                    if (!isOldEmpty && !isOldNumeric) { 
                         isLikelyNumeric = false;
                         break;
                     }
-                     if (!isNewNumeric && newVal !== null && newVal !== undefined && String(newVal).trim() !== "") {
+                     if (!isNewEmpty && !isNewNumeric) {
                         isLikelyNumeric = false;
                         break;
                     }
@@ -1110,7 +1124,7 @@ export default function App() {
             goiyMa = normalizeSectorCode(data.goiy_ma); 
             goiyTen = data.goiy_ten || "";
             linhvucSuggest = data.cap_1_tin_cay || ""; 
-            giaiThich = data.giai_thich || "Phân tích từ AI";
+            giaiThich = "Phân tích từ AI";
             diemTuongDong = "0.95"; 
           } else {
             console.warn("AI API call failed or returned error, falling back to local matcher.", data?.error);
@@ -2277,47 +2291,4 @@ export default function App() {
                               {aggRules.map((rule, idx) => (
                                 <div key={idx} className="flex justify-between items-center bg-[#111827] px-3 py-1.5 rounded-lg border border-gray-800 text-xs">
                                   <span className="text-gray-300 font-mono">
-                                    🔴 Phép <strong className="text-amber-400">{rule.op.toUpperCase()}</strong> trên cột <strong className="text-white">{rule.col}</strong>
-                                  </span>
-                                  <button onClick={() => removeAggRule(idx)} className="text-red-400 hover:text-red-300 cursor-pointer">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <button 
-                        onClick={handleRunSummary}
-                        className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all w-full mt-4 flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <BarChart3 className="w-4 h-4" /> BẮT ĐẦU CHẠY PHÂN TÍCH TỔNG HỢP NHÓM
-                      </button>
-                    </div>
-
-                  </div>
-                ) : (
-                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
-                    ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước!
-                  </div>
-                )}
-
-                {/* 2. CHỨC NĂNG BÁO CÁO NHANH CHUYÊN SÂU THEO VSIC PHÂN CẤP */}
-                <div className="border-t border-[#374151] pt-6 space-y-4">
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-emerald-400" /> ⚡ 2. Báo cáo nhanh phân cấp ngành kinh tế (VSIC) & Xã địa bàn
-                  </h4>
-                  <p className="text-xs text-gray-400">Hệ thống áp dụng thuật toán rà quét đệ quy liên phân vùng (Khắc phục hoàn hảo lỗi lệch khớp mã ở đồ án Python cũ) thu gọn và tổng hợp chỉ số doanh thu và lao động theo nhóm ngành.</p>
-                  
-                  {mainData.length > 0 ? (
-                    <div className="space-y-6 max-w-2xl">
-                      
-                      <div className="bg-[#111827]/80 p-4 rounded-xl border border-emerald-500/10 space-y-2.5">
-                        <span className="text-[10px] font-bold text-emerald-400 tracking-widest uppercase font-mono block">Cấu hình định dạng báo cáo đầu ra</span>
-                        <div className="space-y-2">
-                          <label className="flex items-start gap-2.5 text-xs text-gray-400 font-mono">
-                            {/* Nội dung bên trong label nếu có */}
-                              </label>
-                          
+                                    🔴 Phép <strong className="text-amber
