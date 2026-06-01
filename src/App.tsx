@@ -41,24 +41,24 @@ import {
 // Interface define
 interface ColumnMapping {
   mota: string;
-  manganh: string;
-  xa: string;
-  doanhthu: string;
-  laodong: string;
-  idCol: string; 
+    manganh: string;
+    xa: string;
+    doanhthu: string;
+    laodong: string;
+    idCol: string; 
 }
 
 interface LogicRule {
-  col: string;
-  op: string;
-  val: string;
+    col: string;
+    op: string;
+    val: string;
 }
 
 // Interface mới cho cấu hình cột tính toán
 interface CalculatedColumnConfig {
-  use: boolean; // Có sử dụng cột này không
-  newName: string; // Tên mới cho cột
-  formula: string; // Công thức tính toán (ví dụ: "DoanhThu - LaoDong")
+    use: boolean; // Có sử dụng cột này không
+    newName: string; // Tên mới cho cột
+    formula: string; // Công thức tính toán (ví dụ: "DoanhThu - LaoDong")
 }
 
 export default function App() {
@@ -83,12 +83,11 @@ export default function App() {
     idCol: ""
   });
 
-  // Cấu hình cột gốc (tên gốc, có dùng hay không, tên mới, vai trò nghiệp vụ)
+  // Cấu hình cột gốc (tên gốc, có dùng hay không, tên mới)
   const [customColConfigs, setCustomColConfigs] = useState<{
     originalName: string;
     use: boolean;
     newName: string;
-    role: "mota" | "manganh" | "xa" | "doanhthu" | "laodong" | "idCol" | "";
   }[]>([]);
 
   // Cấu hình cột tính toán
@@ -142,57 +141,14 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const pageSize = 50;
 
-  // Mock data generator
+  // Mock data generator - ĐÃ LOẠI BỎ PHẦN MOCK DATA CỨNG
   const loadMockData = () => {
-    const mock = [
-      { STT: "1", MaST: "0100021312", TenDN: "Công ty Cổ phần Lúa Gạo Việt Nam", MoTa: "Hoạt động trồng lúa nước chất lượng cao và chăn nuôi heo thịt", MaNganhDTV: "01110", Xa: "Xã Mỹ Lộc", DoanhThu: "4500", LaoDong: "32" },
-      { STT: "2", MaST: "0200843213", TenDN: "Đại lý Thương mại Lộc Phát", MoTa: "Bán buôn lúa gạo hữu cơ, bán lẻ dầu ăn bánh kẹo sữa", MaNganhDTV: "46321", Xa: "Xã An Hòa", DoanhThu: "1280", LaoDong: "5" },
-      { STT: "3", MaST: "0301132345", TenDN: "Công ty Đầu tư Xây dựng Hoàn Mỹ", MoTa: "Thi công công trình xây dựng nhà ở dân dụng các loại", MaNganhDTV: "4100", Xa: "Xã Mỹ Lộc", DoanhThu: "8900", LaoDong: "120" },
-      { STT: "4", MaST: "0401833441", TenDN: "Cơ sở Khai thác Đá Quý An Bình", MoTa: "Khai thác cát sỏi đất sét làm vật liệu xây dựng", MaNganhDTV: "0811", Xa: "Xã Mỹ Lộc", DoanhThu: "620", LaoDong: "18" },
-      { STT: "5", MaST: "0502123984", TenDN: "Phòng Khám Đa Khoa Sức Khỏe Vàng", MoTa: "Đại lý bán buôn thiết bị y tế dân dụng gia đình", MaNganhDTV: "4659", Xa: "Xã An Hòa", DoanhThu: "3100", LaoDong: "12" },
-      { STT: "6", MaST: "0601243124", TenDN: "Nhà hàng Trúc Lâm Quán", MoTa: "Dịch vụ nhà hàng ăn uống phục vụ lưu động du khách", MaNganhDTV: "56100", Xa: "Xã Tân Bình", DoanhThu: "1800", LaoDong: "25" },
-      { STT: "7", MaST: "0701982736", TenDN: "Cơ sở dệt may Hoàng Gia", MoTa: "Chăn nuôi trâu bò và trồng ngô sắn gia đình tự tiêu", MaNganhDTV: "98100", Xa: "Xã Tân Bình", DoanhThu: "450", LaoDong: "2" }
-    ];
-    setRawImportedData(mock);
-    setMainData(mock);
-    setColumns(Object.keys(mock[0]));
-    setFileName("Du_Lieu_Doanh_Nghiep_Mau.xlsx");
-
-    // Khởi tạo danh sách cấu hình cột gốc
-    const initConfigs = Object.keys(mock[0]).map(c => {
-      let role: "mota" | "manganh" | "xa" | "doanhthu" | "laodong" | "idCol" | "" = "";
-      if (c === "MoTa") role = "mota";
-      else if (c === "MaNganhDTV") role = "manganh";
-      else if (c === "Xa") role = "xa";
-      else if (c === "DoanhThu") role = "doanhthu";
-      else if (c === "LaoDong") role = "laodong";
-      else if (c === "MaST") role = "idCol";
-      
-      return {
-        originalName: c,
-        use: true,
-        newName: c === "MoTa" ? "Mô Tả Hoạt Động" :
-                 c === "MaNganhDTV" ? "Mã Ngành Đăng Ký" :
-                 c === "Xa" ? "Địa bàn (Xã)" :
-                 c === "DoanhThu" ? "Doanh Thu" :
-                 c === "LaoDong" ? "Tổng số Lao Động" :
-                 c === "MaST" ? "Mã Số Thuế" : c,
-        role
-      };
-    });
-    setCustomColConfigs(initConfigs);
-    // Khởi tạo cấu hình cột tính toán trống
-    setCalculatedColConfigs([]); 
-
-    // Tự động suy đoán Mapping cột ban đầu
-    const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
-    initConfigs.forEach(cfg => {
-      if (cfg.role) {
-        autoMap[cfg.role] = cfg.newName;
-      }
-    });
-    setMapping(autoMap);
-    setActiveTab("xemdulieu");
+    // Phần mock data đã được xóa bỏ theo yêu cầu. Nút này giờ chỉ đơn giản là gợi ý người dùng tải file.
+    // Khi người dùng nhấn nút này, nó sẽ kích hoạt input file upload.
+    // Nếu bạn muốn nút này làm gì đó khác, vui lòng cho biết.
+    alert("Vui lòng chọn file dữ liệu của bạn để bắt đầu.");
+    // Có thể thêm logic để kích hoạt input file upload nếu cần thiết
+    // document.getElementById('file-upload-input')?.click(); 
   };
 
   // Đọc file CSV hoặc Excel bằng xlsx
@@ -225,38 +181,37 @@ export default function App() {
           setColumns(cols);
           setFileName(file.name);
 
-          // Khởi tạo danh sách cấu hình cột gốc từ tệp vừa nạp
-          const initConfigs = cols.map(c => {
-            const low = c.toLowerCase();
-            let role: "mota" | "manganh" | "xa" | "doanhthu" | "laodong" | "idCol" | "" = "";
-            if (low.includes("mô tả") || low.includes("mota") || low.includes("hoatdong")) role = "mota";
-            if (low.includes("mã ngành") || low.includes("manganh") || low.includes("ma_nganh") || low.includes("dtv") || low.includes("vsic")) role = "manganh";
-            if (low.includes("xã") || low.includes("xa") || low.includes("diaban") || low.includes("dia_ban")) role = "xa";
-            if (low.includes("doanh thu") || low.includes("doanhthu") || low.includes("thu_nhap")) role = "doanhthu";
-            if (low.includes("lao động") || low.includes("laodong") || low.includes("nhan_su")) role = "laodong";
-            if (low.includes("mst") || low.includes("mã số") || low.includes("ident") || low.includes("id")) role = "idCol";
-
-            return {
-              originalName: c,
-              use: true,
-              newName: c === "MoTa" ? "Mô Tả Hoạt Động" :
-                       c === "MaNganhDTV" ? "Mã Ngành Đăng Ký" :
-                       c === "Xa" ? "Địa bàn (Xã)" :
-                       c === "DoanhThu" ? "Doanh Thu" :
-                       c === "LaoDong" ? "Tổng số Lao Động" :
-                       c === "MaST" ? "Mã Số Thuế" : c,
-              role
-            };
-          });
+          // Khởi tạo danh sách cấu hình cột gốc, TÊN MỚI BAN ĐẦU LÀ TÊN GỐC
+          const initConfigs = cols.map(c => ({
+            originalName: c,
+            use: true,
+            newName: c, // Tên mới ban đầu chính là tên gốc
+          }));
           setCustomColConfigs(initConfigs);
           // Reset cấu hình cột tính toán khi nạp tệp mới
           setCalculatedColConfigs([]); 
 
-          // Thử tìm tự động mapping từ tên cột tương tự
+          // Thử tìm tự động mapping từ tên cột tương tự (logic này vẫn giữ nguyên để gợi ý)
           const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
           initConfigs.forEach(cfg => {
-            if (cfg.role) {
-              autoMap[cfg.role] = cfg.newName;
+            const low = cfg.originalName.toLowerCase();
+            if (low.includes("mô tả") || low.includes("mota") || low.includes("hoatdong")) {
+              autoMap.mota = cfg.newName;
+            }
+            if (low.includes("mã ngành") || low.includes("manganh") || low.includes("ma_nganh") || low.includes("dtv") || low.includes("vsic")) {
+              autoMap.manganh = cfg.newName;
+            }
+            if (low.includes("xã") || low.includes("xa") || low.includes("diaban") || low.includes("dia_ban")) {
+              autoMap.xa = cfg.newName;
+            }
+            if (low.includes("doanh thu") || low.includes("doanhthu") || low.includes("thu_nhap")) {
+              autoMap.doanhthu = cfg.newName;
+            }
+            if (low.includes("lao động") || low.includes("laodong") || low.includes("nhan_su")) {
+              autoMap.laodong = cfg.newName;
+            }
+            if (low.includes("mst") || low.includes("mã số") || low.includes("ident") || low.includes("id")) {
+              autoMap.idCol = cfg.newName;
             }
           });
           setMapping(autoMap);
@@ -427,11 +382,25 @@ export default function App() {
       idCol: ""
     };
 
-    activeBaseConfigs.forEach(cfg => {
-      if (cfg.role) {
-        newMapping[cfg.role] = cfg.newName.trim();
-      }
+    // Update mapping based on user's role assignments from the select dropdowns
+    Object.keys(newMapping).forEach((key) => {
+        const roleKey = key as keyof ColumnMapping;
+        const mappedColumnName = mapping[roleKey];
+        if (mappedColumnName) {
+            // Find the corresponding config in activeBaseConfigs
+            const matchingConfig = activeBaseConfigs.find(cfg => cfg.newName === mappedColumnName);
+            if (matchingConfig) {
+                newMapping[roleKey] = matchingConfig.newName;
+            } else {
+              // Check also in calculated columns if needed, though typically mapping is for base columns
+              const matchingCalcConfig = activeCalcConfigs.find(cfg => cfg.newName === mappedColumnName);
+              if (matchingCalcConfig) {
+                newMapping[roleKey] = matchingConfig.newName;
+              }
+            }
+        }
     });
+
     // Cố gắng tự động map các cột tính toán vào mapping nếu phù hợp
     activeCalcConfigs.forEach(calcCfg => {
         const formulaParts = calcCfg.formula.match(/([a-zA-ZÀ-ỹ\s]+)\s*([\+\-\*\/])\s*([a-zA-ZÀ-ỹ\s]+|\d+(\.\d+)?)/);
@@ -452,7 +421,7 @@ export default function App() {
 
     setMainData(finalRows);
     setColumns(Object.keys(finalRows[0] || {}));
-    setMapping(newMapping);
+    setMapping(newMapping); // Update mapping based on user's role assignments
     setCalculatedColConfigs(activeCalcConfigs); // Lưu lại các cấu hình cột tính toán đã áp dụng
     setViewPage(1);
 
@@ -1098,9 +1067,9 @@ export default function App() {
     for (let index = 0; index < mainData.length; index++) {
       const row = mainData[index];
       const motaVal = String(row[mapping.mota] || "").trim();
-      const maNganhRaw = row[mapping.manganh]; 
+      const maNganhRaw = mapping.manganh ? row[mapping.manganh] : ""; // Use mapped column or empty string
       const maDtvVal = normalizeSectorCode(maNganhRaw); 
-
+      
       const hierarchy = getSectorHierarchy(maDtvVal);
       const cap1Info = hierarchy["1"];
       const cap2Info = hierarchy["2"];
@@ -1115,6 +1084,7 @@ export default function App() {
       if (useAI) {
         setStatusMessage(`[Phân tích AI] Đang dịch nghĩa dòng ${index + 1}/${mainData.length}: "${motaVal.slice(0, 30)}..."`);
         try {
+          // Assume an API endpoint /api/gemini/analyze exists
           const res = await fetch("/api/gemini/analyze", { 
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1370,9 +1340,9 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              VTONG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC V38.5</span>
+              Công Cụ Hỗ Trợ Quản Lý Dữ Liệu <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">V38.5</span>
             </h1>
-            <p className="text-xs text-gray-400 font-mono">Trạm Tổng Phân Tích Dữ Liệu Ngành Doanh Nghiệp Chuyên Nghiệp</p>
+            <p className="text-xs text-gray-400 font-mono">Hỗ trợ bạn xử lý dữ liệu nhanh chóng và hiệu quả</p>
           </div>
         </div>
 
@@ -1397,12 +1367,17 @@ export default function App() {
             </span>
           )}
 
-          <button 
-            onClick={loadMockData}
-            className="bg-[#374151] hover:bg-[#4b5563] text-gray-200 text-xs font-semibold px-4 py-2 rounded-lg transition-all border border-[#4b5563] flex items-center gap-1.5 cursor-pointer shadow-sm"
-          >
-            <Database className="w-3.5 h-3.5 text-blue-400" /> Nạp dữ liệu mẫu
-          </button>
+          {/* Nút Nạp File được đặt ở đây để dễ truy cập */}
+          <label className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-md shadow-purple-900/20 flex items-center gap-2 cursor-pointer">
+            <FileUp className="w-4 h-4" /> NẠP DỮ LIỆU TỪ FILE
+            <input 
+              type="file" 
+              accept=".xlsx, .xls, .csv, .txt" 
+              onChange={(e) => handleFileUpload(e, "main")} 
+              className="hidden" 
+              id="file-upload-input" // Thêm id để có thể kích hoạt bằng JS nếu cần
+            />
+          </label>
         </div>
       </header>
 
@@ -1410,7 +1385,29 @@ export default function App() {
         
         <aside className="w-72 bg-[#1f2937]/60 border-r border-[#374151] p-5 space-y-2 flex flex-col justify-between">
           <div className="space-y-1.5">
-            <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 mb-2">Thao tác dữ liệu</div>
+            {/* Phần giới thiệu ban đầu khi chưa nạp file */}
+            {activeTab === "trangchu" && mainData.length === 0 && (
+              <div className="bg-[#1f2937]/50 border border-gray-700 rounded-xl p-4 text-xs text-gray-300 space-y-2.5 leading-relaxed animate-slide-in-bottom">
+                <div className="font-bold text-purple-300 flex items-center gap-1.5">
+                  <Info className="w-4 h-4 text-purple-400" /> HƯỚNG DẪN NHANH
+                </div>
+                <p className="leading-relaxed">
+                  Chào mừng bạn đến với **Công Cụ Hỗ Trợ Quản Lý Dữ Liệu**! Để bắt đầu, vui lòng thực hiện các bước sau:
+                </p>
+                <ul className="list-decimal list-inside space-y-1 text-[11px] text-gray-400 pl-1">
+                  <li><strong>Nạp Dữ Liệu:</strong> Bấm vào nút <span className="font-bold text-purple-300">"NẠP DỮ LIỆU TỪ FILE"</span> ở góc trên bên phải để tải lên tệp Excel hoặc CSV của bạn.</li>
+                  <li><strong>Định Nghĩa Cột:</strong> Sau khi nạp file, bạn có thể xem lại danh sách cột, đổi tên cột cho dễ nhớ và chọn những cột cần thiết.</li>
+                  <li><strong>Sử Dụng Công Cụ:</strong> Lựa chọn các chức năng phù hợp như Ghép nối, So sánh, Tách file, Tổng hợp báo cáo, hoặc Khớp mã ngành/Kiểm tra logic.</li>
+                  <li><strong>Xuất Kết Quả:</strong> Khi hoàn tất, bạn có thể xuất dữ liệu đã xử lý ra file Excel.</li>
+                </ul>
+                <p className="leading-relaxed text-purple-300">
+                  Chúc bạn có những trải nghiệm xử lý dữ liệu hiệu quả!
+                </p>
+              </div>
+            )}
+
+            {/* Các nút điều hướng chính */}
+            <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 mb-2 pt-4">Chức năng chính</div>
             
             <button 
               onClick={() => setActiveTab("trangchu")}
@@ -1420,7 +1417,7 @@ export default function App() {
                   : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
               }`}
             >
-              <Home className="w-4 h-4" /> 🏠 Trang Chủ Tổng Quan
+              <Home className="w-4 h-4" /> 🏠 Tổng Quan & Hướng Dẫn
             </button>
 
             <button 
@@ -1432,12 +1429,12 @@ export default function App() {
               }`}
             >
               <span className="flex items-center gap-3">
-                <FileSpreadsheet className="w-4 h-4" /> 📂 Xem & Định Nghĩa Cột
+                <FileSpreadsheet className="w-4 h-4" /> 📂 Xem Dữ Liệu & Định Nghĩa Cột
               </span>
               <span className="text-[10px] font-mono bg-[#111827] text-gray-400 px-1.5 py-0.5 rounded-md">{mainData.length}</span>
             </button>
 
-            <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 pt-4 mb-2">Công cụ liên hợp</div>
+            <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 pt-4 mb-2">Công cụ xử lý nâng cao</div>
 
             <button 
               onClick={() => setActiveTab("ghepnoi")}
@@ -1533,121 +1530,66 @@ export default function App() {
             </div>
           )}
 
-          {/* 1. TAB TRANG CHỦ */}
+          {/* 1. TAB TRANG CHỦ (HIỂN THỊ HƯỚNG DẪN BAN ĐẦU HOẶC GIỚI THIỆU) */}
           {activeTab === "trangchu" && (
             <div className="space-y-8 animate-fade-in">
-              <div className="bg-gradient-to-r from-purple-900/40 via-[#1f2937] to-[#1f2937] border border-purple-500/20 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 justify-between">
-                <div className="space-y-3 max-w-2xl">
-                  <span className="bg-purple-900/50 border border-purple-500/30 text-purple-400 text-xs font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    Phát hành chuẩn mực V38.5
-                  </span>
-                  <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    Hệ Thống Phân Tích & Chuẩn Hóa Dữ Liệu Ngành Quốc Gia
-                  </h2>
-                  <p className="text-gray-300 text-sm leading-relaxed">
-                    Công cụ chuyên sâu hỗ trợ thống kê dữ liệu doanh nghiệp, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa cao cấp.
+              {/* Phần giới thiệu ban đầu khi chưa nạp file */}
+              {mainData.length === 0 && (
+                <div className="bg-[#1f2937]/50 border border-gray-700 rounded-2xl p-6 space-y-4 leading-relaxed animate-slide-in-bottom">
+                  <div className="font-bold text-purple-300 flex items-center gap-1.5 text-lg">
+                    <Info className="w-5 h-5 text-purple-400" /> CHÀO MỪNG BẠN ĐẾN VỚI CÔNG CỤ HỖ TRỢ QUẢN LÝ DỮ LIỆU
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Chúng tôi cung cấp một giải pháp toàn diện giúp bạn xử lý, phân tích và quản lý dữ liệu một cách hiệu quả.
                   </p>
-                  <div className="pt-2 flex items-center gap-4">
-                    <button 
-                      onClick={loadMockData}
-                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-2 cursor-pointer"
-                    >
-                      Bắt đầu nhanh với Dữ liệu mẫu <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="w-full md:w-auto flex justify-center">
-                  <div className="bg-gradient-to-tr from-[#374151] to-purple-800/20 border border-[#4b5563] p-6 rounded-2xl text-center space-y-2 min-w-[200px] shadow-sm">
-                    <div className="text-4xl font-extrabold text-white font-mono">197</div>
-                    <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase font-mono">Mã ngành VSIC nhúng</div>
-                    <div className="text-[10px] text-green-400 font-mono">Đầy đủ 5 cấp phân chiêu</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                <div className="bg-[#1f2937]/50 border border-emerald-500/20 rounded-2xl p-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-emerald-950/50 border border-emerald-500/30 p-2 rounded-xl text-emerald-400">
-                      <CheckCircle2 className="w-5 h-5" />
-                    </div>
-                    <h3 className="text-lg font-bold text-white">Điểm mạnh của giải pháp Python cũ</h3>
-                  </div>
-                  <ul className="space-y-2.5 text-xs text-gray-300 leading-relaxed font-sans">
-                    <li className="flex gap-2">
-                      <span className="text-emerald-400">✔</span>
-                      <span><strong>Động cơ Pandas & NLP mạnh:</strong> Sử dụng Pandas hỗ trợ tính toán cấu trúc bảng và mô hình NLP cục bộ <code>SentenceTransformers</code> tiếng Việt để tính tương đồng mô tả hoạt động.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-emerald-400">✔</span>
-                      <span><strong>Cấu hình Logic Động tiện lợi:</strong> Tính năng cho phép người dùng tự lập ráp quy tắc kiểm tra NẾU (điều kiện này) THÌ PHẢI (điều kiện kia) linh hoạt dạng text/numeric.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-emerald-400">✔</span>
-                      <span><strong>Đa chức năng tích hợp:</strong> Gộp đầy đủ các tiến trình cơ bản của nhân viên thống kê (so sánh, ghép tách, thống kê, rà soát) vào làm một.</span>
-                    </li>
+                  <p className="text-xs text-gray-400">
+                    Để bắt đầu, vui lòng thực hiện theo các bước đơn giản sau:
+                  </p>
+                  <ul className="list-decimal list-inside space-y-1 text-[11px] text-gray-400 pl-1">
+                    <li><strong>Nạp Dữ Liệu:</strong> Bấm vào nút <span className="font-bold text-purple-300">"NẠP DỮ LIỆU TỪ FILE"</span> ở góc trên bên phải để tải lên tệp Excel hoặc CSV của bạn.</li>
+                    <li><strong>Định Nghĩa Cột:</strong> Sau khi nạp file, bạn có thể xem lại danh sách cột, đổi tên cột cho dễ nhớ và chọn những cột cần thiết.</li>
+                    <li><strong>Sử Dụng Công Cụ:</strong> Lựa chọn các chức năng xử lý dữ liệu như Ghép nối, So sánh, Tách file, Tổng hợp báo cáo, hoặc Khớp mã ngành/Kiểm tra logic.</li>
+                    <li><strong>Xuất Kết Quả:</strong> Khi hoàn tất, bạn có thể xuất dữ liệu đã xử lý ra file Excel.</li>
                   </ul>
+                  <p className="leading-relaxed text-purple-300 font-semibold">
+                    Chúng tôi luôn nỗ lực để mang đến trải nghiệm tốt nhất cho bạn.
+                  </p>
                 </div>
+              )}
 
-                <div className="bg-[#1f2937]/50 border border-amber-500/20 rounded-2xl p-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-amber-950/50 border border-amber-500/30 p-2 rounded-xl text-amber-400">
-                      <AlertTriangle className="w-5 h-5 animate-bounce" />
+              {/* Phần giới thiệu chung khi đã có dữ liệu hoặc muốn xem lại */}
+              {mainData.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-900/40 via-[#1f2937] to-[#1f2937] border border-purple-500/20 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 justify-between">
+                  <div className="space-y-3 max-w-2xl">
+                    <span className="bg-purple-900/50 border border-purple-500/30 text-purple-400 text-xs font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                      Phiên bản V38.5
+                    </span>
+                    <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                      Công Cụ Hỗ Trợ Quản Lý Dữ Liệu
+                    </h2>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      Công cụ này được thiết kế để giúp bạn xử lý, phân tích và chuẩn hóa dữ liệu một cách hiệu quả, với các chức năng như ghép nối, so sánh, tách file, tổng hợp báo cáo và kiểm tra logic.
+                    </p>
+                    <div className="pt-2 flex items-center gap-4">
+                      <button 
+                        onClick={() => setActiveTab("xemdulieu")} // Chuyển đến tab xem dữ liệu
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-2 cursor-pointer"
+                      >
+                        Bắt đầu xử lý dữ liệu <ArrowRight className="w-4 h-4" />
+                      </button>
                     </div>
-                    <h3 className="text-lg font-bold text-white">Khắc phục điểm yếu nghiêm trọng</h3>
                   </div>
-                  <ul className="space-y-2.5 text-xs text-gray-300 leading-relaxed font-sans">
-                    <li className="flex gap-2">
-                      <span className="text-red-400">✘</span>
-                      <span>
-                        <strong className="text-amber-400">Lỗi đứt gãy liên kết Cấp 2 và Cấp 1 (Đã fix):</strong> Bản cũ sử dụng `cha = ma[:-1]` khiến mã ngành cấp 2 (ví dụ: '01') cắt ra cha là '0'. Vì không tìm thấy mã '0' (mã cấp 1 chuẩn là chữ cái 'A'), việc liên kết từ cấp 5-4-3-2 lên cấp 1 bị vỡ hoàn toàn, làm hỏng chức năng phát hiện lệch lĩnh vực và lập báo cáo cấp 1.
-                      </span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-red-400">✘</span>
-                      <span>
-                        <strong className="text-amber-400">Tính toán vô định không có tiến trình (Đã fix):</strong> Bản cũ dùng loader xoay liên tục không có phần trăm thực tế khi chạy các thuật toán rà quét nặng.
-                      </span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-red-400">✘</span>
-                      <span>
-                        <strong className="text-amber-400">Thiếu cấu quy chuẩn cột đầu vào (Đã fix V38.5):</strong> Thao tác nạp ban đầu không dán nhãn cố định cột chính, gây xung đột lỗi khi chạy logic hoặc sai sót kiểu dữ liệu.
-                      </span>
-                    </li>
-                  </ul>
+                  <div className="w-full md:w-auto flex justify-center">
+                    <div className="bg-gradient-to-tr from-[#374151] to-purple-800/20 border border-[#4b5563] p-6 rounded-2xl text-center space-y-2 min-w-[200px] shadow-sm">
+                      <div className="text-4xl font-extrabold text-white font-mono">{mainData.length}</div>
+                      <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase font-mono">Dòng dữ liệu đang xử lý</div>
+                      <div className="text-[10px] text-green-400 font-mono">{columns.length} cột</div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="bg-[#1f2937]/40 border border-[#374151] rounded-2xl p-6 space-y-5">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Info className="w-4 h-4 text-purple-400" /> HƯỚNG DẪN 3 BƯỚC NHANH TRÊN HỆ THỐNG
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                  <div className="bg-[#111827] rounded-xl p-4 border border-[#374151] space-y-2">
-                    <div className="text-purple-400 font-mono font-bold text-lg">01</div>
-                    <h4 className="font-semibold text-white">Nạp & Khai báo Cột mẫu</h4>
-                    <p className="text-xs text-gray-400 leading-relaxed">
-                      Bấm "Tải file Excel" ở Tab 2 hoặc "Nạp dữ liệu mẫu" để khởi chạy bảng dữ liệu chính, thực hiện dán nhãn cột chỉ huy.
-                    </p>
-                  </div>
-                  <div className="bg-[#111827] rounded-xl p-4 border border-[#374151] space-y-2">
-                    <div className="text-purple-400 font-mono font-bold text-lg">02</div>
-                    <h4 className="font-semibold text-white">Áp dụng công cụ rà soát</h4>
-                    <p className="text-xs text-gray-400 leading-relaxed">
-                      Tùy ý lựa chọn tính năng ghép, so sánh, tách, báo cáo tổng hợp hoặc rà và sửa đứt gãy khớp mã ngành VSIC bằng AI/Mô hình toán.
-                    </p>
-                  </div>
-                  <div className="bg-[#111827] rounded-xl p-4 border border-[#374151] space-y-2">
-                    <div className="text-purple-400 font-mono font-bold text-lg">03</div>
-                    <h4 className="font-semibold text-white">Xuất Báo cáo Excel</h4>
-                    <p className="text-xs text-gray-400 leading-relaxed">
-                      Sau khi các cột dữ liệu được tính toán gia cố, qua nút "Xuất file" ở trang để kết tải tệp Excel thành phẩm.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              {/* Các phần giới thiệu khác hoặc thông tin bổ sung có thể thêm ở đây */}
             </div>
           )}
 
@@ -1660,18 +1602,19 @@ export default function App() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <FileSpreadsheet className="w-5 h-5 text-purple-400" /> FILE DỮ LIỆU NGUỒN CHÍNH
+                      <FileSpreadsheet className="w-5 h-5 text-purple-400" /> QUẢN LÝ DỮ LIỆU NGUỒN
                     </h3>
-                    <p className="text-xs text-gray-400">Tải lên tệp dữ liệu chính (Excel/CSV) của bạn hoặc định nghĩa nhanh các cột chỉ định bên dưới.</p>
+                    <p className="text-xs text-gray-400">Nạp file dữ liệu của bạn hoặc xem lại file đã nạp. Bạn có thể định nghĩa lại tên cột và chọn các cột cần sử dụng.</p>
                   </div>
 
                   <label className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/20 flex items-center gap-2 cursor-pointer self-start w-full md:w-auto justify-center">
-                    <FileUp className="w-4 h-4" /> TẢI FILE DỮ LIỆU CHÍNH (EXCEL, CSV)
+                    <FileUp className="w-4 h-4" /> TẢI LÊN FILE DỮ LIỆU (EXCEL, CSV)
                     <input 
                       type="file" 
                       accept=".xlsx, .xls, .csv, .txt" 
                       onChange={(e) => handleFileUpload(e, "main")} 
                       className="hidden" 
+                      id="file-upload-input" // Thêm id để có thể kích hoạt bằng JS nếu cần
                     />
                   </label>
                 </div>
@@ -1681,10 +1624,10 @@ export default function App() {
                     <div className="border-b border-gray-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <div className="text-xs font-bold text-purple-400 tracking-wider uppercase font-mono flex items-center gap-1.5">
-                          <Database className="w-5 h-5 text-purple-400 animate-pulse" /> ĐỊNH NGHĨA LẠI TÊN CỘT DỄ NHỚ & LỌC CỘT THỪA
+                          <Database className="w-5 h-5 text-purple-400 animate-pulse" /> ĐỊNH NGHĨA LẠI TÊN CỘT & CHỌN CỘT SỬ DỤNG
                         </div>
                         <p className="text-xs text-gray-400 mt-1">
-                          Sửa đổi các từ viết tắt khó nhớ thành tiếng Việt rõ ràng. Cột nào chưa chọn sẽ bị loại khỏi bảng để giữ bộ dữ liệu sạch nhất.
+                          Bạn có thể sửa đổi tên cột cho dễ nhớ. Bỏ chọn các cột không cần thiết để dữ liệu được gọn gàng hơn.
                         </p>
                       </div>
                       
@@ -1710,31 +1653,27 @@ export default function App() {
                             const prefilled = customColConfigs.map(cfg => {
                               const c = cfg.originalName;
                               let newN = c; 
-                              if (c === "MoTa") newN = "Mô Tả Hoạt Động";
-                              else if (c === "MaNganhDTV") newN = "Mã Ngành Đăng Ký";
-                              else if (c === "Xa") newN = "Địa bàn (Xã)";
-                              else if (c === "DoanhThu") newN = "Doanh Thu";
-                              else if (c === "LaoDong") newN = "Tổng số Lao Động";
-                              else if (c === "MaST") newN = "Mã Số Thuế";
+                              // Keep default naming convention only for specific known columns
+                              // ĐÃ BỎ CÁC ĐỊNH NGHĨA CỨNG NHẮC Ở ĐÂY
                               return { ...cfg, newName: newN };
                             });
                             setCustomColConfigs(prefilled);
                           }}
                           className="bg-purple-950/40 hover:bg-purple-900/40 text-purple-300 font-bold text-[11px] px-3 py-1.5 rounded-lg transition-all border border-purple-800/30 cursor-pointer"
                         >
-                          Tự Động Đề Xuất Tên Việt Hóa
+                          Tự Động Đề Xuất Tên (Nếu cần)
                         </button>
                       </div>
                     </div>
 
                     <div className="bg-[#1e1b4b]/30 border border-purple-900/30 rounded-xl p-4 text-xs text-gray-300 space-y-1.5 leading-relaxed">
                       <div className="font-bold text-purple-300 flex items-center gap-1.5">
-                        ⚙️ Cách thức vận hành (Định nghĩa trực quan):
+                        ⚙️ Hướng dẫn định nghĩa cột:
                       </div>
                       <ul className="list-disc list-inside space-y-1 text-[11px] text-gray-400 pl-1">
-                        <li><strong>Đặt tên cột dễ nhớ:</strong> Viết trực tiếp vào ô nhập bên dưới để thay đổi tên cột hiển thị theo từ ngữ dễ thuộc của riêng bạn.</li>
-                        <li><strong>Lọc cột thừa:</strong> Bạn có thể bỏ tích ở cột không cần thiết, khi bấm áp dụng hệ thống sẽ sinh ra một <strong>Bảng dữ liệu mới hoàn hảo</strong> chỉ chứa các cột thích hợp.</li>
-                        <li><strong>Gán vai trò (Mục tiêu):</strong> Gán vai trò cho cột giúp các thuật toán (Báo cáo xã, nhóm ngành, xử lý lỗi logic bằng AI) tự động tìm đúng dữ liệu mà không bị đứt gãy.</li>
+                        <li><strong>Đổi tên cột:</strong> Nhập tên mới vào ô "Tên mới dễ hiểu" để thay đổi cách hiển thị cột.</li>
+                        <li><strong>Chọn cột sử dụng:</strong> Bỏ chọn ở ô "SỬ DỤNG" nếu bạn không muốn giữ lại cột này trong bảng dữ liệu cuối cùng.</li>
+                        <li><strong>Gán vai trò hệ thống:</strong> Ở cột "VAI TRÒ NGHIỆP VỤ HỆ THỐNG", hãy chọn vai trò phù hợp cho từng cột (ví dụ: Mã ngành, Doanh thu). Điều này giúp các chức năng khác hoạt động chính xác.</li>
                       </ul>
                     </div>
 
@@ -1744,14 +1683,14 @@ export default function App() {
                           <tr className="bg-[#1f2937]/50 border-b border-gray-800 text-gray-400 font-mono text-[11px]">
                             <th className="p-3 text-center w-[70px]">SỬ DỤNG</th>
                             <th className="p-3 text-center w-[50px]">STT</th>
-                            <th className="p-3">TÊN CỘT GỐC (KÝ HIỆU TRONG FILE)</th>
-                            <th className="p-3">TÊN MỚI DỄ HIỂU, DỄ NHỚ ĐỊNH NGHĨA LẠI</th>
-                            <th className="p-3 w-[250px]">VAI TRÒ NGHIỆP VỤ HỆ THỐNG</th>
+                            <th className="p-3">TÊN CỘT GỐC (TRONG FILE)</th>
+                            <th className="p-3">TÊN MỚI (ĐỔI TÊN TẠI ĐÂY)</th>
+                            <th className="p-3 w-[250px]">VAI TRÒ HỆ THỐNG (QUAN TRỌNG)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-800/60 font-sans">
                           {customColConfigs.map((cfg, idx) => {
-                            const isSystemMappable = ["mota", "manganh", "xa", "doanhthu", "laodong", "idCol"].includes(cfg.role);
+                            // Role assignment is now handled by the select dropdowns below, not stored directly in customColConfigs
                             return (
                               <tr 
                                 key={cfg.originalName} 
@@ -1795,31 +1734,35 @@ export default function App() {
                                       setCustomColConfigs(updated);
                                     }}
                                     className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-medium placeholder-gray-600 disabled:opacity-40 disabled:bg-gray-950"
-                                    placeholder="Nhập tên cột mới dễ nhớ..."
+                                    placeholder="Nhập tên mới..."
                                   />
                                 </td>
 
                                 <td className="p-3">
                                   <select
-                                    value={cfg.role}
-                                    disabled={!cfg.use}
+                                    value={mapping[cfg.role as keyof ColumnMapping]} // Use mapping directly
                                     onChange={(e) => {
-                                      const updated = [...customColConfigs];
-                                      const val = e.target.value as any;
+                                      const selectedRole = e.target.value as keyof ColumnMapping;
+                                      const newMapping = { ...mapping };
                                       
-                                      if (val !== "") {
-                                        updated.forEach((c, cIdx) => {
-                                          if (cIdx !== idx && c.role === val) {
-                                            c.role = ""; 
-                                          }
-                                        });
+                                      // Clear previous mapping for this role if it exists and is not the current one
+                                      Object.keys(newMapping).forEach((key) => {
+                                        if (key === selectedRole && newMapping[key] === cfg.newName) {
+                                          // If the current column is already mapped to this role, do nothing
+                                        } else if (newMapping[key as keyof ColumnMapping] === cfg.newName) {
+                                          newMapping[key as keyof ColumnMapping] = "";
+                                        }
+                                      });
+
+                                      // Set new mapping if a role is selected
+                                      if (selectedRole !== "") { // Assuming "" or "-- Không gán vai trò --" maps to empty string
+                                          newMapping[selectedRole as keyof ColumnMapping] = cfg.newName;
                                       }
-                                      
-                                      updated[idx].role = val;
-                                      setCustomColConfigs(updated);
+                                      setMapping(newMapping);
                                     }}
                                     className={`w-full bg-slate-900 border text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-purple-500 ${
-                                      isSystemMappable 
+                                      // Highlight system-mappable roles
+                                      ["mota", "manganh", "xa", "doanhthu", "laodong", "idCol"].includes(cfg.role as any) // Cast to 'any' to satisfy TS, as role is not in customColConfigs state anymore
                                         ? "border-purple-500 text-purple-300 font-bold" 
                                         : "border-gray-700 text-gray-400"
                                     } disabled:opacity-40`}
@@ -2022,7 +1965,7 @@ export default function App() {
                   <div>
                     <h4 className="text-base font-bold text-white">Chưa có cơ sở dữ liệu nạp vào</h4>
                     <p className="text-xs text-gray-400 max-w-md mx-auto pt-1 leading-relaxed">
-                      Hãy chọn "Tải tệp dữ liệu chính" ở ô phía trên hoặc nhấp nút "Nạp dữ liệu mẫu" ở góc trên để trải nghiệm thử nghiệm nhanh toàn bộ cơ cấu.
+                      Hãy chọn "Tải lên file dữ liệu" để bắt đầu xử lý.
                     </p>
                   </div>
                 </div>
@@ -2036,7 +1979,7 @@ export default function App() {
             <div className="space-y-6 animate-fade-in">
               <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <GitMerge className="w-5 h-5 text-blue-400" /> GHÉP NỐI HAI BẢNG TẬP DỮ LIỆU
+                  <GitMerge className="w-5 h-5 text-blue-400" /> GHÉP NỐI HAI BẢNG DỮ LIỆU
                 </h3>
                 <p className="text-xs text-gray-400">Kết hợp hai tệp dữ liệu dựa theo trường khóa liên kết tương ứng (left outer join).</p>
 
@@ -2216,7 +2159,7 @@ export default function App() {
                     
                     <div className="bg-[#111827]/60 rounded-xl p-5 border border-[#374151] space-y-4">
                       <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono">1. Cột gom nhóm chính (Group By)</h4>
-                      <p className="text-[11px] text-gray-400">Chọn 1 hoặc nhiều cột để làm trục phân cấp (ví dụ: Địa_Bàn_Xã, MaNganh):</p>
+                      <p className="text-[11px] text-gray-400">Chọn 1 hoặc nhiều cột để làm trục phân cấp (ví dụ: Địa_Bàn_Xã, Mã Ngành Cấp 1):</p>
                       
                       <div className="max-h-[160px] overflow-y-auto border border-gray-850 p-3 rounded-lg space-y-2">
                         {columns.map(col => {
@@ -2266,327 +2209,115 @@ export default function App() {
                               onChange={(e) => setNewAggOp(e.target.value)}
                               className="w-full bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1 text-xs text-white"
                             >
-                              <option value="sum">Tổng cộng (SUM)</option>
-                              <option value="mean">Trung bình (AVERAGE)</option>
-                              <option value="count">Đếm số dòng (COUNT)</option>
-                              <option value="nunique">Đếm mục độc nhất (NUNIQUE)</option>
-                              <option value="min">Nhỏ nhất (MIN)</option>
-                              <option value="max">Lớn nhất (MAX)</option>
+                              <option value="sum">Tổng (Sum)</option>
+                              <option value="count">Đếm (Count)</option>
+                              <option value="nunique">Đếm độc nhất (Unique Count)</option>
+                              <option value="mean">Trung bình (Average)</option>
+                              <option value="min">Nhỏ nhất (Min)</option>
+                              <option value="max">Lớn nhất (Max)</option>
                             </select>
                           </div>
                         </div>
-
+                        
                         <button 
                           onClick={addAggRule}
-                          className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all w-full flex items-center justify-center gap-1 cursor-pointer"
+                          className="w-full bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                         >
-                          <Plus className="w-4 h-4" /> Thêm quy tắc tính toán
+                          <Plus className="w-4 h-4" /> Thêm Quy Tắc Tính Toán
                         </button>
-
-                        <div className="space-y-2 border-t border-gray-800 pt-3">
-                          <label className="text-[10.5px] font-bold text-gray-400 block uppercase">Danh sách chỉ tiêu tổng hợp:</label>
-
-                          {aggRules.length === 0 ? (
-                            <div className="text-[11px] text-gray-500 italic">Chưa có chỉ tiêu nào được lập...</div>
-                          ) : (
-                            <div className="space-y-1 max-h-[140px] overflow-y-auto">
-                              {aggRules.map((rule, idx) => (
-                                <div key={idx} className="flex justify-between items-center bg-[#111827] px-3 py-1.5 rounded-lg border border-gray-800 text-xs">
-                                  <span className="text-gray-300 font-mono">
-                                    🔴 Phép <strong className="text-amber-400">{rule.op.toUpperCase()}</strong> trên cột <strong className
-
-                                  </span>
-                                  <button onClick={() => removeAggRule(idx)} className="text-red-400 hover:text-red-300 cursor-pointer">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
                       </div>
 
-                      <button 
-                        onClick={handleRunSummary}
-                        className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all w-full mt-4 flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <BarChart3 className="w-4 h-4" /> BẮT ĐẦU CHẠY PHÂN TÍCH TỔNG HỢP NHÓM
-                      </button>
-                    </div>
-
-                  </div>
-                ) : (
-                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
-                    ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước!
-                  </div>
-                )}
-
-                {/* 2. CHỨC NĂNG BÁO CÁO NHANH CHUYÊN SÂU THEO VSIC PHÂN CẤP */}
-                <div className="border-t border-[#374151] pt-6 space-y-4">
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-emerald-400" /> ⚡ 2. Báo cáo nhanh phân cấp ngành kinh tế (VSIC) & Xã địa bàn
-                  </h4>
-                  <p className="text-xs text-gray-400">Hệ thống áp dụng thuật toán rà quét đệ quy liên phân vùng (Khắc phục hoàn hảo lỗi lệch khớp mã ở đồ án Python cũ) thu gọn và tổng hợp chỉ số doanh thu và lao động theo nhóm ngành.</p>
-                  
-                  {mainData.length > 0 ? (
-                    <div className="space-y-6 max-w-2xl">
-                      
-                      {/* Phần có lỗi cũ và đã sửa */}
-                      <div className="bg-[#111827]/80 p-4 rounded-xl border border-emerald-500/10 space-y-2.5">
-                        <span className="text-[10px] font-bold text-emerald-400 tracking-widest uppercase font-mono block">Cấu hình định dạng báo cáo đầu ra</span>
-                        <div className="space-y-2">
-                          <label className="flex items-start gap-2.5 text-xs text-gray-400 font-mono">
-                            {/* Nội dung bên trong label nếu có */}
-                          </label> 
-                          <div className="flex items-center gap-4 mt-3">
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="radio"
-                                    id="reportTypePivot"
-                                    name="reportType"
-                                    value="pivot"
-                                    checked={reportType === "pivot"}
-                                    onChange={() => setReportType("pivot")}
-                                    className="form-radio h-4 w-4 text-emerald-500 border-gray-700 bg-gray-900 rounded focus:ring-emerald-500"
-                                />
-                                <label htmlFor="reportTypePivot" className="text-xs font-medium text-gray-300 cursor-pointer">Pivot Table (Xoay cột)</label>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="radio"
-                                    id="reportTypeFlat"
-                                    name="reportType"
-                                    value="flat"
-                                    checked={reportType === "flat"}
-                                    onChange={() => setReportType("flat")}
-                                    className="form-radio h-4 w-4 text-emerald-500 border-gray-700 bg-gray-900 rounded focus:ring-emerald-500"
-                                />
-                                <label htmlFor="reportTypeFlat" className="text-xs font-medium text-gray-300 cursor-pointer">Dạng Phẳng (Flat)</label>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-4 mt-3">
-                            <div className="flex items-center gap-2">
-                                <label className="text-xs font-medium text-gray-300">Tạo báo cáo cấp:</label>
-                                <select
-                                    value={quickReportLevel}
-                                    onChange={(e) => setQuickReportLevel(Number(e.target.value))}
-                                    className="bg-[#111827] border border-[#374151] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                >
-                                    <option value={1}>Cấp 1 (Ngành chính)</option>
-                                    <option value={2}>Cấp 2 (Ngành phụ)</option>
-                                </select>
-                            </div>
-                            <button
-                                onClick={() => handleQuickReport(quickReportLevel)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-md shadow-emerald-900/30 flex items-center gap-1.5 cursor-pointer"
-                            >
-                                <Layers className="w-4 h-4" /> CHẠY BÁO CÁO NHANH
-                            </button>
-                          </div>
+                      <div className="border-t border-gray-800 pt-3">
+                        <label className="text-[10.5px] font-bold text-amber-400 block uppercase">Các quy tắc đã thêm:</label>
+                        <div className="max-h-[150px] overflow-y-auto space-y-1 pr-2">
+                           {aggRules.map((rule, idx) => (
+                              <div key={idx} className="flex justify-between items-center bg-[#111827] px-3 py-1.5 rounded-lg border border-amber-800/30 text-xs">
+                                <span className="text-amber-300 font-mono">
+                                  <strong className="text-white">{rule.col}</strong> ({rule.op})
+                                </span>
+                                <button onClick={() => removeAggRule(idx)} className="text-red-400 hover:text-red-300 cursor-pointer">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                           ))}
                         </div>
                       </div>
-                      {/* Kết thúc phần có lỗi cũ và đã sửa */}
+                    </div>
+                  </div>
 
-                    </div>
-                  ) : (
-                    <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
-                      ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước!
-                    </div>
-                  )}
+                  <div className="flex justify-end pt-4 border-t border-gray-800 pt-4">
+                    <button 
+                      onClick={handleRunSummary}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-amber-900/30 font-sans cursor-pointer flex items-center gap-1.5"
+                    >
+                      <BarChart3 className="w-4 h-4" /> CHẠY TỔNG HỢP BÁO CÁO
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-[#1f2937]/40 border-2 border-dashed border-[#374151] p-12 text-center rounded-2xl space-y-4">
+                  <Database className="w-12 h-12 text-[#4b5563] mx-auto animate-pulse" />
+                  <div>
+                    <h4 className="text-base font-bold text-white">Chưa có dữ liệu để tổng hợp</h4>
+                    <p className="text-xs text-gray-400 max-w-md mx-auto pt-1 leading-relaxed">
+                      Hãy nạp tệp dữ liệu chính ở Tab "Xem Dữ Liệu & Định Nghĩa Cột" trước khi sử dụng chức năng này.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* 8. TAB CỖ MÁY KIỂM TRA LOGIC ĐA ĐIỀU KIỆN */}
-          {activeTab === "kiemtralogic" && (
+          {/* 8. TAB KHỚP MÃ NGÀNH & ĐỐI CHIẾU (AI) */}
+          {activeTab === "chuanhoanganh" && (
             <div className="space-y-6 animate-fade-in">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
-                <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <CheckSquare className="w-5 h-5 text-emerald-400" /> CỖ MÁY KIỂM TRA LOGIC ĐA CHỈ TIÊU (RULE ENGINE)
-                  </h3>
-                  <p className="text-xs text-gray-400">Tạo ra các quy tắc ràng buộc rà quét dữ liệu dạng: NẾU thỏa mãn (Điều kiện bước 1) THÌ PHẢI bắt buộc thỏa mãn (Điều kiện bước 2). Hệ thống tự rà rà soát và ghi chú dòng sai phạm vào cột "Loi_Logic".</p>
-                </div>
+              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-indigo-400" /> KHỚP MÃ NGÀNH VSIC & ĐỐI CHIẾU (HỖ TRỢ AI)
+                </h3>
+                <p className="text-xs text-gray-400">Hệ thống sẽ phân tích mô tả hoạt động, đối chiếu với mã ngành VSIC và cảnh báo các trường hợp không hợp lệ hoặc có khả năng sai lệch.</p>
 
                 {mainData.length > 0 ? (
-                  <div className="space-y-6 border-t border-gray-800 pt-6">
+                  <div className="flex flex-col gap-4 border-t border-gray-800 pt-6">
                     
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      
-                      {/* ĐIỀU KIỆN 1: BƯỚC NẾU */}
-                      <div className="bg-[#111827] rounded-xl p-5 border border-indigo-500/10 space-y-4">
-                        <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider font-mono">BƯỚC 1: ĐIỀU KIỆN NẾU (IF CONDITIONS)</div>
-                        <p className="text-[11px] text-gray-400">Thiết lập các điều kiện để tìm mục tiêu cần kiểm tra rà soát:</p>
-                        
-                        <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-[#111827]/60 rounded-xl p-5 border border-indigo-500/10 space-y-3 text-center">
+                        <h4 className="text-sm font-bold text-indigo-400">🎯 CHỌN CỘT DỮ LIỆU</h4>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-gray-500 block">Chọn cột Mã ngành (VSIC)</label>
                           <select 
-                            value={newIfRule.col} 
-                            onChange={(e) => setNewIfRule({ ...newIfRule, col: e.target.value })}
-                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
+                            value={mapping.manganh} 
+                            onChange={(e) => setMapping({...mapping, manganh: e.target.value})}
+                            className="w-full bg-[#1f2937] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
                           >
-                            <option value="">Cột</option>
+                            <option value="">-- Chọn cột Mã ngành --</option>
                             {columns.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
-                          
-                          <select 
-                            value={newIfRule.op} 
-                            onChange={(e) => setNewIfRule({ ...newIfRule, op: e.target.value })}
-                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                          >
-                            <option value="==">bằng (==)</option>
-                            <option value="!=">khác (!=)</option>
-                            <option value=">">lớn hơn (&gt;)</option>
-                            <option value="<">nhỏ hơn (&lt;)</option>
-                            <option value=">=">lớn hơn bằng (&gt;=)</option>
-                            <option value="<=">nhỏ hơn bằng (&lt;=)</option>
-                            <option value="chứa">chứa (string)</option>
-                            <option value="không chứa">không chứa (string)</option>
-                            <option value="trống">để rỗng (empty)</option>
-                            <option value="không trống">có dữ liệu</option>
-                          </select>
-
-                          {newIfRule.op !== "trống" && newIfRule.op !== "không trống" && (
-                            <input 
-                              type="text"
-                              placeholder="Giá trị..."
-                              value={newIfRule.val}
-                              onChange={(e) => setNewIfRule({ ...newIfRule, val: e.target.value })}
-                              className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                            />
-                          )}
                         </div>
-
-                        <button 
-                          onClick={() => handleLogicRuleAdd("if")}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-all w-full cursor-pointer"
-                        >
-                          Thêm dòng NẾU
-                        </button>
-
-                        <div className="space-y-1 max-h-[140px] overflow-y-auto border-t border-gray-800 pt-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-gray-400">QUY TẮC "NẾU" HIỆN TẠI:</span>
-                            <div className="flex gap-2 text-[10px]">
-                              <label className="flex items-center gap-1 text-gray-300">
-                                <input type="radio" checked={ifCombine === "AND"} onChange={() => setIfCombine("AND")} className="scale-75" /> VÀ (AND)
-                              </label>
-                              <label className="flex items-center gap-1 text-gray-300">
-                                <input type="radio" checked={ifCombine === "OR"} onChange={() => setIfCombine("OR")} className="scale-75" /> HOẶC (OR)
-                              </label>
-                            </div>
-                          </div>
-                          {ifRules.length === 0 ? (
-                            <div className="text-[11px] text-gray-500 italic">Chưa dựng quy tắc...</div>
-                          ) : (
-                            ifRules.map((rule, idx) => (
-                              <div key={idx} className="flex justify-between items-center bg-[#181d29] px-3 py-1.5 rounded-lg border border-gray-800 text-xs text-gray-300">
-                                <span>{rule.col} {rule.op} {rule.op !== "trống" && rule.op !== "không trống" ? `'${rule.val}'` : ""}</span>
-                                <button onClick={() => setIfRules(ifRules.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 cursor-pointer">X</button>
-                              </div>
-                            ))
-                          )}
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-gray-500 block">Chọn cột Mô tả hoạt động</label>
+                          <select 
+                            value={mapping.mota} 
+                            onChange={(e) => setMapping({...mapping, mota: e.target.value})}
+                            className="w-full bg-[#1f2937] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
+                          >
+                            <option value="">-- Chọn cột Mô tả --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
                         </div>
                       </div>
 
-                      {/* ĐIỀU KIỆN 2: BƯỚC THÌ PHẢI */}
-                      <div className="bg-[#111827] rounded-xl p-5 border border-emerald-500/10 space-y-4">
-                        <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono">BƯỚC 2: THÌ BẮT BUỘC PHẢI (THEN MUST CONDITIONS)</div>
-                        <p className="text-[11px] text-gray-400">Nếu thỏa mãn Bước 1, thì dữ liệu bắt buộc PHẢI đạt tất cả ràng buộc sau:</p>
-                        
-                        <div className="grid grid-cols-3 gap-2">
-                          <select 
-                            value={newThenRule.col} 
-                            onChange={(e) => setNewThenRule({ ...newThenRule, col: e.target.value })}
-                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                          >
-                            <option value="">Cột</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                          
-                          <select 
-                            value={newThenRule.op} 
-                            onChange={(e) => setNewThenRule({ ...newThenRule, op: e.target.value })}
-                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                          >
-                            <option value="==">bằng (==)</option>
-                            <option value="!=">khác (!=)</option>
-                            <option value=">">lớn hơn (&gt;)</option>
-                            <option value="<">nhỏ hơn (&lt;)</option>
-                            <option value=">=">lớn hơn bằng (&gt;=)</option>
-                            <option value="<=">nhỏ hơn bằng (&lt;=)</option>
-                            <option value="chứa">chứa (string)</option>
-                            <option value="không chứa">không chứa (string)</option>
-                            <option value="trống">để rỗng (empty)</option>
-                            <option value="không trống">có dữ liệu</option>
-                          </select>
-
-                          {newThenRule.op !== "trống" && newThenRule.op !== "không trống" && (
-                            <input 
-                              type="text"
-                              placeholder="Giá trị..."
-                              value={newThenRule.val}
-                              onChange={(e) => setNewThenRule({ ...newThenRule, val: e.target.value })}
-                              className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
-                            />
-                          )}
+                      <div className="bg-[#111827]/60 rounded-xl p-5 border border-green-500/10 space-y-3 text-center">
+                        <h4 className="text-sm font-bold text-green-400">🤖 PHÂN TÍCH & KHỚP MÃ</h4>
+                        <div className="text-xs text-gray-400 pt-2">
+                          Chọn phương thức phân tích để hệ thống tiến hành khớp mã và đối chiếu:
                         </div>
-
-                        <button 
-                          onClick={() => handleLogicRuleAdd("then")}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-all w-full cursor-pointer"
-                        >
-                          Thêm dòng THÌ PHẢI
-                        </button>
-
-                        <div className="space-y-1 max-h-[140px] overflow-y-auto border-t border-gray-800 pt-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-gray-400">QUY TẮC "THÌ PHẢI" HIỆN TẠI:</span>
-                            <div className="flex gap-2 text-[10px]">
-                              <label className="flex items-center gap-1 text-gray-300">
-                                <input type="radio" checked={thenCombine === "AND"} onChange={() => setThenCombine("AND")} className="scale-75" /> VÀ (AND)
-                              </label>
-                              <label className="flex items-center gap-1 text-gray-300">
-                                <input type="radio" checked={thenCombine === "OR"} onChange={() => setThenCombine("OR")} className="scale-75" /> HOẶC (OR)
-                              </label>
-                            </div>
-                          </div>
-                          {thenRules.length === 0 ? (
-                            <div className="text-[11px] text-gray-500 italic">Chưa dựng quy tắc...</div>
-                          ) : (
-                            thenRules.map((rule, idx) => (
-                              <div key={idx} className="flex justify-between items-center bg-[#15241e] px-3 py-1.5 rounded-lg border border-gray-800 text-xs text-gray-300">
-                                <span>{rule.col} {rule.op} {rule.op !== "trống" && rule.op !== "không trống" ? `'${rule.val}'` : ""}</span>
-                                <button onClick={() => setThenRules(thenRules.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 cursor-pointer">X</button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                    </div>
-
-                    <button 
-                      onClick={handleLogicCheck}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all w-full flex items-center justify-center gap-2 cursor-pointer shadow-md"
-                    >
-                      <CheckSquare className="w-5 h-5 text-purple-300" /> BẮT ĐẦU CHẠY KIỂM TRA LỌC LOGIC ĐA QUY TẮC
-                    </button>
-
-                  </div>
-                ) : (
-                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
-                    ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước!
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-        </main>
-      </div>
-
-    </div>
-  );
-}
+                        <div className="flex flex-col items-center gap-3 pt-4">
+                          {/* NÚT SỬ DỤNG AI */}
+                          <button 
+                            onClick={() => handleStandardizeSectors(true)} // useAI = true
+                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-green-900/30 font-sans cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <Brain className="w-4 h-4" /> SỬ DỤNG AI PHÂN TÍCH & KHỚP MÃ (Đề xuất)
+                          </button>
+                          {
