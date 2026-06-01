@@ -2268,89 +2268,84 @@ export default function App() {
             </div>
           )}
 
-          {/* 8. TAB KHỚP MÃ NGÀNH & ĐỐI CHIẾU (AI) */}
+          {/* 7. TAB CHUẨN HÓA & PHÂN TÍCH NGÀNH TRẬT TỰ AI */}
           {activeTab === "chuanhoanganh" && (
             <div className="space-y-6 animate-fade-in">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-indigo-400" /> KHỚP MÃ NGÀNH VSIC & ĐỐI CHIẾU (HỖ TRỢ AI)
-                </h3>
-                <p className="text-xs text-gray-400">Hệ thống sẽ phân tích mô tả hoạt động, đối chiếu với mã ngành VSIC và cảnh báo các trường hợp không hợp lệ hoặc có khả năng sai lệch.</p>
+              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-indigo-400 animate-pulse" /> CHUẨN HÓA & KHỚP MÃ NGÀNH THÔNG MINH
+                  </h3>
+                  <p className="text-xs text-gray-400">So khớp mã ngành đăng ký, rà soát mô tả so với nhóm mã gợi ý, tự động bẻ tách mã ngành ra thành 5 cấp chi tiết (từ Cấp 1-Chương rộng đến Cấp 5-Nhóm con) giải quyết triệt để lỗi thắt nút phân cấp đăng nghiệp.</p>
+                </div>
 
                 {mainData.length > 0 ? (
-                  <div className="flex flex-col gap-4 border-t border-gray-800 pt-6">
+                  <div className="space-y-6 border-t border-gray-800 pt-6">
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-[#111827]/60 rounded-xl p-5 border border-indigo-500/10 space-y-3 text-center">
-                        <h4 className="text-sm font-bold text-indigo-400">🎯 CHỌN CỘT DỮ LIỆU</h4>
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-gray-500 block">Chọn cột Mã ngành (VSIC)</label>
-                          <select 
-                            value={mapping.manganh} 
-                            onChange={(e) => setMapping({...mapping, manganh: e.target.value})}
-                            className="w-full bg-[#1f2937] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
-                          >
-                            <option value="">-- Chọn cột Mã ngành --</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-gray-500 block">Chọn cột Mô tả hoạt động</label>
-                          <select 
-                            value={mapping.mota} 
-                            onChange={(e) => setMapping({...mapping, mota: e.target.value})}
-                            className="w-full bg-[#1f2937] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
-                          >
-                            <option value="">-- Chọn cột Mô tả --</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
+                    <div className="bg-[#111827]/60 rounded-xl p-5 border border-indigo-500/10 grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-indigo-400 block font-mono uppercase">Mã ngành thực nhập (Lấy từ map)</label>
+                        <div className="text-xs text-gray-300 font-medium">Cột gắn nhãn: <span className="text-emerald-400 font-mono font-bold">"{mapping.manganh || "Chưa chọn!"}"</span></div>
+                        <p className="text-[11px] text-gray-400 font-sans">Hệ thống sẽ phân tích mã này thành các cột phân cấp: Nganh_Cap_1, Nganh_Cap_2, Nganh_Cap_3, Nganh_Cap_4, Nganh_Cap_5 và tự so sánh cha con đệ quy chuẩn 100%.</p>
                       </div>
 
-                      <div className="bg-[#111827]/60 rounded-xl p-5 border border-green-500/10 space-y-3 text-center">
-                        <h4 className="text-sm font-bold text-green-400">🤖 PHÂN TÍCH & KHỚP MÃ</h4>
-                        <div className="text-xs text-gray-400 pt-2">
-                          Chọn phương thức phân tích để hệ thống tiến hành khớp mã và đối chiếu:
-                        </div>
-                        <div className="flex flex-col items-center gap-3 pt-4">
-                          {/* NÚT SỬ DỤNG AI */}
-                          <button 
-                            onClick={() => handleStandardizeSectors(true)} // useAI = true
-                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-green-900/30 font-sans cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <Brain className="w-4 h-4" /> SỬ DỤNG AI PHÂN TÍCH & KHỚP MÃ (Đề xuất)
-                          </button>
-                          
-                          {/* NÚT SỬ DỤNG PHÂN TÍCH CỤC BỘ */}
-                          <button 
-                            onClick={() => handleStandardizeSectors(false)} // useAI = false
-                            className="w-full bg-gray-700 hover:bg-gray-800 text-gray-300 font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md font-sans cursor-pointer flex items-center justify-center gap-1.5 border border-gray-600"
-                          >
-                            <Activity className="w-4 h-4" /> KHỚP MÃ THÔNG MINH (Cục bộ)
-                          </button>
-                        </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-indigo-400 block font-mono uppercase">mô tả hoạt động kinh doanh (Lấy từ map)</label>
+                        <div className="text-xs text-gray-300 font-medium">Cột gắn nhãn: <span className="text-emerald-400 font-mono font-bold">"{mapping.mota || "Chưa chọn!"}"</span></div>
+                        <p className="text-[11px] text-gray-400 font-sans">Chuỗi mô tả hoạt động sẽ được bóc tách từ khóa chính để hệ thống đối chiếu xem có lệch lĩnh vực, sai ngành đăng ký hay không.</p>
                       </div>
                     </div>
+
+                    {/* LỰA CHỌN BỘ PHÂN PHÂN TÍCH */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      
+                      {/* CÁCH 1: ALGORITHM MATCHER - SIÊU TỐC */}
+                      <div className="bg-[#111827] rounded-xl p-5 border border-gray-800 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded-md">Khuyên dùng</span>
+                            <h4 className="text-sm font-bold text-white">Cách 1: Thuật toán so khớp thông minh (Siêu tốc 100% Offline)</h4>
+                          </div>
+                          <p className="text-xs text-gray-400 leading-relaxed font-sans">
+                            Áp dụng động cơ <strong>Client-Side Smart Matcher</strong> tự thiết kế. Tự động rà quét hàng nghìn dòng, phân tách cụm từ tiếng Việt chuyên sâu tích lũy, sắp xếp phân nhóm. Đảm bảo chạy mượt mà tức thì, không bị dính mạng chậm, hiển thị tiến trình % chính xác.
+                          </p>
+                        </div>
+                        <button 
+                          onClick={() => handleStandardizeSectors(false)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all w-full mt-6 shadow-md shadow-emerald-900/10 cursor-pointer"
+                        >
+                          Chạy nhanh bằng thuật toán thông minh
+                        </button>
+                      </div>
+
+                      {/* CÁCH 2: GEMINI API SERVER-SIDE PROXY */}
+                      <div className="bg-[#111827] rounded-xl p-5 border border-[#374151] flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="bg-indigo-950/40 border border-indigo-500/30 text-indigo-400 font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded-md">Trí tuệ nhân tạo</span>
+                            <h4 className="text-sm font-bold text-white">Cách 2: Giải pháp phân tích lập luận Gemini 3.5 AI</h4>
+                          </div>
+                          <p className="text-xs text-gray-400 leading-relaxed font-sans">
+                            Hệ thống sẽ gửi mô tả hoạt động qua cổng dịch vụ an toàn (server-side secrets) của Gemini 3.5 Flash để dịch hoạt động, suy luận logic lĩnh vực chuẩn xác và lý giải nguyên nhân tự nhiên. Thích hợp cho mẫu dữ liệu nhỏ hoặc muốn rà soát chiều sâu tinh xảo.
+                          </p>
+                        </div>
+                        
+                        <button 
+                          onClick={() => handleStandardizeSectors(true)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all w-full mt-6 shadow-md shadow-indigo-900/10 cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <Brain className="w-4 h-4 text-pink-400" /> Chạy bằng Trí Tuệ Nhân Tạo (Gemini 3.5 API)
+                        </button>
+                      </div>
+
+                    </div>
+
                   </div>
                 ) : (
-                  <div className="bg-[#1f2937]/40 border-2 border-dashed border-[#374151] p-12 text-center rounded-2xl space-y-4">
-                    <Database className="w-12 h-12 text-[#4b5563] mx-auto animate-pulse" />
-                    <div>
-                      <h4 className="text-base font-bold text-white">Chưa có dữ liệu để phân tích</h4>
-                      <p className="text-xs text-gray-400 max-w-md mx-auto pt-1 leading-relaxed">
-                        Hãy nạp tệp dữ liệu chính ở Tab "Xem Dữ Liệu & Định Nghĩa Cột" trước khi sử dụng chức năng này.
-                      </p>
-                    </div>
+                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
+                    ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước!
                   </div>
                 )}
               </div>
             </div>
           )}
-
-          {/* Các tab khác sẽ được đặt ở đây nếu có */}
-
-        </main>
-      </div>
-    </div>
-  );
-}
