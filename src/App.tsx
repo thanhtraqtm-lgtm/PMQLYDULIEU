@@ -924,24 +924,25 @@ export default function App() {
       alert("Vui lòng nạp dữ liệu chính trước khi chạy báo cáo nhanh.");
       return;
     }
-    if (!mapping.manganh || !mapping.xa) {
-      alert("Yêu cầu định cấu hình cột 'Mã Ngành' và 'Địa bàn (Xã)' ở trang cơ sở đầu vào trước!");
-      return;
-    }
+    // Removed the hardcoded check for mapping.manganh and mapping.xa
+    // Instead, we'll handle cases where they might be empty or not mapped.
 
     setLoading(true);
     setProgress(0);
     setStatusMessage(`Đang tạo báo cáo nhanh Ngành Cấp ${level} kết hợp Xã...`);
     await sleep(200);
 
+    const maNganhCol = mapping.manganh || ""; // Use mapped column or empty string
+    const xaCol = mapping.xa || "";       // Use mapped column or empty string
+
     const processedData = mainData.map(row => {
-      const mngRaw = row[mapping.manganh];
+      const mngRaw = maNganhCol ? row[maNganhCol] : ""; // Use column only if mapped
       const mng = normalizeSectorCode(mngRaw); 
       
       const hierarchy = getSectorHierarchy(mng);
-      const cap5Info = hierarchy["5"];
-      const cap2Info = hierarchy["2"];
       const cap1Info = hierarchy["1"];
+      const cap2Info = hierarchy["2"];
+      const cap5Info = hierarchy["5"];
 
       const tenNganhCap5 = cap5Info?.ten || (mng ? `[Ngành Cấp 5 không tìm thấy: ${mng}]` : "[Mã ngành rỗng]");
       const tenNganhCap2 = cap2Info?.ten || (mng && mng.length >= 2 ? `[Ngành Cấp 2 không tìm thấy: ${mng.slice(0, 2)}]` : "[Ngành cấp 2 chưa xác định]");
@@ -965,7 +966,7 @@ export default function App() {
         _maNganhCap2: cap2Info?.ma || "", 
         _maNganhCap5: mng, 
         _tenNganhLabel: tenNganhLabel, 
-        _tempXa: String(row[mapping.xa] || "Khác").trim() 
+        _tempXa: xaCol ? String(row[xaCol] || "Khác").trim() : "Khác" // Use column only if mapped
       };
     });
 
@@ -2101,6 +2102,104 @@ export default function App() {
             </div>
           )}
 
+          {/* 4. TAB SO SÁNH CŨ MỚI (DIFF) */}
+          {activeTab === "sosanh" && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Combine className="w-5 h-5 text-cyan-400" /> SO SÁNH HAI FILE DỮ LIỆU CŨ & MỚI
+                </h3>
+                <p className="text-xs text-gray-400">Rà soát và đánh dấu trạng thái thay đổi ("Mới thêm", "Đã xóa", "Lệch thay đổi") dựa vào cột mã định danh chung.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  <div className="bg-[#111827]/60 rounded-xl p-5 border border-gray-800 space-y-4 text-center">
+                    <h4 className="text-sm font-bold text-gray-400">📁 FILE DỮ LIỆU BẢN CŨ</h4>
+                    <label className="inline-block bg-[#1f2937] hover:bg-[#374151] text-xs text-white border border-[#4b5563] font-semibold px-4 py-2.5 rounded-lg cursor-pointer transition-all">
+                      Tải File Cũ
+                      <input type="file" onChange={(e) => handleFileUpload(e, "old")} className="hidden" />
+                    </label>
+                    <div className="text-xs text-gray-400 font-mono select-none">{oldFileName ? `📂 ${oldFileName} (${oldData.length} dòng)` : "Chưa tải file cũ"}</div>
+                  </div>
+
+                  <div className="bg-[#111827]/60 rounded-xl p-5 border border-cyan-500/10 space-y-4 text-center">
+                    <h4 className="text-sm font-bold text-cyan-400">📁 FILE DỮ LIỆU BẢN MỚI</h4>
+                    <label className="inline-block bg-[#1f2937] hover:bg-[#374151] border border-cyan-500/30 text-xs text-cyan-300 font-semibold px-4 py-2.5 rounded-lg cursor-pointer transition-all">
+                      Tải File Mới
+                      <input type="file" onChange={(e) => handleFileUpload(e, "new")} className="hidden" />
+                    </label>
+                    <div className="text-xs text-gray-400 font-mono select-none">{newFileName ? `📂 ${newFileName} (${newData.length} dòng)` : "Chưa tải file mới"}</div>
+                  </div>
+
+                </div>
+
+                {oldData.length > 0 && newData.length > 0 && (
+                  <div className="max-w-md space-y-1 bg-[#111827]/80 rounded-xl p-4 border border-[#374151] mx-auto">
+                    <label className="text-xs font-bold text-gray-400 block">Chọn Cột Khóa chính đối chiếu độc nhất</label>
+                    <select 
+                      value={diffKey} 
+                      onChange={(e) => setDiffKey(e.target.value)}
+                      className="w-full bg-[#1f2937] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
+                    >
+                      <option value="">-- Chọn cột khóa --</option>
+                      {Object.keys(oldData[0] || {}).filter(c => Object.keys(newData[0] || {}).includes(c)).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="pt-4 border-t border-gray-800 flex justify-end">
+                  <button 
+                    onClick={handleCompare}
+                    className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-cyan-900/30 font-sans cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Combine className="w-4 h-4" /> BẮT ĐẦU SO SÁNH & DIFF
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. TAB TÁCH DỮ LIỆU THEO CỘT */}
+          {activeTab === "tachfile" && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Scissors className="w-5 h-5 text-pink-400" /> TÁCH FILE HÀNG LOẠT THEO CỘT CHỈ ĐỊNH
+                </h3>
+                <p className="text-xs text-gray-400">Chia nhỏ bảng tính lớn của bạn thành nhiều file Excel riêng biệt dựa trên giá trị cột đã chọn (ví dụ: tách theo từng Địa Phương Xã) và đóng gói tải xuống ZIP.</p>
+
+                {mainData.length > 0 ? (
+                  <div className="max-w-md space-y-4 bg-[#111827] rounded-xl p-5 border border-[#374151]">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 block">Chọn cột để định nghĩa tách file</label>
+                      <select 
+                        value={splitCol} 
+                        onChange={(e) => setSplitCol(e.target.value)}
+                        className="w-full bg-[#1f2937] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
+                      >
+                        <option value="">-- Chọn cột --</option>
+                        {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    <button 
+                      onClick={handleSplitData}
+                      className="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-pink-900/30 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Scissors className="w-4 h-4" /> KHỞI CHẠY BẮT ĐẦU TÁCH HÀNG LOẠT & ZIP DOWNLOAD
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
+                    ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước ở Tab "Xem & Định Nghĩa Cột"!
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 6. TAB TỔNG HỢP BÁO CÁO ĐỘNG */}
           {activeTab === "tonghop" && (
             <div className="space-y-6 animate-fade-in">
@@ -2193,7 +2292,8 @@ export default function App() {
                               {aggRules.map((rule, idx) => (
                                 <div key={idx} className="flex justify-between items-center bg-[#111827] px-3 py-1.5 rounded-lg border border-gray-800 text-xs">
                                   <span className="text-gray-300 font-mono">
-                                    🔴 Phép <strong className="text-amber-400">{rule.op.toUpperCase()}</strong> trên cột <strong className="text-white">{rule.col}</strong>
+                                    🔴 Phép <strong className="text-amber-400">{rule.op.toUpperCase()}</strong> trên cột <strong className
+
                                   </span>
                                   <button onClick={() => removeAggRule(idx)} className="text-red-400 hover:text-red-300 cursor-pointer">
                                     <Trash2 className="w-3.5 h-3.5" />
