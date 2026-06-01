@@ -2290,8 +2290,20 @@ export default function App() {
                             <div className="space-y-1 max-h-[140px] overflow-y-auto">
                               {aggRules.map((rule, idx) => (
                                 <div key={idx} className="flex justify-between items-center bg-[#111827] px-3 py-1.5 rounded-lg border border-gray-800 text-xs">
-  <span className="text-gray-300 font-mono">
-    🔴 Phép <strong className="text-amber-400">Tính Toán</strong> {/* Hoặc nội dung bạn muốn hiển thị */}
-  </span>
-  {/* Có thể có thêm các phần tử khác ở đây */}
-</div>
+                                  <span className="text-gray-300 font-mono">
+                                    <strong className="text-amber-400">{rule.op.toUpperCase()}</strong> ({rule.col})
+                                  </span>
+                                  <button onClick={() => removeAggRule(idx)} className="text-red-400 hover:text-red-300 cursor-pointer">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-auto pt-4 border-t border-gray-800 flex justify-end">
+                        <button 
+                          onClick={handleRunSummary}
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-
