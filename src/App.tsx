@@ -1388,20 +1388,20 @@ export default function App() {
             {/* Phần giới thiệu ban đầu khi chưa nạp file */}
             {activeTab === "trangchu" && mainData.length === 0 && (
               <div className="bg-[#1f2937]/50 border border-gray-700 rounded-xl p-4 text-xs text-gray-300 space-y-2.5 leading-relaxed animate-slide-in-bottom">
-                <div className="font-bold text-purple-300 flex items-center gap-1.5">
-                  <Info className="w-4 h-4 text-purple-400" /> HƯỚNG DẪN NHANH
+                <div className="font-bold text-purple-300 flex items-center gap-1.5 text-lg">
+                  <Info className="w-5 h-5 text-purple-400" /> HƯỚNG DẪN NHANH
                 </div>
                 <p className="leading-relaxed">
-                  Chào mừng bạn đến với **Công Cụ Hỗ Trợ Quản Lý Dữ Liệu**! Để bắt đầu, vui lòng thực hiện các bước sau:
+                  Chào mừng bạn đến với **Công Cụ Hỗ Trợ Quản Lý Dữ Liệu**! Để bắt đầu, vui lòng thực hiện theo các bước sau:
                 </p>
                 <ul className="list-decimal list-inside space-y-1 text-[11px] text-gray-400 pl-1">
                   <li><strong>Nạp Dữ Liệu:</strong> Bấm vào nút <span className="font-bold text-purple-300">"NẠP DỮ LIỆU TỪ FILE"</span> ở góc trên bên phải để tải lên tệp Excel hoặc CSV của bạn.</li>
                   <li><strong>Định Nghĩa Cột:</strong> Sau khi nạp file, bạn có thể xem lại danh sách cột, đổi tên cột cho dễ nhớ và chọn những cột cần thiết.</li>
-                  <li><strong>Sử Dụng Công Cụ:</strong> Lựa chọn các chức năng phù hợp như Ghép nối, So sánh, Tách file, Tổng hợp báo cáo, hoặc Khớp mã ngành/Kiểm tra logic.</li>
+                  <li><strong>Sử Dụng Công Cụ:</strong> Lựa chọn các chức năng xử lý dữ liệu như Ghép nối, So sánh, Tách file, Tổng hợp báo cáo, hoặc Khớp mã ngành/Kiểm tra logic.</li>
                   <li><strong>Xuất Kết Quả:</strong> Khi hoàn tất, bạn có thể xuất dữ liệu đã xử lý ra file Excel.</li>
                 </ul>
-                <p className="leading-relaxed text-purple-300">
-                  Chúc bạn có những trải nghiệm xử lý dữ liệu hiệu quả!
+                <p className="leading-relaxed text-purple-300 font-semibold">
+                  Chúng tôi luôn nỗ lực để mang đến trải nghiệm tốt nhất cho bạn.
                 </p>
               </div>
             )}
@@ -2318,6 +2318,4 @@ export default function App() {
                             onClick={() => handleStandardizeSectors(true)} // useAI = true
                             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-green-900/30 font-sans cursor-pointer flex items-center justify-center gap-1.5"
                           >
-                            <Brain className="w-4 h-4" /> SỬ DỤNG AI PHÂN TÍCH & KHỚP MÃ (Đề xuất)
-                          </button>
-                          {
+                            <Brain className="w-4 h-4" />
