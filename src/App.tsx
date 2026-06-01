@@ -2349,3 +2349,195 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {/* 8. TAB CỖ MÁY KIỂM TRA LOGIC ĐA ĐIỀU KIỆN */}
+          {activeTab === "kiemtralogic" && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <CheckSquare className="w-5 h-5 text-emerald-400" /> CỖ MÁY KIỂM TRA LOGIC ĐA CHỈ TIÊU (RULE ENGINE)
+                  </h3>
+                  <p className="text-xs text-gray-400">Tạo ra các quy tắc ràng buộc rà quét dữ liệu dạng: NẾU thỏa mãn (Điều kiện bước 1) THÌ PHẢI bắt buộc thỏa mãn (Điều kiện bước 2). Hệ thống tự rà rà soát và ghi chú dòng sai phạm vào cột "Loi_Logic".</p>
+                </div>
+
+                {mainData.length > 0 ? (
+                  <div className="space-y-6 border-t border-gray-800 pt-6">
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      
+                      {/* ĐIỀU KIỆN 1: BƯỚC NẾU */}
+                      <div className="bg-[#111827] rounded-xl p-5 border border-indigo-500/10 space-y-4">
+                        <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider font-mono">BƯỚC 1: ĐIỀU KIỆN NẾU (IF CONDITIONS)</div>
+                        <p className="text-[11px] text-gray-400">Thiết lập các điều kiện để tìm mục tiêu cần kiểm tra rà soát:</p>
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          <select 
+                            value={newIfRule.col} 
+                            onChange={(e) => setNewIfRule({ ...newIfRule, col: e.target.value })}
+                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
+                          >
+                            <option value="">Cột</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          
+                          <select 
+                            value={newIfRule.op} 
+                            onChange={(e) => setNewIfRule({ ...newIfRule, op: e.target.value })}
+                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
+                          >
+                            <option value="==">bằng (==)</option>
+                            <option value="!=">khác (!=)</option>
+                            <option value=">">lớn hơn (&gt;)</option>
+                            <option value="<">nhỏ hơn (&lt;)</option>
+                            <option value=">=">lớn hơn bằng (&gt;=)</option>
+                            <option value="<=">nhỏ hơn bằng (&lt;=)</option>
+                            <option value="chứa">chứa (string)</option>
+                            <option value="không chứa">không chứa (string)</option>
+                            <option value="trống">để rỗng (empty)</option>
+                            <option value="không trống">có dữ liệu</option>
+                          </select>
+
+                          {newIfRule.op !== "trống" && newIfRule.op !== "không trống" && (
+                            <input 
+                              type="text"
+                              placeholder="Giá trị..."
+                              value={newIfRule.val}
+                              onChange={(e) => setNewIfRule({ ...newIfRule, val: e.target.value })}
+                              className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
+                            />
+                          )}
+                        </div>
+
+                        <button 
+                          onClick={() => handleLogicRuleAdd("if")}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-all w-full cursor-pointer"
+                        >
+                          Thêm dòng NẾU
+                        </button>
+
+                        <div className="space-y-1 max-h-[140px] overflow-y-auto border-t border-gray-800 pt-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-gray-400">QUY TẮC "NẾU" HIỆN TẠI:</span>
+                            <div className="flex gap-2 text-[10px]">
+                              <label className="flex items-center gap-1 text-gray-300">
+                                <input type="radio" checked={ifCombine === "AND"} onChange={() => setIfCombine("AND")} className="scale-75" /> VÀ (AND)
+                              </label>
+                              <label className="flex items-center gap-1 text-gray-300">
+                                <input type="radio" checked={ifCombine === "OR"} onChange={() => setIfCombine("OR")} className="scale-75" /> HOẶC (OR)
+                              </label>
+                            </div>
+                          </div>
+                          {ifRules.length === 0 ? (
+                            <div className="text-[11px] text-gray-500 italic">Chưa dựng quy tắc...</div>
+                          ) : (
+                            ifRules.map((rule, idx) => (
+                              <div key={idx} className="flex justify-between items-center bg-[#181d29] px-3 py-1.5 rounded-lg border border-gray-800 text-xs text-gray-300">
+                                <span>{rule.col} {rule.op} {rule.op !== "trống" && rule.op !== "không trống" ? `'${rule.val}'` : ""}</span>
+                                <button onClick={() => setIfRules(ifRules.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 cursor-pointer">X</button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ĐIỀU KIỆN 2: BƯỚC THÌ PHẢI */}
+                      <div className="bg-[#111827] rounded-xl p-5 border border-emerald-500/10 space-y-4">
+                        <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono">BƯỚC 2: THÌ BẮT BUỘC PHẢI (THEN MUST CONDITIONS)</div>
+                        <p className="text-[11px] text-gray-400">Nếu thỏa mãn Bước 1, thì dữ liệu bắt buộc PHẢI đạt tất cả ràng buộc sau:</p>
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          <select 
+                            value={newThenRule.col} 
+                            onChange={(e) => setNewThenRule({ ...newThenRule, col: e.target.value })}
+                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
+                          >
+                            <option value="">Cột</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          
+                          <select 
+                            value={newThenRule.op} 
+                            onChange={(e) => setNewThenRule({ ...newThenRule, op: e.target.value })}
+                            className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
+                          >
+                            <option value="==">bằng (==)</option>
+                            <option value="!=">khác (!=)</option>
+                            <option value=">">lớn hơn (&gt;)</option>
+                            <option value="<">nhỏ hơn (&lt;)</option>
+                            <option value=">=">lớn hơn bằng (&gt;=)</option>
+                            <option value="<=">nhỏ hơn bằng (&lt;=)</option>
+                            <option value="chứa">chứa (string)</option>
+                            <option value="không chứa">không chứa (string)</option>
+                            <option value="trống">để rỗng (empty)</option>
+                            <option value="không trống">có dữ liệu</option>
+                          </select>
+
+                          {newThenRule.op !== "trống" && newThenRule.op !== "không trống" && (
+                            <input 
+                              type="text"
+                              placeholder="Giá trị..."
+                              value={newThenRule.val}
+                              onChange={(e) => setNewThenRule({ ...newThenRule, val: e.target.value })}
+                              className="bg-[#1f2937] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
+                            />
+                          )}
+                        </div>
+
+                        <button 
+                          onClick={() => handleLogicRuleAdd("then")}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-all w-full cursor-pointer"
+                        >
+                          Thêm dòng THÌ PHẢI
+                        </button>
+
+                        <div className="space-y-1 max-h-[140px] overflow-y-auto border-t border-gray-800 pt-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-gray-400">QUY TẮC "THÌ PHẢI" HIỆN TẠI:</span>
+                            <div className="flex gap-2 text-[10px]">
+                              <label className="flex items-center gap-1 text-gray-300">
+                                <input type="radio" checked={thenCombine === "AND"} onChange={() => setThenCombine("AND")} className="scale-75" /> VÀ (AND)
+                              </label>
+                              <label className="flex items-center gap-1 text-gray-300">
+                                <input type="radio" checked={thenCombine === "OR"} onChange={() => setThenCombine("OR")} className="scale-75" /> HOẶC (OR)
+                              </label>
+                            </div>
+                          </div>
+                          {thenRules.length === 0 ? (
+                            <div className="text-[11px] text-gray-500 italic">Chưa dựng quy tắc...</div>
+                          ) : (
+                            thenRules.map((rule, idx) => (
+                              <div key={idx} className="flex justify-between items-center bg-[#15241e] px-3 py-1.5 rounded-lg border border-gray-800 text-xs text-gray-300">
+                                <span>{rule.col} {rule.op} {rule.op !== "trống" && rule.op !== "không trống" ? `'${rule.val}'` : ""}</span>
+                                <button onClick={() => setThenRules(thenRules.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 cursor-pointer">X</button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <button 
+                      onClick={handleLogicCheck}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all w-full flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                    >
+                      <CheckSquare className="w-5 h-5 text-purple-300" /> BẮT ĐẦU CHẠY KIỂM TRA LỌC LOGIC ĐA QUY TẮC
+                    </button>
+
+                  </div>
+                ) : (
+                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
+                    ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước!
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+        </main>
+      </div>
+
+    </div>
+  );
+}
