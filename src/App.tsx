@@ -2528,7 +2528,7 @@ export default function App() {
                 </div>
                 <div className="w-full md:w-auto flex justify-center">
                   <div className="bg-gradient-to-tr from-[#374151] to-purple-800/20 border border-[#4b5563] p-6 rounded-2xl text-center space-y-2 min-w-[200px] shadow-sm">
-                    <div className="text-4xl font-extrabold text-white font-mono">197</div>
+                    <div className="text-4xl font-extrabold text-white font-mono">QUẢN LÝ DỮ LIỆU</div>
                     <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase font-mono">Mã ngành VSIC nhúng</div>
                     <div className="text-[10px] text-green-400 font-mono">Đầy đủ 5 cấp phân chiêu</div>
                   </div>
@@ -2539,10 +2539,10 @@ export default function App() {
               <div className="space-y-6">
                 <div className="border-b border-[#374151] pb-4">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> BẢN ĐỒ CẨM NANG & KÍCH HOẠT CHỨC NĂNG NHANH
+                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> HƯỚNG DẪN & KÍCH HOẠT CHỨC NĂNG NHANH
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
-                    Hệ thống tích hợp đầy đủ 7 công cụ về xử lý dữ liệu. Quý khách có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
+                    Hệ thống tích hợp đầy đủ 7 công cụ về xử lý dữ liệu. Bạn có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
                   </p>
                 </div>
 
