@@ -387,36 +387,13 @@ export default function App() {
       return false;
     };
 
-    // Kiểm tra nhanh xem 10 dòng cuối cùng có dữ liệu không. Nếu có -> tệp thật sự đầy đủ, dải ô chuẩn xác!
-    let isGenuineLargeFile = false;
-    const checkStart = Math.max(startRow, endRow - 10);
-    for (let r = endRow; r >= checkStart; r--) {
+    // Dò ngược từ endRow về startRow để tìm dòng thực tế cuối cùng chứa dữ liệu nhanh chóng và chính xác 100%
+    let realLastRow = startRow;
+    for (let r = endRow; r >= startRow; r--) {
       if (checkRowHasData(r)) {
-        isGenuineLargeFile = true;
+        realLastRow = r;
         break;
       }
-    }
-    
-    // Nếu tệp chuẩn xác không phình loại vỏ trống, giữ nguyên và trả về luôn
-    if (isGenuineLargeFile) {
-      return ws;
-    }
-
-    // Nếu dải ô có hiện tượng bị phình rộng vô lý, dò ngược lên bằng bước nhảy giảm dần cực nhanh
-    let realLastRow = startRow;
-    let currentHigh = endRow;
-    const steps = [10000, 1000, 100, 10, 1];
-    
-    for (const step of steps) {
-      let r = currentHigh;
-      while (r > realLastRow) {
-        if (checkRowHasData(r)) {
-          realLastRow = r;
-          break;
-        }
-        r -= step;
-      }
-      currentHigh = Math.min(endRow, realLastRow + step);
     }
 
     // Giải phóng bớt mảng dòng nếu sử dụng cấu hình Sheet dạng dense
