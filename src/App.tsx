@@ -513,7 +513,7 @@ export default function App() {
         // Tối ưu hóa dải ô và làm gọn tinh chất Worksheet để tránh quá tải bộ nhớ và triệt tiêu hoàn toàn lỗi "Too many properties to enumerate"
         const ws = optimizeAndCompactSheet(wb, wsName);
 
-        const data = XLSX.utils.sheet_to_json(ws);
+        const data = XLSX.utils.sheet_to_json(ws, { dense: true } as any) as any[];
 
         if (data.length === 0) {
           alert("Tệp trống hoặc không chứa dữ liệu hợp lệ!");
