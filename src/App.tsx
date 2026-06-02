@@ -284,58 +284,30 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [mainData, rawImportedData, columns, fileName, mapping, customColConfigs]);
 
-  // Thuật toán dọn dẹp dải ô Workbook trống thừa thãi cực kỳ tối ưu và an toàn
-  const optimizeSheetRange = (ws: XLSX.WorkSheet) => {
-    if (!ws || !ws['!ref']) return;
+  // Thuật toán dọn dẹp dải ô Workbook trống thừa thãi và làm gọn tinh chất Worksheet
+  // Đảm bảo không bao giờ gọi Object.keys() hay for...in trên Worksheet làm phình/lỗi bộ nhớ hoặc lỗi "Too many properties to enumerate"
+  const optimizeAndCompactSheet = (wb: XLSX.WorkBook, sheetName: string): XLSX.WorkSheet => {
+    const ws = wb.Sheets[sheetName];
+    if (!ws || !ws['!ref']) return ws;
     
     let range;
     try {
       range = XLSX.utils.decode_range(ws['!ref']);
     } catch (e) {
-      return;
+      return ws;
     }
 
-    const rowCount = range.e.r - range.s.r + 1;
-    
-    // Nếu số dòng dưới 30,000, Object.keys(ws) hoạt động cực nhanh và an toàn
-    if (rowCount < 30000) {
-      let minRow = Infinity, maxRow = -Infinity;
-      let minCol = Infinity, maxCol = -Infinity;
-      
-      const cellKeys = Object.keys(ws).filter(k => k[0] !== '!');
-      if (cellKeys.length === 0) return;
-      
-      cellKeys.forEach(key => {
-        try {
-          const cell = XLSX.utils.decode_cell(key);
-          const cellObj = ws[key];
-          if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
-            if (cell.r < minRow) minRow = cell.r;
-            if (cell.r > maxRow) maxRow = cell.r;
-            if (cell.c < minCol) minCol = cell.c;
-            if (cell.c > maxCol) maxCol = cell.c;
-          }
-        } catch (e) {}
-      });
-      
-      if (minRow !== Infinity) {
-        ws['!ref'] = XLSX.utils.encode_range({
-          s: { r: minRow, c: minCol },
-          e: { r: maxRow, c: maxCol }
-        });
-      }
-      return;
-    }
-
-    // Với các tệp siêu lớn (30,000+ dòng đến 1 triệu dòng):
-    // KHÔNG dùng Object.keys(ws) vì sẽ lỗi "Too many properties to enumerate" hoặc làm đơ trình duyệt.
-    // Chúng ta tối ưu bằng cách quét từ cuối hàng (hàng cuối cùng trong dải ô) ngược lên để phát hiện dữ liệu thực tế.
-    
+    const startRow = range.s.r;
+    const endRow = range.e.r;
     const startCol = range.s.c;
-    const endCol = Math.min(range.e.c, 100); // Giới hạn kiểm tra 100 cột đầu tiên để đảm bảo tốc độ
-    
+    const endCol = range.e.c;
+
+    if (endRow <= startRow) return ws;
+
+    // Hàm kiểm tra xem dòng r có dữ liệu thực tế hay không
     const checkRowHasData = (r: number): boolean => {
-      for (let c = startCol; c <= endCol; c++) {
+      const maxColToSearch = Math.min(endCol, startCol + 100);
+      for (let c = startCol; c <= maxColToSearch; c++) {
         const cellRef = XLSX.utils.encode_cell({ r, c });
         const cellObj = ws[cellRef];
         if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
@@ -345,53 +317,74 @@ export default function App() {
       return false;
     };
 
-    // Kiểm tra nhanh xem dải ô có thực sự bị phình to (bloated) không.
-    // Nếu kiểm tra vài dòng ở cuối cùng (ví dụ dòng range.e.r) mà có dữ liệu -> đây là tệp lớn thật sự, dải ô hoàn toàn chuẩn xác!
-    let isGenuineLargeFile = false;
-    for (let r = Math.max(range.s.r, range.e.r - 20); r <= range.e.r; r++) {
-      if (checkRowHasData(r)) {
-        isGenuineLargeFile = true;
-        break;
-      }
-    }
+    // Tìm hàng cuối cùng thực sự chứa dữ liệu bằng thuật toán Jump Search cực nhanh (tránh lặp 1 triệu dòng)
+    let realLastRow = startRow;
+    let currentMaxToCheck = endRow;
+    const steps = [10000, 1000, 100, 10, 1];
     
-    // Nếu tệp lớn thật sự, chúng ta giữ nguyên dải ô (!ref) và thoát ngay để tránh tính toán thừa.
-    if (isGenuineLargeFile) {
-      return;
-    }
-
-    // Nếu dải ô bị phình to vô lý (cuối dải ô trống hoàn toàn), tiến hành dò tìm hàng cuối cùng có dữ liệu ngược lên.
-    // Sử dụng thuật toán nhảy bước để tìm hàng cuối có dữ liệu siêu nhanh mà không tốn tài nguyên.
-    let realLastRow = range.s.r;
-    let step = 10000;
-    let currentHigh = range.e.r;
-    
-    while (currentHigh > range.s.r) {
-      let foundDataInStep = false;
-      const checkLimit = Math.max(range.s.r, currentHigh - step);
-      for (let r = currentHigh; r >= checkLimit; r -= Math.max(1, Math.floor(step / 10))) {
+    for (const step of steps) {
+      let r = currentMaxToCheck;
+      while (r > realLastRow) {
         if (checkRowHasData(r)) {
           realLastRow = r;
-          foundDataInStep = true;
+          break;
+        }
+        r -= step;
+      }
+      currentMaxToCheck = Math.min(endRow, realLastRow + step);
+    }
+
+    // Tìm cột cuối cùng thực tế chứa dữ liệu
+    let realLastCol = startCol;
+    const maxColLimit = Math.min(endCol, startCol + 100);
+    for (let c = maxColLimit; c >= startCol; c--) {
+      let colHasData = false;
+      const rowStep = Math.max(1, Math.floor((realLastRow - startRow) / 200));
+      for (let r = startRow; r <= realLastRow; r += rowStep) {
+        const cellRef = XLSX.utils.encode_cell({ r, c });
+        const cellObj = ws[cellRef];
+        if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
+          colHasData = true;
           break;
         }
       }
-      if (foundDataInStep) {
-        for (let r = realLastRow; r <= Math.min(range.e.r, realLastRow + step); r++) {
-          if (checkRowHasData(r)) {
-            realLastRow = r;
-          }
-        }
+      if (colHasData) {
+        realLastCol = c;
         break;
       }
-      currentHigh -= step;
     }
 
-    // Cập nhật lại dải ô mới an toàn
-    ws['!ref'] = XLSX.utils.encode_range({
-      s: { r: range.s.r, c: range.s.c },
-      e: { r: realLastRow, c: range.e.c }
+    // TẠO MỘT WORKSHEET MỚI HOÀN TOÀN SẠCH SẼ, CHỈ CHỨA CÁC ĐỐI TƯỢNG CÓ DỮ LIỆU THỰC SỰ
+    // Điều này triệt tiêu hoàn toàn tất cả các thuộc tính rác làm phình object và gây lỗi hệ thống
+    const newWs: XLSX.WorkSheet = {};
+
+    // 1. Sao chép các thuộc tính cấu hình hệ thống (bắt đầu bằng dấu !)
+    const systemKeys = ['!ref', '!cols', '!rows', '!merges', '!protect', '!autofilter', '!views', '!type'];
+    systemKeys.forEach(key => {
+      if (ws[key] !== undefined) {
+        newWs[key] = ws[key];
+      }
     });
+
+    // Cập nhật lại dải ô !ref chuẩn xác tuyệt đối cho Sheet mới
+    newWs['!ref'] = XLSX.utils.encode_range({
+      s: { r: startRow, c: startCol },
+      e: { r: realLastRow, c: Math.max(realLastCol, startCol) }
+    });
+
+    // 2. Chỉ sao chép các ô thực tế có dữ liệu nằm trong dải ô hoạt động thực tế mới
+    for (let r = startRow; r <= realLastRow; r++) {
+      for (let c = startCol; c <= realLastCol; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r, c });
+        const cellObj = ws[cellRef];
+        if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
+          newWs[cellRef] = cellObj;
+        }
+      }
+    }
+
+    wb.Sheets[sheetName] = newWs;
+    return newWs;
   };
 
   // Mock data generator
@@ -469,10 +462,9 @@ export default function App() {
         });
 
         const wsName = wb.SheetNames[0];
-        const ws = wb.Sheets[wsName];
 
-        // Tối ưu hóa dải ô để tránh quá tải bộ nhớ và lỗi "Too many properties to enumerate"
-        optimizeSheetRange(ws);
+        // Tối ưu hóa dải ô và làm gọn tinh chất Worksheet để tránh quá tải bộ nhớ và triệt tiêu hoàn toàn lỗi "Too many properties to enumerate"
+        const ws = optimizeAndCompactSheet(wb, wsName);
 
         const data = XLSX.utils.sheet_to_json(ws);
 
