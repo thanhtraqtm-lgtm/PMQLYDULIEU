@@ -127,7 +127,10 @@ import {
   Plus,
   Trash2,
   FileCheck,
-  Compass
+  Compass,
+  Lock,
+  KeyRound,
+  LogOut
 } from "lucide-react";
 
 import { 
@@ -160,6 +163,47 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>("");
+
+  // Trạng thái mật khẩu bảo vệ ứng dụng độc lập tránh bắt đăng nhập email phiền hà
+  const [appPassword, setAppPassword] = useState<string>(() => {
+    return localStorage.getItem("vsic_app_password") || "admin123";
+  });
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
+    return localStorage.getItem("vsic_app_authorized") === "true";
+  });
+  const [typedPassword, setTypedPassword] = useState<string>("");
+  const [passwordError, setPasswordError] = useState<string>("");
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState<boolean>(false);
+  const [newPasswordVal, setNewPasswordVal] = useState<string>("");
+
+  const handleCheckPassword = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (typedPassword === appPassword) {
+      localStorage.setItem("vsic_app_authorized", "true");
+      setIsAuthorized(true);
+      setPasswordError("");
+    } else {
+      setPasswordError("Mật khẩu truy cập chưa chính xác! Vui lòng kiểm tra lại.");
+    }
+  };
+
+  const handleChangePassword = () => {
+    if (!newPasswordVal.trim()) {
+      alert("Vui lòng nhập mật khẩu mới!");
+      return;
+    }
+    setAppPassword(newPasswordVal);
+    localStorage.setItem("vsic_app_password", newPasswordVal);
+    setShowPasswordChangeModal(false);
+    setNewPasswordVal("");
+    alert(`Đã đổi mật khẩu hành trị thành công sang: ${newPasswordVal}`);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("vsic_app_authorized");
+    setIsAuthorized(false);
+    setTypedPassword("");
+  };
 
   // Storage chính
   const [mainData, setMainData] = useState<any[]>([]);
@@ -231,12 +275,48 @@ export default function App() {
   const [t2AggMethod, setT2AggMethod] = useState<"sum" | "avg">("sum");
   const [t2ReportData, setT2ReportData] = useState<any[]>([]);
   const [t2ReportCols, setT2ReportCols] = useState<string[]>([]);
+  const [t2ReportLevel, setT2ReportLevel] = useState<number>(2);
+
+  // States riêng biệt cho người dùng chọn cột báo cáo nhanh và xoay đa năng trực tiếp không bị bó buộc
+  const [quickReportManganhCol, setQuickReportManganhCol] = useState<string>("");
+  const [quickReportXaCol, setQuickReportXaCol] = useState<string>("");
+  const [quickReportDoanhThuCol, setQuickReportDoanhThuCol] = useState<string>("");
+  const [quickReportLaoDongCol, setQuickReportLaoDongCol] = useState<string>("");
+  const [pivotManganhCol, setPivotManganhCol] = useState<string>("");
 
   // States cho Phân Hệ 2: Chuẩn hóa khớp ngành VSIC cấp 5 (Mới độc lập)
   const [stdIndustryCol, setStdIndustryCol] = useState<string>("");
   const [stdDescriptionCol, setStdDescriptionCol] = useState<string>("");
   const [stdReportAnomalies, setStdReportAnomalies] = useState<any[]>([]);
   const [stdMatchStats, setStdMatchStats] = useState<{ total: number; valid: number; invalid: number; conflicts: number }>({ total: 0, valid: 0, invalid: 0, conflicts: 0 });
+
+  // Tự động tìm kiếm dự đoán ban đầu cho các bộ chọn báo cáo động độc lập giúp người dùng tiện thao tác
+  useEffect(() => {
+    if (columns.length > 0) {
+      const findCol = (keywords: string[]) => {
+        return columns.find(c => {
+          const low = c.toLowerCase().trim();
+          return keywords.some(k => low.includes(k));
+        }) || "";
+      };
+
+      if (!quickReportManganhCol) {
+        setQuickReportManganhCol(findCol(["mã ngành", "manganh", "ngành", "nganh", "vsic", "ma_nganh"]));
+      }
+      if (!quickReportXaCol) {
+        setQuickReportXaCol(findCol(["xã", "xa", "địa bàn", "diaban", "phường", "phuong", "địa chỉ", "dia chi"]));
+      }
+      if (!quickReportDoanhThuCol) {
+        setQuickReportDoanhThuCol(findCol(["doanh thu", "doanhthu", "doanh_thu", "thu nhập", "revenue", "doanh_so", "doanh số"]));
+      }
+      if (!quickReportLaoDongCol) {
+        setQuickReportLaoDongCol(findCol(["lao động", "laodong", "lao_dong", "nhân sự", "nhan_su", "employees", "số người", "so nguoi"]));
+      }
+      if (!pivotManganhCol) {
+        setPivotManganhCol(findCol(["mã ngành", "manganh", "ngành", "nganh", "vsic", "ma_nganh"]));
+      }
+    }
+  }, [columns]);
 
 
 
@@ -498,6 +578,47 @@ export default function App() {
     return data;
   };
 
+  // Bộ phân giải phỏng đoán vai trò cột thông minh tự động (Auto-mapping)
+  const guessColumnMapping = (cols: string[]): ColumnMapping => {
+    const maps: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
+    cols.forEach(c => {
+      const low = c.toLowerCase().trim();
+      if (!maps.mota && (low.includes("mô tả") || low.includes("mota") || low.includes("hoatdong") || low.includes("hoạt động") || low.includes("description") || low.includes("nội dung") || low.includes("noi dung") || low.includes("dien giải") || low.includes("diễn giải"))) {
+        maps.mota = c;
+      }
+      if (!maps.manganh && (low.includes("mã ngành") || low.includes("manganh") || low.includes("vsic") || low.includes("ma_nganh") || low.includes("ngành") || low.includes("nganh") || low.includes("ngành đăng ký") || low.includes("ngành kinh doanh") || low.includes("nganh_dang_ky"))) {
+        maps.manganh = c;
+      }
+      if (!maps.xa && (low.includes("xã") || low.includes("xa") || low.includes("địa bàn") || low.includes("diaban") || low.includes("phường") || low.includes("phuong") || low.includes("địa chỉ") || low.includes("dia chi"))) {
+        maps.xa = c;
+      }
+      if (!maps.doanhthu && (low.includes("doanh thu") || low.includes("doanhthu") || low.includes("doanh_thu") || low.includes("thu nhập") || low.includes("revenue") || low.includes("doanh_so") || low.includes("doanh số"))) {
+        maps.doanhthu = c;
+      }
+      if (!maps.laodong && (low.includes("lao động") || low.includes("laodong") || low.includes("lao_dong") || low.includes("nhân sự") || low.includes("nhan_su") || low.includes("employees") || low.includes("số người") || low.includes("so nguoi"))) {
+        maps.laodong = c;
+      }
+      if (!maps.idCol && (low.includes("mã số") || low.includes("mst") || low.includes("mã số thuế") || low.includes("id") || low.includes("tax_code") || low.includes("mã doanh nghiệp") || low.includes("ma_so_thue"))) {
+        maps.idCol = c;
+      }
+    });
+
+    // Dự phòng (fallback): Nếu vẫn giữ rỗng, chọn đại cột khớp mô tả tốt nhất
+    if (!maps.mota) {
+      const descCol = cols.find(c => c.toLowerCase().includes("mô tả") || c.toLowerCase().includes("nội dung") || c.toLowerCase().includes("diễn giải"));
+      if (descCol) maps.mota = descCol;
+    }
+    if (!maps.manganh) {
+      const codeCol = cols.find(c => c.toLowerCase().includes("ngành") || c.toLowerCase().includes("nganh") || c.toLowerCase().includes("vsic") || c.toLowerCase().includes("mã") || c.toLowerCase().includes("ma_"));
+      if (codeCol) maps.manganh = codeCol;
+    }
+    if (!maps.xa) {
+      const addrCol = cols.find(c => c.toLowerCase().includes("xã") || c.toLowerCase().includes("địa") || c.toLowerCase().includes("phường") || c.toLowerCase().includes("bàn") || c.toLowerCase().includes("địa chỉ"));
+      if (addrCol) maps.xa = addrCol;
+    }
+    return maps;
+  };
+
   // Đọc file CSV hoặc Excel bằng xlsx hoặc Bộ phân giải CSV tối ưu
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "main" | "old" | "new" | "left" | "right") => {
     const file = e.target.files?.[0];
@@ -534,20 +655,21 @@ export default function App() {
             setColumns(cols);
             setFileName(file.name);
 
+            // Bỏ tự phỏng đoán cột, để trống hoàn toàn để bạn tự lựa chọn
+            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
+            setMapping(autoMap);
+
             // Khởi tạo danh sách cấu hình cột động từ tệp vừa nạp
             const initConfigs = cols.map(c => {
               return {
                 originalName: c,
                 use: true,
                 newName: c, // giữ nguyên tên ban đầu, cho phép người dùng sửa đổi trực tiếp
-                role: "" as any // Không tự động gán bất cứ vai trò nào mặc định
+                role: "" as any
               };
             });
             setCustomColConfigs(initConfigs);
 
-            // Không tự động mapping, để trống hoàn toàn để người dùng tự gán thủ công
-            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
-            setMapping(autoMap);
             setActiveTab("xemdulieu");
 
             // Lưu vĩnh viễn vào IndexedDB để không bị mất khi F5 hoặc đóng tab
@@ -615,20 +737,21 @@ export default function App() {
             setColumns(cols);
             setFileName(file.name);
 
+            // Bỏ tự phỏng đoán cột, để trống hoàn toàn để bạn tự lựa chọn
+            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
+            setMapping(autoMap);
+
             // Khởi tạo danh sách cấu hình cột động từ tệp vừa nạp
             const initConfigs = cols.map(c => {
               return {
                 originalName: c,
                 use: true,
                 newName: c, // giữ nguyên tên ban đầu, cho phép người dùng sửa đổi trực tiếp
-                role: "" as any // Không tự động gán bất cứ vai trò nào mặc định
+                role: "" as any
               };
             });
             setCustomColConfigs(initConfigs);
 
-            // Không tự động mapping, để trống hoàn toàn để người dùng tự gán thủ công
-            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
-            setMapping(autoMap);
             setActiveTab("xemdulieu");
 
             // Lưu vĩnh viễn vào IndexedDB để không bị mất khi F5 hoặc đóng tab
@@ -1061,7 +1184,7 @@ export default function App() {
   // 3. CHỨC NĂNG TÁCH DỮ LIỆU THEO CỘT HOÀN TOÀN TỰ ĐỘNG (EXPORT ZIP)
   const handleSplitData = async () => {
     if (mainData.length === 0) {
-      alert("Không có dữ liệu trong ! Vui lòng nạp tệp chính trước.");
+      alert("Không có dữ liệu trong hệ thống! Vui lòng nạp tệp chính trước.");
       return;
     }
     if (!splitCol) {
@@ -1211,13 +1334,14 @@ export default function App() {
     mainData.forEach(row => {
       const compositeKeyObj: any = {};
       groupByCols.forEach(col => {
-        if (col === "_virtual_sector_cap2" && mapping.manganh) {
-          const mng = normalizeSectorCode(row[mapping.manganh]);
+        const selectedManganhCol = pivotManganhCol || mapping.manganh;
+        if (col === "_virtual_sector_cap2" && selectedManganhCol) {
+          const mng = normalizeSectorCode(row[selectedManganhCol]);
           const sec2Code = mng ? mng.slice(0, 2) : "";
           const sec2Name = vsicRawData[sec2Code] || "Ngành cấp 2 chưa định nghĩa";
           compositeKeyObj["Ngành Cấp 2"] = sec2Code ? `${sec2Code} - ${sec2Name}` : "Chưa xác định";
-        } else if (col === "_virtual_sector_cap1" && mapping.manganh) {
-          const mng = normalizeSectorCode(row[mapping.manganh]);
+        } else if (col === "_virtual_sector_cap1" && selectedManganhCol) {
+          const mng = normalizeSectorCode(row[selectedManganhCol]);
           let sec1Code = "";
           if (mng) {
             if (/^[a-zA-Z]$/.test(mng)) {
@@ -1299,36 +1423,36 @@ export default function App() {
     setActiveTab("xemdulieu");
   };
 
-  // PHÂN HỆ 1: TỔNG HỢP BÁO CÁO THEO ĐẦU NGÀNH CẤP 2 (MỚI ĐỘC LẬP)
+  // PHÂN HỆ 1: TỔNG HỢP BÁO CÁO THEO ĐẦU NGÀNH CẤP 1 & CẤP 2 VSIC (MỚI ĐỘC LẬP)
   const handleExportT2Excel = () => {
     if (t2ReportData.length === 0) {
-      alert("Chưa có dữ liệu báo cáo ngành cấp 2 để xuất!");
+      alert(`Chưa có dữ liệu báo cáo ngành cấp ${t2ReportLevel} để xuất!`);
       return;
     }
     setLoading(true);
-    setStatusMessage("Đang chuẩn bị tệp Excel Báo cáo Ngành Cấp 2...");
+    setStatusMessage(`Đang chuẩn bị tệp Excel Báo cáo Ngành Cấp ${t2ReportLevel}...`);
     setTimeout(() => {
       try {
         const ws = XLSX.utils.json_to_sheet(t2ReportData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Báo cáo ngành cấp 2");
-        XLSX.writeFile(wb, `Bao_Cao_Nganh_Cap2_${t2AggMethod === "sum" ? "Tong" : "TB"}.xlsx`);
-        setStatusMessage("Tải xuống Báo cáo Ngành Cấp 2 thành công!");
+        XLSX.utils.book_append_sheet(wb, ws, `Báo cáo ngành cấp ${t2ReportLevel}`);
+        XLSX.writeFile(wb, `Bao_Cao_Nganh_Cap${t2ReportLevel}_${t2AggMethod === "sum" ? "Tong" : "TB"}.xlsx`);
+        setStatusMessage(`Tải xuống Báo cáo Ngành Cấp ${t2ReportLevel} thành công!`);
       } catch (e: any) {
-        alert("Lỗi xuất Excel ngành cấp 2: " + e.message);
+        alert(`Lỗi xuất Excel ngành cấp ${t2ReportLevel}: ` + e.message);
       } finally {
         setLoading(false);
       }
     }, 200);
   };
 
-  const handleCalcLevel2Summary = async () => {
+  const handleCalcLevelSummary = async (level: 1 | 2) => {
     if (mainData.length === 0) {
       alert("Không tìm thấy dữ liệu nguồn chính! Vui lòng nạp tệp chính trước.");
       return;
     }
     if (!t2IndustryCol) {
-      alert("Vui lòng chọn cột chứa Mã ngành cấp 5 hoặc cấp 8 ở bộ chọn!");
+      alert("Vui lòng chọn cột chứa Mã ngành ở bộ chọn!");
       return;
     }
     if (t2MetricCols.length === 0) {
@@ -1336,9 +1460,10 @@ export default function App() {
       return;
     }
 
+    setT2ReportLevel(level);
     setLoading(true);
     setProgress(10);
-    setStatusMessage("Đang quét dữ liệu nguồn và tách lọc 2 số đầu để lấy mã ngành cấp 2...");
+    setStatusMessage(`Đang quét dữ liệu nguồn và tách lọc để lấy mã ngành cấp ${level}...`);
     await sleep(200);
 
     // Grouping map
@@ -1346,9 +1471,23 @@ export default function App() {
     mainData.forEach(row => {
       const rawVal = row[t2IndustryCol];
       const normalized = normalizeSectorCode(rawVal);
-      // Lấy 2 số đầu của mã ngành làm ngành cấp 2 (VSIC luôn gồm 2 chữ số đầu đại diện cấp 2)
-      const level2Code = normalized ? normalized.slice(0, 2) : "";
-      const grpKey = level2Code || "CHUA_XAC_DINH";
+      
+      let finalCode = "";
+      if (level === 2) {
+        // Lấy 2 số đầu của mã ngành làm ngành cấp 2 (VSIC luôn gồm 2 chữ số đầu đại diện cấp 2)
+        finalCode = normalized ? normalized.slice(0, 2) : "";
+      } else {
+        // level === 1 (Ngành cấp 1 dạng chữ cái A..U)
+        if (normalized) {
+          if (/^[a-zA-Z]$/.test(normalized)) {
+            finalCode = normalized.toUpperCase();
+          } else {
+            const sec2Code = normalized.slice(0, 2);
+            finalCode = getParentSectorCode(sec2Code) || "";
+          }
+        }
+      }
+      const grpKey = finalCode || "CHUA_XAC_DINH";
 
       if (!groups.has(grpKey)) {
         groups.set(grpKey, []);
@@ -1357,7 +1496,7 @@ export default function App() {
     });
 
     setProgress(50);
-    setStatusMessage("Đang đối chiếu ngành cấp 2 nhúng trong code và cộng dồn lũy kế chỉ số dữ liệu...");
+    setStatusMessage(`Đang đối chiếu ngành cấp ${level} nhúng trong code và cộng dồn lũy kế chỉ số dữ liệu...`);
     await sleep(150);
 
     const reportRows: any[] = [];
@@ -1371,15 +1510,15 @@ export default function App() {
       const rowsInGroup = groups.get(key) || [];
       const count = rowsInGroup.length;
       
-      let level2Name = "Mã ngành trống hoặc không hợp lệ";
+      let levelName = `Mã ngành cấp ${level} trống hoặc không hợp lệ`;
       if (key !== "CHUA_XAC_DINH") {
-        level2Name = vsicRawData[key] || "Ngành cấp 2 chưa định nghĩa chuẩn mực";
+        levelName = vsicRawData[key] || `Ngành cấp ${level} chưa định nghĩa chuẩn mực`;
       }
 
       const reportRow: any = {
         "STT": idx + 1,
-        "Mã ngành cấp 2": key === "CHUA_XAC_DINH" ? "Chưa xác định" : key,
-        "Tên ngành cấp 2": level2Name,
+        [`Mã ngành cấp ${level}`]: key === "CHUA_XAC_DINH" ? "Chưa xác định" : key,
+        [`Tên ngành cấp ${level}`]: levelName,
         "Số đơn vị (DN)": count
       };
 
@@ -1415,8 +1554,8 @@ export default function App() {
     if (reportRows.length > 0) {
       const totalRow: any = {
         "STT": "",
-        "Mã ngành cấp 2": "TỔNG CỘNG LŨY KẾ",
-        "Tên ngành cấp 2": ` tổng quy nạp thành ${sortedKeys.length} nhóm ngành cấp 2`,
+        [`Mã ngành cấp ${level}`]: "TỔNG CỘNG LŨY KẾ",
+        [`Tên ngành cấp ${level}`]: `Hệ thống tổng quy nạp thành ${sortedKeys.length} nhóm ngành cấp ${level}`,
         "Số đơn vị (DN)": mainData.length
       };
 
@@ -1453,7 +1592,7 @@ export default function App() {
     }
 
     setProgress(100);
-    setStatusMessage(`Tổng hợp báo cáo ngành cấp 2 hoàn tất thành công!`);
+    setStatusMessage(`Tổng hợp báo cáo ngành cấp ${level} hoàn tất thành công!`);
     await sleep(300);
     setLoading(false);
   };
@@ -1500,7 +1639,7 @@ export default function App() {
 
       if (!isExistInVSIC) {
         auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
-        anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục  phân cấp VSIC quốc gia`;
+        anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục hệ thống phân cấp VSIC quốc gia`;
       } else if (rawDesc.trim() !== "") {
         const descLow = rawDesc.toLowerCase();
         const stdLow = stdName.toLowerCase();
@@ -1592,7 +1731,7 @@ export default function App() {
       conflicts: conflictCount
     });
 
-    // Tự sao lưu vĩnh viễn vào 
+    // Tự sao lưu vĩnh viễn vào hệ thống
     autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
 
     setProgress(100);
@@ -1613,8 +1752,17 @@ export default function App() {
       alert("Vui lòng nạp dữ liệu chính trước khi chạy báo cáo nhanh.");
       return;
     }
-    if (!mapping.manganh || !mapping.xa) {
-      alert("Yêu cầu định cấu hình cột 'Mã Ngành' và 'Địa bàn (Xã)' ở trang cơ sở đầu vào trước!");
+    const targetManganh = quickReportManganhCol || mapping.manganh;
+    const targetXa = quickReportXaCol || mapping.xa;
+    const targetDoanhThu = quickReportDoanhThuCol || mapping.doanhthu;
+    const targetLaoDong = quickReportLaoDongCol || mapping.laodong;
+
+    if (!targetManganh) {
+      alert("Vui lòng chỉ định cột chứa Mã ngành ở bộ chọn!");
+      return;
+    }
+    if (!targetXa) {
+      alert("Vui lòng chỉ định cột chứa Xã / Địa bàn ở bộ chọn!");
       return;
     }
 
@@ -1625,7 +1773,7 @@ export default function App() {
 
     // Gom dữ liệu mỏng và phân tách bằng bộ nhớ mã ngành chuẩn
     const processedData = mainData.map(row => {
-      const mng = normalizeSectorCode(row[mapping.manganh]);
+      const mng = normalizeSectorCode(row[targetManganh]);
       
       let tenNganhLabel = "";
       if (level === 2) {
@@ -1652,7 +1800,7 @@ export default function App() {
       return {
         ...row,
         _temNganhCap: tenNganhLabel,
-        _tempXa: String(row[mapping.xa] || "Khác").trim()
+        _tempXa: String(row[targetXa] || "Khác").trim()
       };
     });
 
@@ -1680,12 +1828,12 @@ export default function App() {
           let sumLaoDong = 0;
 
           matchedRows.forEach(r => {
-            if (mapping.doanhthu) {
-              const val = parseFloat(String(r[mapping.doanhthu]).replace(/[^0-9.\-]/g, ""));
+            if (targetDoanhThu) {
+              const val = parseFloat(String(r[targetDoanhThu]).replace(/[^0-9.\-]/g, ""));
               if (!isNaN(val)) sumDoanhThu += val;
             }
-            if (mapping.laodong) {
-              const val = parseFloat(String(r[mapping.laodong]).replace(/[^0-9.\-]/g, ""));
+            if (targetLaoDong) {
+              const val = parseFloat(String(r[targetLaoDong]).replace(/[^0-9.\-]/g, ""));
               if (!isNaN(val)) sumLaoDong += val;
             }
           });
@@ -1723,12 +1871,12 @@ export default function App() {
         let sumLaoDong = 0;
 
         rowsObj.forEach(r => {
-          if (mapping.doanhthu) {
-            const val = parseFloat(String(r[mapping.doanhthu]).replace(/[^0-9.\-]/g, ""));
+          if (targetDoanhThu) {
+            const val = parseFloat(String(r[targetDoanhThu]).replace(/[^0-9.\-]/g, ""));
             if (!isNaN(val)) sumDoanhThu += val;
           }
-          if (mapping.laodong) {
-            const val = parseFloat(String(r[mapping.laodong]).replace(/[^0-9.\-]/g, ""));
+          if (targetLaoDong) {
+            const val = parseFloat(String(r[targetLaoDong]).replace(/[^0-9.\-]/g, ""));
             if (!isNaN(val)) sumLaoDong += val;
           }
         });
@@ -2057,6 +2205,58 @@ export default function App() {
     }, 200);
   };
 
+  if (!isAuthorized) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#111827] text-gray-100 font-sans px-4 selection:bg-purple-600 selection:text-white">
+        {/* Khóa bảo mật phi hành trạm VSIC */}
+        <div className="w-full max-w-md bg-[#1f2937]/90 border border-purple-500/20 rounded-2xl p-8 shadow-2xl space-y-6 backdrop-blur-md relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-purple-600 to-indigo-500"></div>
+          
+          <div className="text-center space-y-2">
+            <div className="mx-auto w-14 h-14 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-900/30">
+              <Lock className="w-7 h-7 text-white animate-pulse" />
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-white pt-2">CỔNG BẢO MẬT TRUY CẬP</h2>
+            <p className="text-xs text-gray-400">Vui lòng nhập mật khẩu nội bộ để sử dụng hệ thống VSIC</p>
+          </div>
+
+          <form onSubmit={handleCheckPassword} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-400 font-semibold font-mono">MẬT KHẨU TRUY CẬP:</label>
+              <input
+                type="password"
+                value={typedPassword}
+                onChange={(e) => setTypedPassword(e.target.value)}
+                placeholder="Nhập mật khẩu..."
+                className="w-full bg-[#111827] border border-[#374151] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all placeholder:text-gray-600 font-mono"
+                autoFocus
+              />
+              {passwordError && (
+                <p className="text-red-400 text-[11px] font-medium flex items-center gap-1 mt-1 font-mono">
+                  ⚠️ {passwordError}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-650 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              🔐 Xác Nhận Trạm Làm Việc
+            </button>
+          </form>
+
+          <div className="border-t border-gray-800/60 pt-4 text-center space-y-1">
+            <p className="text-[11px] text-amber-400/85 italic">
+              💡 Gợi ý: Mật khẩu mặc định là <strong className="font-mono bg-amber-950 px-1.5 py-0.5 rounded border border-amber-900/40 text-amber-300">admin123</strong>
+            </p>
+            <p className="text-[10px] text-gray-500 font-mono">Hệ thống bảo lưu mã khóa cục bộ an toàn trong trình duyệt của bạn</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-[#111827] text-gray-100 font-sans selection:bg-purple-600 selection:text-white">
       
@@ -2068,13 +2268,35 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              HỆ THỐNG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC 2025</span>
+              HỆ THỐNG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC V38.5</span>
             </h1>
             <p className="text-xs text-gray-400 font-mono">CÔNG CỤ HỖ TRỢ SO SÁNH TỔNG HỢP DỮ LIỆU</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 mr-1">
+            <button
+              onClick={() => {
+                setNewPasswordVal("");
+                setShowPasswordChangeModal(true);
+              }}
+              className="px-3 py-1.5 bg-[#111827] hover:bg-gray-800 text-gray-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors border border-[#374151]"
+              title="Thiết lập/Đổi mật khẩu bảo vệ riêng tư"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-purple-400" />
+              Đổi MK
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/40 text-red-300 border border-red-900/50 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Khóa trạm làm việc ngay"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Khóa
+            </button>
+          </div>
+
           {fileName ? (
             <div className="bg-[#111827] border border-[#374151] rounded-lg px-4 py-1.5 flex items-center gap-2 text-xs">
               <Database className="w-4 h-4 text-emerald-400" />
@@ -2236,6 +2458,51 @@ export default function App() {
             </div>
           )}
 
+          {/* Lớp hiển thị đổi mật khẩu truy cập */}
+          {showPasswordChangeModal && (
+            <div className="fixed inset-0 z-50 bg-[#111827]/80 backdrop-blur-sm flex items-center justify-center p-6">
+              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 to-indigo-500"></div>
+                <div className="text-center space-y-1">
+                  <div className="mx-auto w-10.5 h-10.5 bg-purple-950/40 border border-purple-500/20 rounded-xl flex items-center justify-center">
+                    <KeyRound className="w-5.5 h-5.5 text-purple-400" />
+                  </div>
+                  <h3 className="text-base font-bold text-white pt-1">ĐỔI MẬT KHẨU BẢO VỆ</h3>
+                  <p className="text-xs text-gray-400 text-center font-sans">Thiết lập mật khẩu riêng tư cho trình quản lý</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5 font-sans">
+                    <label className="text-[10.5px] font-bold text-gray-300 font-mono block">MẬT KHẨU MỚI TIN CẬY:</label>
+                    <input
+                      type="text"
+                      className="w-full bg-[#111827] border border-[#374151] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                      placeholder="Nhập mật khẩu mới..."
+                      value={newPasswordVal}
+                      onChange={(e) => setNewPasswordVal(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2">
+                    <button
+                      onClick={() => setShowPasswordChangeModal(false)}
+                      className="w-full bg-[#1e293b] hover:bg-gray-800 text-gray-400 font-bold text-xs py-2 px-3 rounded-lg border border-gray-800 transition-all cursor-pointer font-sans"
+                    >
+                      Hủy Bỏ
+                    </button>
+                    <button
+                      onClick={handleChangePassword}
+                      className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white font-bold text-xs py-2 px-3 rounded-lg shadow transition-all cursor-pointer font-sans"
+                    >
+                      Xác Nhận Đổi
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 1. TAB TRANG CHỦ */}
           {activeTab === "trangchu" && (
             <div className="space-y-8 animate-fade-in">
@@ -2245,10 +2512,12 @@ export default function App() {
                     Phát hành chuẩn mực V38.5
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    CÔNG CỤ HỖ TRỢ DƯ LIỆU
+                    Hệ Thống Phân Tích & Chuẩn Hóa Dữ Liệu Ngành Quốc Gia
                   </h2>
                   <p className="text-gray-300 text-sm leading-relaxed">
-                    Công cụ hỗ trợ cho phép đọc tất cả các file có định dạng cột khác nhau không phụ thuộc vào tên cột số lượng cột điểm mạnh nó đọc và cho phép định nghĩa lại tên cột nếu tên cột ký hiệu hoặc khó nhớ về 1 dạng do người dùng quy định nó có chức năng ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động. Tổng hợp theo ngành câp 1 và 2 và công cụ kiểm tra logic. 
+                    Công cụ chuyên sâu hỗ trợ thống kê dữ liệu doanh nghiệp, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa cao cấp.
+                  </p>
+                  <div className="pt-2 flex items-center gap-4">
                     <button 
                       onClick={() => setActiveTab("xemdulieu")}
                       className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-2 cursor-pointer"
@@ -2270,10 +2539,10 @@ export default function App() {
               <div className="space-y-6">
                 <div className="border-b border-[#374151] pb-4">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> CÁCH DÙNG & KÍCH HOẠT CHỨC NĂNG NHANH
+                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> BẢN ĐỒ CẨM NANG & KÍCH HOẠT CHỨC NĂNG NHANH
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
-                    công cụ hỗ trợ đầy đủ 7 chức năng người dùng có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
+                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Quý khách có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
                   </p>
                 </div>
 
@@ -2316,7 +2585,7 @@ export default function App() {
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors">
-                        🌿 Ghép dữ liệu
+                        🌿 Ghép Nối Dữ Liệu
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Tự động tích hợp thông tin từ tệp phụ lục vào tệp tin chính dựa trên cột liên quan chung (như Mã số thuế, Mã doanh nghiệp,...). Giải quyết nỗi lo ghép thủ công dễ gây xô lệch hoặc gõ nhầm dòng dữ liệu.
@@ -2364,7 +2633,7 @@ export default function App() {
                           <Scissors className="w-5 h-5" />
                         </div>
                         <span className="bg-pink-900/40 text-pink-300 border border-pink-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          TÁCH DỮ LIỆU 
+                          BẺ TÁCH HOÀN LOẠT
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-pink-300 transition-colors">
@@ -2434,7 +2703,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* CHỨC NĂNG 7: Chức năng kiểm tra logic */}
+                  {/* CHỨC NĂNG 7: Cỗ máy kiểm tra logic */}
                   <div className="bg-[#1f2937]/50 border border-emerald-500/20 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-emerald-500/40 transition-all col-span-1 md:col-span-2 lg:col-span-3 group">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -2446,7 +2715,7 @@ export default function App() {
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
-                        Control Panel 🛂 Chức năng Kiểm Tra Logic
+                        Control Panel 🛂 Cỗ Máy Kiểm Tra Logic
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Thiết lập các quy định ràng buộc điều kiện thông minh dạng <code>NẾU (điều kiện) THÌ PHẢI (điều kiện kia)</code> tùy ý. Bộ máy sẽ lập tức rà soát toàn bộ tệp Excel thu về danh sách hồ sơ bất tuần tự (ví dụ: mô tả có chứa xi-măng nhưng mã ngành lại đăng ký nông nghiệp, hoặc lao động siêu lớn nhưng doanh thu rỗng).
@@ -2465,7 +2734,7 @@ export default function App() {
               {/* Gợi ý quy trình xử lý dữ liệu chuẩn */}
               <div className="bg-[#1e1b4b]/20 border border-purple-500/20 rounded-2xl p-6 space-y-4">
                 <h4 className="text-sm font-bold text-purple-300 flex items-center gap-2">
-                  <Info className="w-4 h-4 text-purple-400 animate-pulse" /> HƯỚNG DẪN 3 BƯỚC SỬ DỤNG CÔNG CỤ 
+                  <Info className="w-4 h-4 text-purple-400 animate-pulse" /> ĐỀ XUẤT 3 BƯỚC VẬN HÀNH CHUẨN TRÊN HỆ THỐNG
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-gray-300 leading-relaxed">
                   <div className="space-y-1">
@@ -3122,14 +3391,14 @@ export default function App() {
           {/* 6. TAB TỔNG HỢP BÁO CÁO ĐỘNG */}
           {activeTab === "tonghop" && (
             <div className="space-y-6 animate-fade-in">
-              {/* PHÂN HỆ TỔNG HỢP BÁO CÁO THEO NGÀNH CẤP 2 CHUYÊN BIỆT ĐỘC LẬP */}
+              {/* PHÂN HỆ TỔNG HỢP BÁO CÁO THEO NGÀNH CẤP 1 & CẤP 2 CHUYÊN BIỆT ĐỘC LẬP */}
               <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-amber-400" /> TỔNG HỢP BÁO CÁO THEO ĐẦU NGÀNH CẤP 2 (VSIC)
+                    <BarChart3 className="w-5 h-5 text-amber-400" /> TỔNG HỢP BÁO CÁO PHÂN CẤP ĐẦU NGÀNH VSIC (CẤP 1 & CẤP 2)
                   </h3>
                   <p className="text-xs text-gray-400">
-                    Hệ thống tự động phát hiện tất cả các cột trong tệp tin vừa nạp. Trích lọc nhanh 2 số đầu tiên của cột mã ngành bạn chọn để kết hợp tính toán ra các mẫu thống kê cấp 2 (SUM/AVG).
+                    Hệ thống tự động phát hiện tất cả các cột trong tệp tin vừa nạp. Trích lọc nhanh ký tự đại diện Ngành Cấp 1 (A-U) hoặc 2 số đầu tiên của cột mã ngành bạn chọn để tính toán ra các mẫu thống kê tương ứng (SUM/AVG).
                   </p>
                 </div>
 
@@ -3148,7 +3417,7 @@ export default function App() {
                           {columns.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                         <p className="text-[10px] text-gray-500 italic">
-                          (Thế hệ 2 chữ số đầu tự đối chiếu từ VSIC chuẩn quốc gia)
+                          (Tự động quy nạp rã cấp 1 theo chuẩn VSIC hoặc tách 2 chữ số đầu lấy cấp 2)
                         </p>
                       </div>
 
@@ -3212,12 +3481,20 @@ export default function App() {
                           </div>
                         </div>
 
-                        <button
-                          onClick={handleCalcLevel2Summary}
-                          className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white font-bold text-xs py-2.5 px-4 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          ⚡ BẮT ĐẦU TỔNG HỢP BÁO CÁO NGÀNH CẤP 2
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => handleCalcLevelSummary(1)}
+                            className="bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-850 text-white font-bold text-[11px] py-2.5 px-2 rounded-lg shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            ⚡ TỔNG HỢP CẤP 1
+                          </button>
+                          <button
+                            onClick={() => handleCalcLevelSummary(2)}
+                            className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-750 text-white font-bold text-[11px] py-2.5 px-2 rounded-lg shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            ⚡ TỔNG HỢP CẤP 2
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -3226,13 +3503,13 @@ export default function App() {
                       <div className="border-t border-gray-800 pt-5 space-y-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#1e293b]/40 p-3 rounded-lg border border-gray-800">
                           <span className="text-xs font-bold text-amber-400 font-mono uppercase tracking-wider">
-                            🎁 KẾT QUẢ HẠCH TOÁN ({t2ReportData.length - 1} ngành cấp 2 tổng hợp + 1 dòng cộng)
+                            🎁 KẾT QUẢ HẠCH TOÁN ({t2ReportData.length - 1} nhóm ngành cấp {t2ReportLevel} + 1 dòng cộng dồn lũy kế)
                           </span>
                           <button
                             onClick={handleExportT2Excel}
                             className="bg-[#1f2937] hover:bg-[#374151] text-amber-300 border border-amber-950 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm ml-auto"
                           >
-                            📥 Tải xuống File Excel Báo cáo cấp 2 (.xlsx)
+                            📥 Tải xuống File Excel Báo cáo cấp {t2ReportLevel} (.xlsx)
                           </button>
                         </div>
 
@@ -3247,7 +3524,8 @@ export default function App() {
                             </thead>
                             <tbody className="divide-y divide-gray-800/40 text-gray-200 font-sans">
                               {t2ReportData.map((row, rIdx) => {
-                                const isTotal = row["Mã ngành cấp 2"] === "TỔNG CỘNG LŨY KẾ";
+                                const codeVal = row[`Mã ngành cấp ${t2ReportLevel}`];
+                                const isTotal = codeVal === "TỔNG CỘNG LŨY KẾ";
                                 return (
                                   <tr 
                                     key={rIdx} 
@@ -3297,43 +3575,55 @@ export default function App() {
                       <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono">1. Cột gom nhóm chính (Group By)</h4>
                       <p className="text-[11px] text-gray-400">Chọn 1 hoặc nhiều cột để làm trục phân cấp (ví dụ: Địa_Bàn_Xã, MaNganh):</p>
                       
+                      <div className="space-y-3 bg-[#111827]/80 p-3.5 rounded-lg border border-gray-800">
+                        <span className="text-[10px] font-bold text-amber-500 tracking-wider uppercase font-mono block">Rã ngành VSIC quốc gia tự động (Tùy chọn)</span>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-gray-400 block font-mono">Chọn cột chứa mã ngành:</label>
+                          <select 
+                            value={pivotManganhCol} 
+                            onChange={(e) => setPivotManganhCol(e.target.value)}
+                            className="w-full bg-[#1e293b] border border-[#374151] rounded-lg px-2 py-1.5 text-xs text-white"
+                          >
+                            <option value="">-- Click chọn cột mã ngành --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-2 pt-1">
+                          <label className="flex items-center gap-2.5 text-xs text-amber-300 font-bold hover:text-amber-200 cursor-pointer select-none">
+                            <input 
+                              type="checkbox"
+                              checked={groupByCols.includes("_virtual_sector_cap1")}
+                              onChange={() => {
+                                if (groupByCols.includes("_virtual_sector_cap1")) {
+                                  setGroupByCols(groupByCols.filter(c => c !== "_virtual_sector_cap1"));
+                                } else {
+                                  setGroupByCols([...groupByCols, "_virtual_sector_cap1"]);
+                                }
+                              }}
+                              className="rounded text-amber-500 focus:ring-amber-500 bg-gray-900 border-gray-750"
+                            />
+                            ⚡ Nhóm theo Ngành Cấp 1 (Chữ cái A..U)
+                          </label>
+                          <label className="flex items-center gap-2.5 text-xs text-amber-300 font-bold hover:text-amber-200 cursor-pointer select-none">
+                            <input 
+                              type="checkbox"
+                              checked={groupByCols.includes("_virtual_sector_cap2")}
+                              onChange={() => {
+                                if (groupByCols.includes("_virtual_sector_cap2")) {
+                                  setGroupByCols(groupByCols.filter(c => c !== "_virtual_sector_cap2"));
+                                } else {
+                                  setGroupByCols([...groupByCols, "_virtual_sector_cap2"]);
+                                }
+                              }}
+                              className="rounded text-amber-500 focus:ring-amber-500 bg-gray-900 border-gray-750"
+                            />
+                            ⚡ Nhóm theo Ngành Cấp 2 (2 số đầu)
+                          </label>
+                        </div>
+                      </div>
+
                       <div className="max-h-[160px] overflow-y-auto border border-gray-850 p-3 rounded-lg space-y-2">
-                        {/* TÙY CHỌN GOM NHÓM THEO NGÀNH KINH TẾ (VSIC) CHUẨN */}
-                        {mapping.manganh && (
-                          <>
-                            <label className="flex items-center gap-2.5 text-xs text-amber-300 font-bold hover:text-amber-200 cursor-pointer select-none bg-[#1f2937]/50 p-1.5 rounded border border-amber-950">
-                              <input 
-                                type="checkbox"
-                                checked={groupByCols.includes("_virtual_sector_cap2")}
-                                onChange={() => {
-                                  if (groupByCols.includes("_virtual_sector_cap2")) {
-                                    setGroupByCols(groupByCols.filter(c => c !== "_virtual_sector_cap2"));
-                                  } else {
-                                    setGroupByCols([...groupByCols, "_virtual_sector_cap2"]);
-                                  }
-                                }}
-                                className="rounded text-amber-500 focus:ring-amber-500 bg-gray-900 border-gray-750"
-                              />
-                              ⚡ Ngành Cấp 2 (2 số + tên tự ghép)
-                            </label>
-                            
-                            <label className="flex items-center gap-2.5 text-xs text-amber-300 font-bold hover:text-amber-200 cursor-pointer select-none bg-[#1f2937]/50 p-1.5 rounded border border-amber-950">
-                              <input 
-                                type="checkbox"
-                                checked={groupByCols.includes("_virtual_sector_cap1")}
-                                onChange={() => {
-                                  if (groupByCols.includes("_virtual_sector_cap1")) {
-                                    setGroupByCols(groupByCols.filter(c => c !== "_virtual_sector_cap1"));
-                                  } else {
-                                    setGroupByCols([...groupByCols, "_virtual_sector_cap1"]);
-                                  }
-                                }}
-                                className="rounded text-amber-500 focus:ring-amber-500 bg-gray-900 border-gray-750"
-                              />
-                              ⚡ Ngành Cấp 1 (Chữ cái + tên tự ghép)
-                            </label>
-                          </>
-                        )}
+                        <label className="text-[10px] font-bold text-gray-400 block font-mono border-b border-gray-800 pb-1">DANH SÁCH CÁC CỘT DỮ LIỆU THÔ:</label>
 
                         {columns.map(col => {
                           const isChecked = groupByCols.includes(col);
@@ -3447,6 +3737,57 @@ export default function App() {
                   {mainData.length > 0 ? (
                     <div className="space-y-4 max-w-2xl">
                       
+                      {/* BỘ LỰA CHỌN CỘT THỦ CÔNG - TỰ KHÍT DỰA TRÊN NGƯỜI DÙNG CHỌN */}
+                      <div className="bg-[#111827]/80 p-4 rounded-xl border border-emerald-500/15 space-y-3.5 shadow-lg">
+                        <span className="text-[10px] font-bold text-emerald-400 tracking-widest uppercase font-mono block">Chỉ định các cột tính toán (Người dùng chọn tự do, không bó buộc)</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div>
+                            <label className="text-[10.5px] font-semibold text-gray-300 block mb-1">Cột Mã Ngành:</label>
+                            <select 
+                              value={quickReportManganhCol} 
+                              onChange={(e) => setQuickReportManganhCol(e.target.value)}
+                              className="w-full bg-[#1e293b] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
+                            >
+                              <option value="">-- Chọn cột mã ngành --</option>
+                              {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10.5px] font-semibold text-gray-300 block mb-1">Cột Xã / Địa Bàn:</label>
+                            <select 
+                              value={quickReportXaCol} 
+                              onChange={(e) => setQuickReportXaCol(e.target.value)}
+                              className="w-full bg-[#1e293b] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
+                            >
+                              <option value="">-- Chọn cột xã/địa bàn --</option>
+                              {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10.5px] font-semibold text-gray-300 block mb-1">Cột số liệu Doanh Thu (Tùy chọn):</label>
+                            <select 
+                              value={quickReportDoanhThuCol} 
+                              onChange={(e) => setQuickReportDoanhThuCol(e.target.value)}
+                              className="w-full bg-[#1e293b] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
+                            >
+                              <option value="">-- Chọn cột doanh thu --</option>
+                              {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10.5px] font-semibold text-gray-300 block mb-1">Cột số liệu Lao Động (Tùy chọn):</label>
+                            <select 
+                              value={quickReportLaoDongCol} 
+                              onChange={(e) => setQuickReportLaoDongCol(e.target.value)}
+                              className="w-full bg-[#1e293b] border border-[#374151] rounded-lg px-2.5 py-1.5 text-xs text-white"
+                            >
+                              <option value="">-- Chọn cột lao động --</option>
+                              {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* BỘ LỰA CHỌN ĐỊNH DẠNG ĐẦU RA */}
                       <div className="bg-[#111827]/80 p-4 rounded-xl border border-emerald-500/10 space-y-2.5">
                         <span className="text-[10px] font-bold text-emerald-400 tracking-widest uppercase font-mono block">Cấu hình định dạng báo cáo đầu ra</span>
