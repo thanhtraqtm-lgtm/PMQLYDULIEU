@@ -2268,7 +2268,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-             DM NGÀNH KINH TẾ <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC 2025</span>
+              HỆ THỐNG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC V38.5</span>
             </h1>
             <p className="text-xs text-gray-400 font-mono">CÔNG CỤ HỖ TRỢ SO SÁNH TỔNG HỢP DỮ LIỆU</p>
           </div>
@@ -2509,13 +2509,13 @@ export default function App() {
               <div className="bg-gradient-to-r from-purple-900/40 via-[#1f2937] to-[#1f2937] border border-purple-500/20 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 justify-between">
                 <div className="space-y-3 max-w-2xl">
                   <span className="bg-purple-900/50 border border-purple-500/30 text-purple-400 text-xs font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    GIỚI THIỆU 
+                    Phát hành chuẩn mực V38.5
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    CÔNG CỤ LÀM SẠCH DỮ LIỆU
+                    Hệ Thống Phân Tích & Chuẩn Hóa Dữ Liệu Ngành Quốc Gia
                   </h2>
-                  <p className="text-gray-300 text-xm leading-relaxed">
-                    Công cụ hỗ trợ dữ liệu, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa.
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    Công cụ chuyên sâu hỗ trợ thống kê dữ liệu doanh nghiệp, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa cao cấp.
                   </p>
                   <div className="pt-2 flex items-center gap-4">
                     <button 
@@ -2528,7 +2528,7 @@ export default function App() {
                 </div>
                 <div className="w-full md:w-auto flex justify-center">
                   <div className="bg-gradient-to-tr from-[#374151] to-purple-800/20 border border-[#4b5563] p-6 rounded-2xl text-center space-y-2 min-w-[200px] shadow-sm">
-                    <div className="text-4xl font-extrabold text-white font-mono">QUẢN LÝ DỮ LIỆU</div>
+                    <div className="text-4xl font-extrabold text-white font-mono">197</div>
                     <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase font-mono">Mã ngành VSIC nhúng</div>
                     <div className="text-[10px] text-green-400 font-mono">Đầy đủ 5 cấp phân chiêu</div>
                   </div>
@@ -2539,10 +2539,10 @@ export default function App() {
               <div className="space-y-6">
                 <div className="border-b border-[#374151] pb-4">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> HƯỚNG DẪN & KÍCH HOẠT CHỨC NĂNG NHANH
+                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> BẢN ĐỒ CẨM NANG & KÍCH HOẠT CHỨC NĂNG NHANH
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
-                    Hệ thống tích hợp đầy đủ 7 công cụ về xử lý dữ liệu. Bạn có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
+                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Quý khách có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
                   </p>
                 </div>
 
@@ -2740,7 +2740,7 @@ export default function App() {
                   <div className="space-y-1">
                     <span className="font-bold text-white block">01. Nạp & Tiền xử lý dữ liệu</span>
                     <p className="text-gray-400">
-                      Truy cập bảng <strong>📂 Xem & Định nghĩa cột</strong>. Tải tệp Excel gốc lên, thực hiện đổi tên định nghĩa lại tên cột giúp quản lý dữ liệu dễ quan sát dễ nhớ với người dùng .
+                      Truy cập bảng <strong>📂 Xem & Định nghĩa cột</strong>. Tải tệp Excel gốc lên, thực hiện đổi tên Việt hóa dễ thương cho các cột và dán nhãn vai trò tương thích giúp hệ thống dễ chỉ huy dữ liệu chuẩn xác.
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -2994,7 +2994,7 @@ export default function App() {
                       <ul className="list-disc list-inside space-y-1 text-[11px] text-gray-400 pl-1">
                         <li><strong>Đặt tên cột dễ nhớ:</strong> Viết trực tiếp vào ô nhập bên dưới để thay đổi tên cột hiển thị theo từ ngữ dễ thuộc của riêng bạn.</li>
                         <li><strong>Lọc cột thừa:</strong> Bạn có thể bỏ tích ở cột không cần thiết, khi bấm áp dụng hệ thống sẽ sinh ra một <strong>Bảng dữ liệu mới hoàn hảo</strong> chỉ chứa các cột thích hợp.</li>
-                        
+                        <li><strong>Gán vai trò (Mục tiêu):</strong> Gán vai trò cho cột giúp các thuật toán (Báo cáo xã, nhóm ngành, xử lý lỗi logic bằng AI) tự động tìm đúng dữ liệu mà không bị đứt gãy.</li>
                       </ul>
                     </div>
 
@@ -3109,7 +3109,7 @@ export default function App() {
                         onClick={handleApplyColumnRedefinition}
                         className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-purple-950/40 flex items-center gap-2 cursor-pointer border border-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
                       >
-                        <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LOẠI BỎ CỘT RỖNG VÀ KO DÙNG ĐẾN
+                        <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC GỌN NHẸ TỔ TẠO FILE MỚI
                       </button>
                     </div>
                   </div>
