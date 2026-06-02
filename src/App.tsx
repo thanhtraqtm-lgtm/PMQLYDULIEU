@@ -2514,7 +2514,7 @@ export default function App() {
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
                     CÔNG CỤ LÀM SẠCH DỮ LIỆU
                   </h2>
-                  <p className="text-gray-300 text-sm leading-relaxed">
+                  <p className="text-gray-300 text-xm leading-relaxed">
                     Công cụ hỗ trợ dữ liệu, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa.
                   </p>
                   <div className="pt-2 flex items-center gap-4">
