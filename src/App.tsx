@@ -43,11 +43,11 @@ function openDB(): Promise<IDBDatabase> {
 async function saveAppState(state: AppState): Promise<void> {
   try {
     const db = await openDB();
-    const serialized = JSON.stringify(state);
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readwrite");
       const store = transaction.objectStore(STORE_NAME);
-      const request = store.put(serialized, "currentSession");
+      // IndexedDB lưu trữ đối tượng dạng bản sao cấu trúc thô trực tiếp cực mạnh mẽ và chuẩn xác
+      const request = store.put(state, "currentSession");
       request.onsuccess = () => resolve();
       request.onerror = () => reject(new Error("Lỗi khi lưu dữ liệu vào IndexedDB"));
     });
@@ -381,88 +381,282 @@ export default function App() {
     return ws;
   };
 
-  // Đọc file CSV hoặc Excel bằng xlsx
+  // Bộ phân giải CSV tối ưu hóa cao cho các tệp lớn (như 50MB+), loại bỏ lỗi "Too many properties to enumerate"
+  const parseCSV = (rawText: string): any[] => {
+    let text = rawText;
+    if (text.charCodeAt(0) === 0xFEFF) {
+      text = text.substring(1);
+    }
+
+    // Tự động phát hiện dấu phân tách (comma, semicolon, tab) từ dòng dữ liệu đầu tiên
+    const firstLineEnd = text.indexOf('\n');
+    const firstLine = firstLineEnd === -1 ? text : text.substring(0, firstLineEnd);
+    
+    let delimiter = ',';
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const tabCount = (firstLine.match(/\t/g) || []).length;
+    
+    if (semicolonCount > commaCount && semicolonCount > tabCount) {
+      delimiter = ';';
+    } else if (tabCount > commaCount && tabCount > semicolonCount) {
+      delimiter = '\t';
+    }
+
+    const length = text.length;
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    
+    let i = 0;
+    let inQuotes = false;
+    let start = 0;
+    
+    while (i < length) {
+      const char = text[i];
+      
+      if (char === '"') {
+        if (!inQuotes) {
+          inQuotes = true;
+          start = i + 1; // nhảy qua dấu ngoặc kép mở đầu
+        } else {
+          // Kiểm tra dấu ngoặc kép trốn (escaped quote "")
+          if (i + 1 < length && text[i + 1] === '"') {
+            i++; // bỏ qua dấu ngoặc kép thứ hai
+          } else {
+            inQuotes = false;
+          }
+        }
+      } else if (!inQuotes) {
+        if (char === delimiter) {
+          let cell = text.substring(start, i);
+          // Loại bỏ ngoặc kép bao quanh khi đọc chuỗi trường
+          if (text[i - 1] === '"' && text[start - 1] === '"') {
+            cell = cell.substring(0, cell.length - 1);
+          }
+          if (cell.includes('""')) {
+            cell = cell.replace(/""/g, '"');
+          }
+          currentRow.push(cell.trim());
+          start = i + 1;
+        } else if (char === '\n' || char === '\r') {
+          let cell = text.substring(start, i);
+          if (text[i - 1] === '"' && text[start - 1] === '"') {
+            cell = cell.substring(0, cell.length - 1);
+          }
+          if (cell.includes('""')) {
+            cell = cell.replace(/""/g, '"');
+          }
+          currentRow.push(cell.trim());
+          
+          if (currentRow.length > 0 && (currentRow.length > 1 || currentRow[0] !== "")) {
+            rows.push(currentRow);
+          }
+          currentRow = [];
+          
+          if (char === '\r' && i + 1 < length && text[i + 1] === '\n') {
+            i++;
+          }
+          start = i + 1;
+        }
+      }
+      i++;
+    }
+    
+    if (start < length) {
+      let cell = text.substring(start, length);
+      if (text[length - 1] === '"' && text[start - 1] === '"') {
+        cell = cell.substring(0, cell.length - 1);
+      }
+      if (cell.includes('""')) {
+        cell = cell.replace(/""/g, '"');
+      }
+      currentRow.push(cell.trim());
+    }
+    if (currentRow.length > 0 && (currentRow.length > 1 || currentRow[0] !== "")) {
+      rows.push(currentRow);
+    }
+
+    if (rows.length === 0) return [];
+
+    const headers = rows[0];
+    const data: any[] = [];
+    for (let idx = 1; idx < rows.length; idx++) {
+      const r = rows[idx];
+      const obj: any = {};
+      let hasData = false;
+      for (let c = 0; c < headers.length; c++) {
+        const headerName = headers[c] || `Cột ${c + 1}`;
+        const val = r[c] !== undefined ? r[c] : "";
+        obj[headerName] = val;
+        if (val !== "") hasData = true;
+      }
+      if (hasData) {
+        data.push(obj);
+      }
+    }
+
+    return data;
+  };
+
+  // Đọc file CSV hoặc Excel bằng xlsx hoặc Bộ phân giải CSV tối ưu
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "main" | "old" | "new" | "left" | "right") => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setLoading(true);
     setStatusMessage(`Đang tải tệp: ${file.name}...`);
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const arrayBuffer = evt.target?.result as ArrayBuffer;
-        if (!arrayBuffer) {
-          throw new Error("Không thể đọc nội dung tệp tin!");
-        }
 
-        const wb = XLSX.read(arrayBuffer, { 
-          type: "array",
-          cellFormula: false,
-          cellHTML: false,
-          cellStyles: false
-        });
+    const isCSV = file.name.toLowerCase().endsWith(".csv") || file.name.toLowerCase().endsWith(".txt");
 
-        const wsName = wb.SheetNames[0];
-        const ws = wb.Sheets[wsName];
+    if (isCSV) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const text = evt.target?.result as string;
+          if (!text) {
+            throw new Error("Không thể đọc nội dung tệp tin!");
+          }
 
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+          setStatusMessage(`Đang xử lý nội dung CSV: ${file.name}...`);
+          const data = parseCSV(text);
 
-        if (data.length === 0) {
-          alert("Tệp trống hoặc không chứa dữ liệu hợp lệ!");
+          if (data.length === 0) {
+            alert("Tệp trống hoặc không chứa dữ liệu hợp lệ!");
+            setLoading(false);
+            return;
+          }
+
+          const cols = Object.keys(data[0] as any);
+
+          if (type === "main") {
+            setRawImportedData(data);
+            setMainData(data);
+            setColumns(cols);
+            setFileName(file.name);
+
+            // Khởi tạo danh sách cấu hình cột động từ tệp vừa nạp
+            const initConfigs = cols.map(c => {
+              return {
+                originalName: c,
+                use: true,
+                newName: c, // giữ nguyên tên ban đầu, cho phép người dùng sửa đổi trực tiếp
+                role: "" as any // Không tự động gán bất cứ vai trò nào mặc định
+              };
+            });
+            setCustomColConfigs(initConfigs);
+
+            // Không tự động mapping, để trống hoàn toàn để người dùng tự gán thủ công
+            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
+            setMapping(autoMap);
+            setActiveTab("xemdulieu");
+
+            // Lưu vĩnh viễn vào IndexedDB để không bị mất khi F5 hoặc đóng tab
+            autoSaveSession(data, data, cols, file.name, autoMap, initConfigs);
+
+          } else if (type === "old") {
+            setOldData(data);
+            setOldFileName(file.name);
+          } else if (type === "new") {
+            setNewData(data);
+            setNewFileName(file.name);
+          } else if (type === "left") {
+            setLeftData(data);
+            setLeftFileName(file.name);
+          } else if (type === "right") {
+            setRightData(data);
+            setRightFileName(file.name);
+          }
+
+          setStatusMessage(`Đã tải thành công ${data.length} dòng.`);
+        } catch (err: any) {
+          alert("Lỗi khi đọc file CSV: " + err.message);
+        } finally {
           setLoading(false);
-          return;
         }
+      };
+      reader.readAsText(file, "UTF-8");
+    } else {
+      // Đối với tệp Excel Binary (.xlsx, .xls, .ods,...)
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const arrayBuffer = evt.target?.result as ArrayBuffer;
+          if (!arrayBuffer) {
+            throw new Error("Không thể đọc nội dung tệp tin!");
+          }
 
-        const cols = Object.keys(data[0] as any);
-
-        if (type === "main") {
-          setRawImportedData(data);
-          setMainData(data);
-          setColumns(cols);
-          setFileName(file.name);
-
-          // Khởi tạo danh sách cấu hình cột động từ tệp vừa nạp
-          const initConfigs = cols.map(c => {
-            return {
-              originalName: c,
-              use: true,
-              newName: c, // giữ nguyên tên ban đầu, cho phép người dùng sửa đổi trực tiếp
-              role: "" as any // Không tự động gán bất cứ vai trò nào mặc định
-            };
+          // Dùng dense: true để SheetJS sinh cấu trúc dải ô dạng 2D Array
+          // Loại bỏ tuyệt đối việc lặp keys và không sinh hàng triệu keys phẳng trên WorkSheet lặp
+          const wb = XLSX.read(arrayBuffer, { 
+            type: "array",
+            dense: true,
+            cellFormula: false,
+            cellHTML: false,
+            cellStyles: false
           });
-          setCustomColConfigs(initConfigs);
 
-          // Không tự động mapping, để trống hoàn toàn để người dùng tự gán thủ công
-          const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
-          setMapping(autoMap);
-          setActiveTab("xemdulieu");
+          const wsName = wb.SheetNames[0];
+          const ws = wb.Sheets[wsName];
 
-          // Lưu vĩnh viễn vào IndexedDB để không bị mất khi F5 hoặc đóng tab
-          autoSaveSession(data, data, cols, file.name, autoMap, initConfigs);
+          // sheet_to_json hỗ trợ 100% Dense worksheets sinh ra từ dense: true
+          const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        } else if (type === "old") {
-          setOldData(data);
-          setOldFileName(file.name);
-        } else if (type === "new") {
-          setNewData(data);
-          setNewFileName(file.name);
-        } else if (type === "left") {
-          setLeftData(data);
-          setLeftFileName(file.name);
-        } else if (type === "right") {
-          setRightData(data);
-          setRightFileName(file.name);
+          if (data.length === 0) {
+            alert("Tệp trống hoặc không chứa dữ liệu hợp lệ!");
+            setLoading(false);
+            return;
+          }
+
+          const cols = Object.keys(data[0] as any);
+
+          if (type === "main") {
+            setRawImportedData(data);
+            setMainData(data);
+            setColumns(cols);
+            setFileName(file.name);
+
+            // Khởi tạo danh sách cấu hình cột động từ tệp vừa nạp
+            const initConfigs = cols.map(c => {
+              return {
+                originalName: c,
+                use: true,
+                newName: c, // giữ nguyên tên ban đầu, cho phép người dùng sửa đổi trực tiếp
+                role: "" as any // Không tự động gán bất cứ vai trò nào mặc định
+              };
+            });
+            setCustomColConfigs(initConfigs);
+
+            // Không tự động mapping, để trống hoàn toàn để người dùng tự gán thủ công
+            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
+            setMapping(autoMap);
+            setActiveTab("xemdulieu");
+
+            // Lưu vĩnh viễn vào IndexedDB để không bị mất khi F5 hoặc đóng tab
+            autoSaveSession(data, data, cols, file.name, autoMap, initConfigs);
+
+          } else if (type === "old") {
+            setOldData(data);
+            setOldFileName(file.name);
+          } else if (type === "new") {
+            setNewData(data);
+            setNewFileName(file.name);
+          } else if (type === "left") {
+            setLeftData(data);
+            setLeftFileName(file.name);
+          } else if (type === "right") {
+            setRightData(data);
+            setRightFileName(file.name);
+          }
+
+          setStatusMessage(`Đã tải thành công ${data.length} dòng.`);
+        } catch (err: any) {
+          alert("Lỗi khi đọc file Excel: " + err.message);
+        } finally {
+          setLoading(false);
         }
-
-        setStatusMessage(`Đã tải thành công ${data.length} dòng.`);
-      } catch (err: any) {
-        alert("Lỗi khi đọc file: " + err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    reader.readAsArrayBuffer(file);
+      };
+      reader.readAsArrayBuffer(file);
+    }
   };
 
   // Reset toàn bộ dữ liệu
