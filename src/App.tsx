@@ -284,37 +284,113 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [mainData, rawImportedData, columns, fileName, mapping, customColConfigs]);
 
-  // Thuật toán dọn dẹp dải ô Workbook trống thừa thãi gây lỗi "Too many properties to enumerate"
+  // Thuật toán dọn dẹp dải ô Workbook trống thừa thãi cực kỳ tối ưu và an toàn
   const optimizeSheetRange = (ws: XLSX.WorkSheet) => {
     if (!ws || !ws['!ref']) return;
     
-    let minRow = Infinity, maxRow = -Infinity;
-    let minCol = Infinity, maxCol = -Infinity;
+    let range;
+    try {
+      range = XLSX.utils.decode_range(ws['!ref']);
+    } catch (e) {
+      return;
+    }
+
+    const rowCount = range.e.r - range.s.r + 1;
     
-    // Quét trực tiếp các khóa ô thực tế có dữ liệu thay vì lặp mù dải ô vô hạn
-    const cellKeys = Object.keys(ws).filter(k => k[0] !== '!');
-    if (cellKeys.length === 0) return;
-    
-    cellKeys.forEach(key => {
-      try {
-        const cell = XLSX.utils.decode_cell(key);
-        const cellObj = ws[key];
-        if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
-          if (cell.r < minRow) minRow = cell.r;
-          if (cell.r > maxRow) maxRow = cell.r;
-          if (cell.c < minCol) minCol = cell.c;
-          if (cell.c > maxCol) maxCol = cell.c;
-        }
-      } catch (e) {
-        // Bỏ qua các khóa không phải tọa độ ô hợp lệ
+    // Nếu số dòng dưới 30,000, Object.keys(ws) hoạt động cực nhanh và an toàn
+    if (rowCount < 30000) {
+      let minRow = Infinity, maxRow = -Infinity;
+      let minCol = Infinity, maxCol = -Infinity;
+      
+      const cellKeys = Object.keys(ws).filter(k => k[0] !== '!');
+      if (cellKeys.length === 0) return;
+      
+      cellKeys.forEach(key => {
+        try {
+          const cell = XLSX.utils.decode_cell(key);
+          const cellObj = ws[key];
+          if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
+            if (cell.r < minRow) minRow = cell.r;
+            if (cell.r > maxRow) maxRow = cell.r;
+            if (cell.c < minCol) minCol = cell.c;
+            if (cell.c > maxCol) maxCol = cell.c;
+          }
+        } catch (e) {}
+      });
+      
+      if (minRow !== Infinity) {
+        ws['!ref'] = XLSX.utils.encode_range({
+          s: { r: minRow, c: minCol },
+          e: { r: maxRow, c: maxCol }
+        });
       }
-    });
+      return;
+    }
+
+    // Với các tệp siêu lớn (30,000+ dòng đến 1 triệu dòng):
+    // KHÔNG dùng Object.keys(ws) vì sẽ lỗi "Too many properties to enumerate" hoặc làm đơ trình duyệt.
+    // Chúng ta tối ưu bằng cách quét từ cuối hàng (hàng cuối cùng trong dải ô) ngược lên để phát hiện dữ liệu thực tế.
     
-    if (minRow === Infinity) return; // Không có dữ liệu thực tế
+    const startCol = range.s.c;
+    const endCol = Math.min(range.e.c, 100); // Giới hạn kiểm tra 100 cột đầu tiên để đảm bảo tốc độ
     
+    const checkRowHasData = (r: number): boolean => {
+      for (let c = startCol; c <= endCol; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r, c });
+        const cellObj = ws[cellRef];
+        if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Kiểm tra nhanh xem dải ô có thực sự bị phình to (bloated) không.
+    // Nếu kiểm tra vài dòng ở cuối cùng (ví dụ dòng range.e.r) mà có dữ liệu -> đây là tệp lớn thật sự, dải ô hoàn toàn chuẩn xác!
+    let isGenuineLargeFile = false;
+    for (let r = Math.max(range.s.r, range.e.r - 20); r <= range.e.r; r++) {
+      if (checkRowHasData(r)) {
+        isGenuineLargeFile = true;
+        break;
+      }
+    }
+    
+    // Nếu tệp lớn thật sự, chúng ta giữ nguyên dải ô (!ref) và thoát ngay để tránh tính toán thừa.
+    if (isGenuineLargeFile) {
+      return;
+    }
+
+    // Nếu dải ô bị phình to vô lý (cuối dải ô trống hoàn toàn), tiến hành dò tìm hàng cuối cùng có dữ liệu ngược lên.
+    // Sử dụng thuật toán nhảy bước để tìm hàng cuối có dữ liệu siêu nhanh mà không tốn tài nguyên.
+    let realLastRow = range.s.r;
+    let step = 10000;
+    let currentHigh = range.e.r;
+    
+    while (currentHigh > range.s.r) {
+      let foundDataInStep = false;
+      const checkLimit = Math.max(range.s.r, currentHigh - step);
+      for (let r = currentHigh; r >= checkLimit; r -= Math.max(1, Math.floor(step / 10))) {
+        if (checkRowHasData(r)) {
+          realLastRow = r;
+          foundDataInStep = true;
+          break;
+        }
+      }
+      if (foundDataInStep) {
+        for (let r = realLastRow; r <= Math.min(range.e.r, realLastRow + step); r++) {
+          if (checkRowHasData(r)) {
+            realLastRow = r;
+          }
+        }
+        break;
+      }
+      currentHigh -= step;
+    }
+
+    // Cập nhật lại dải ô mới an toàn
     ws['!ref'] = XLSX.utils.encode_range({
-      s: { r: minRow, c: minCol },
-      e: { r: maxRow, c: maxCol }
+      s: { r: range.s.r, c: range.s.c },
+      e: { r: realLastRow, c: range.e.c }
     });
   };
 
