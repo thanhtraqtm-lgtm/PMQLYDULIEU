@@ -253,6 +253,21 @@ export default function App() {
   // Biến trạng thái hiển thị của báo cáo nhanh
   const [quickReportLevel, setQuickReportLevel] = useState<number>(1);
 
+  // Trạng thái ghép nhiều sheet từ cùng một file Excel tải lên
+  const [detectedWorkbook, setDetectedWorkbook] = useState<any | null>(null);
+  const [detectedSheets, setDetectedSheets] = useState<string[]>([]);
+  const [selectedSheetsToMerge, setSelectedSheetsToMerge] = useState<string[]>([]);
+  const [sheetMergeCommonKey, setSheetMergeCommonKey] = useState<string>("");
+
+  // Các state hỗ trợ Báo cáo phối hợp hai chiều (Xã × Ngành VSIC)
+  const [crossReportData, setCrossReportData] = useState<any[]>([]);
+  const [crossReportCols, setCrossReportCols] = useState<string[]>([]);
+  const [crossReportManganhCol, setCrossReportManganhCol] = useState<string>("");
+  const [crossReportXaCol, setCrossReportXaCol] = useState<string>("");
+  const [crossReportDoanhThuCol, setCrossReportDoanhThuCol] = useState<string>("");
+  const [crossReportLaoDongCol, setCrossReportLaoDongCol] = useState<string>("");
+  const [crossReportLevel, setCrossReportLevel] = useState<number>(2); // 1: Cấp 1, 2: Cấp 2, 5: Giữ nguyên
+
   // Quy tắc tổng hợp (Aggregate rules)
   const [groupByCols, setGroupByCols] = useState<string[]>([]);
   const [aggRules, setAggRules] = useState<{ col: string; op: string }[]>([]);
@@ -717,6 +732,18 @@ export default function App() {
             cellStyles: false
           });
 
+          if (type === "main") {
+            setDetectedWorkbook(wb);
+            setDetectedSheets(wb.SheetNames);
+            if (wb.SheetNames.length > 1) {
+              setSelectedSheetsToMerge(wb.SheetNames);
+              setSheetMergeCommonKey("");
+            } else {
+              setSelectedSheetsToMerge([]);
+              setSheetMergeCommonKey("");
+            }
+          }
+
           const wsName = wb.SheetNames[0];
           const ws = wb.Sheets[wsName];
 
@@ -791,6 +818,308 @@ export default function App() {
     setMapping({ mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" });
     setCustomColConfigs([]);
     clearAppState().catch(err => console.error("Lỗi khi xóa dữ liệu IndexedDB:", err));
+  };
+
+  // Hàm bắt đầu thực hiện ghép các sheet đã chọn dựa trên một cột chung
+  const handleMergeWorkbookSheets = async () => {
+    if (!detectedWorkbook) {
+      alert("Không tìm thấy tệp Excel đang thao tác!");
+      return;
+    }
+    if (selectedSheetsToMerge.length < 2) {
+      alert("Vui lòng chọn ít nhất 2 sheet để thực hiện ghép/gộp dữ liệu!");
+      return;
+    }
+    if (!sheetMergeCommonKey) {
+      alert("Vui lòng chọn cột liên kết chung (Mã số thuế/Mã định danh) để liên kết các dòng!");
+      return;
+    }
+
+    setLoading(true);
+    setProgress(20);
+    setStatusMessage("Đang quét nội dung các sheet và bóc tách dữ liệu...");
+    await sleep(200);
+
+    try {
+      // Đọc toàn bộ dữ liệu của từng sheet được chọn
+      const sheetDataMap = new Map<string, any[]>();
+      selectedSheetsToMerge.forEach(sheetName => {
+        const ws = detectedWorkbook.Sheets[sheetName];
+        if (ws) {
+          const data = XLSX.utils.sheet_to_json(ws) as any[];
+          sheetDataMap.set(sheetName, data);
+        }
+      });
+
+      setProgress(50);
+      setStatusMessage("Đang khớp nối dữ liệu các dòng theo cột chung...");
+      await sleep(200);
+
+      // Tiến hành gộp dữ liệu sử dụng Map
+      const mergedMap = new Map<string, any>();
+      const allColsSet = new Set<string>();
+
+      // Duyệt qua từng sheet, gộp dữ liệu
+      selectedSheetsToMerge.forEach(sheetName => {
+        const rows = sheetDataMap.get(sheetName) || [];
+        rows.forEach(row => {
+          const rawKeyVal = row[sheetMergeCommonKey];
+          if (rawKeyVal === undefined || rawKeyVal === null) {
+            // Dòng không có khóa chung, ta vẫn giữ nhưng gán một khóa tạm độc nhất để tránh bị đè mất dòng
+            const idTemp = `_no_key_${Math.random().toString(36).substring(2, 11)}`;
+            mergedMap.set(idTemp, { ...row });
+            Object.keys(row).forEach(k => allColsSet.add(k));
+          } else {
+            const keyStr = String(rawKeyVal).trim();
+            if (keyStr === "") {
+              const idTemp = `_no_key_${Math.random().toString(36).substring(2, 11)}`;
+              mergedMap.set(idTemp, { ...row });
+              Object.keys(row).forEach(k => allColsSet.add(k));
+            } else {
+              if (mergedMap.has(keyStr)) {
+                // Trộn dòng mới vào dòng đã tồn tại
+                mergedMap.set(keyStr, { ...mergedMap.get(keyStr), ...row });
+              } else {
+                mergedMap.set(keyStr, { ...row });
+              }
+              Object.keys(row).forEach(k => allColsSet.add(k));
+            }
+          }
+        });
+      });
+
+      const mergedList = Array.from(mergedMap.values());
+      const updatedCols = Array.from(allColsSet);
+
+      if (mergedList.length === 0) {
+        alert("Kết quả ghép dữ liệu rỗng! Vui lòng kiểm tra lại cột chung.");
+        setLoading(false);
+        return;
+      }
+
+      setRawImportedData(mergedList);
+      setMainData(mergedList);
+      setColumns(updatedCols);
+
+      // Cấu hình lại cột
+      const initConfigs = updatedCols.map(c => {
+        return {
+          originalName: c,
+          use: true,
+          newName: c,
+          role: "" as any
+        };
+      });
+      setCustomColConfigs(initConfigs);
+
+      // Tự động gán cột ID làm idCol chính
+      const matchIdKey = updatedCols.find(c => c.toLowerCase() === sheetMergeCommonKey.toLowerCase());
+      const autoMap: ColumnMapping = { 
+        mota: "", 
+        manganh: "", 
+        xa: "", 
+        doanhthu: "", 
+        laodong: "", 
+        idCol: matchIdKey || sheetMergeCommonKey 
+      };
+      setMapping(autoMap);
+
+      setProgress(100);
+      setStatusMessage(`Ghép thành công ${selectedSheetsToMerge.length} sheets thành ${mergedList.length} dòng dữ liệu thống nhất!`);
+      await sleep(300);
+
+      // Lưu IndexedDB
+      autoSaveSession(mergedList, mergedList, updatedCols, fileName, autoMap, initConfigs);
+      setActiveTab("xemdulieu");
+
+    } catch (err: any) {
+      alert("Lỗi trong quá trình ghép các Sheet: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Hàm tính toán báo cáo chéo phối hợp hai chiều (Xã x Ngành VSIC)
+  const handleCalcCrossReport = async () => {
+    if (mainData.length === 0) {
+      alert("Vui lòng tải hoặc nạp dữ liệu chính trước.");
+      return;
+    }
+    if (!crossReportManganhCol) {
+      alert("Vui lòng chỉ định cột chứa Mã Ngành ở bộ chọn!");
+      return;
+    }
+    if (!crossReportXaCol) {
+      alert("Vui lòng chỉ định cột chứa Xã / Địa bàn ở bộ chọn!");
+      return;
+    }
+
+    setLoading(true);
+    setProgress(30);
+    setStatusMessage("Đang quét phân cấp ngành VSIC và gom tích chỉ số...");
+    await sleep(200);
+
+    try {
+      const groupedMap = new Map<string, {
+        xa: string;
+        nganhCode: string;
+        nganhLabel: string;
+        sumDoanhThu: number;
+        sumLaoDong: number;
+        countDN: number;
+      }>();
+
+      mainData.forEach(row => {
+        const xaVal = String(row[crossReportXaCol] || "Khác").trim();
+        const rawMng = String(row[crossReportManganhCol] || "").trim();
+        const mngNormalized = normalizeSectorCode(rawMng);
+
+        let nganhCode = mngNormalized;
+        let nganhLabel = "";
+
+        if (crossReportLevel === 1) {
+          // Lấy Ngành Cấp 1 (Chữ cái A-U)
+          let s1Code = "";
+          if (mngNormalized) {
+            if (/^[a-zA-Z]$/.test(mngNormalized)) {
+              s1Code = mngNormalized.toUpperCase();
+            } else {
+              const sec2Code = mngNormalized.slice(0, 2);
+              s1Code = getParentSectorCode(sec2Code) || "";
+            }
+          }
+          nganhCode = s1Code || "CHUA_PHAN_LOAI";
+          nganhLabel = vsicRawData[nganhCode] || "Ngành cấp 1 chưa định dạng chuẩn";
+        } else if (crossReportLevel === 2) {
+          // Lấy Ngành Cấp 2 (2 số đầu)
+          const s2Code = mngNormalized ? mngNormalized.slice(0, 2) : "";
+          nganhCode = s2Code || "CHUA_PHAN_LOAI";
+          nganhLabel = vsicRawData[nganhCode] || "Ngành cấp 2 chưa định dạng chuẩn";
+        } else {
+          // Giữ nguyên (Cấp 5)
+          nganhCode = mngNormalized || "CHUA_PHAN_LOAI";
+          nganhLabel = vsicRawData[nganhCode] || "Mã kinh tế chưa ghi nhận chuẩn";
+        }
+
+        const groupKey = `${xaVal}|||${nganhCode}`;
+
+        // Trích xuất doanh thu
+        let dtVal = 0;
+        if (crossReportDoanhThuCol) {
+          const val = parseFloat(String(row[crossReportDoanhThuCol]).replace(/[^0-9.\-]/g, ""));
+          if (!isNaN(val)) dtVal = val;
+        }
+
+        // Trích xuất lao động
+        let ldVal = 0;
+        if (crossReportLaoDongCol) {
+          const val = parseFloat(String(row[crossReportLaoDongCol]).replace(/[^0-9.\-]/g, ""));
+          if (!isNaN(val)) ldVal = val;
+        }
+
+        if (groupedMap.has(groupKey)) {
+          const prev = groupedMap.get(groupKey)!;
+          prev.sumDoanhThu += dtVal;
+          prev.sumLaoDong += ldVal;
+          prev.countDN += 1;
+        } else {
+          groupedMap.set(groupKey, {
+            xa: xaVal,
+            nganhCode: nganhCode,
+            nganhLabel: nganhLabel,
+            sumDoanhThu: dtVal,
+            sumLaoDong: ldVal,
+            countDN: 1
+          });
+        }
+      });
+
+      setProgress(70);
+      setStatusMessage("Xây dựng dải tổng hợp phân cấp hai chiều...");
+      await sleep(150);
+
+      // Sắp xếp
+      const listResults = Array.from(groupedMap.values()).sort((a, b) => {
+        const cmpXa = a.xa.localeCompare(b.xa, "vi");
+        if (cmpXa !== 0) return cmpXa;
+        return a.nganhCode.localeCompare(b.nganhCode);
+      });
+
+      const reportRows: any[] = [];
+      let totalDN = 0;
+      let totalDoanhThu = 0;
+      let totalLaoDong = 0;
+
+      listResults.forEach((val, index) => {
+        reportRows.push({
+          "STT": index + 1,
+          "Địa bàn (Xã)": val.xa,
+          [`Mã ngành hạch toán`]: val.nganhCode,
+          "Tên phân loại ngành kinh tế": val.nganhLabel,
+          "Số lượng Doanh nghiệp (DN)": val.countDN,
+          "Tổng Doanh Thu hạch toán": Math.round(val.sumDoanhThu * 100) / 100,
+          "Tổng Lao Động hạch toán": Math.round(val.sumLaoDong * 100) / 100
+        });
+
+        totalDN += val.countDN;
+        totalDoanhThu += val.sumDoanhThu;
+        totalLaoDong += val.sumLaoDong;
+      });
+
+      // Tạo dòng sum toàn bảng
+      reportRows.push({
+        "STT": "LŨY KẾ",
+        "Địa bàn (Xã)": "TỔNG CỘNG LŨY KẾ TOÀN BỘ BẢNG",
+        [`Mã ngành hạch toán`]: "-",
+        "Tên phân loại ngành kinh tế": "-",
+        "Số lượng Doanh nghiệp (DN)": totalDN,
+        "Tổng Doanh Thu hạch toán": Math.round(totalDoanhThu * 100) / 100,
+        "Tổng Lao Động hạch toán": Math.round(totalLaoDong * 100) / 100
+      });
+
+      setCrossReportData(reportRows);
+      if (reportRows.length > 0) {
+        setCrossReportCols(Object.keys(reportRows[0]));
+      }
+
+      setProgress(100);
+      setStatusMessage(`Tính toán chéo thành công ${reportRows.length - 1} dòng chi tiết theo Xã × Phân cấp ngành!`);
+      await sleep(250);
+
+    } catch (e: any) {
+      alert("Xảy ra lỗi khi tính toán tổng hợp chéo: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Xuất file báo cáo chéo
+  const handleExportCrossReportExcel = () => {
+    if (crossReportData.length === 0) {
+      alert("Không có dữ liệu báo cáo chéo phối hợp để xuất!");
+      return;
+    }
+
+    try {
+      const ws = XLSX.utils.json_to_sheet(crossReportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Bao_Cao_Hop_Xa_Nganh");
+
+      // Set width
+      ws["!cols"] = [
+        { wch: 8 },  // STT
+        { wch: 22 }, // Xã
+        { wch: 22 }, // Mã ngành
+        { wch: 45 }, // Tên phân loại ngành
+        { wch: 20 }, // Số lượng DN
+        { wch: 22 }, // Tổng doanh thu
+        { wch: 22 }  // Tổng lao động
+      ];
+
+      XLSX.writeFile(wb, `Bao_Cao_Tong_Hop_Phoi_Hop_Xa_Nganh_Cap_${crossReportLevel}.xlsx`);
+    } catch (err: any) {
+      alert("Lỗi xuất Excel: " + err.message);
+    }
   };
 
   // Áp dụng định nghĩa lại tên cột & tái cấu trúc bảng dữ liệu mới
@@ -2785,8 +3114,88 @@ export default function App() {
                   </label>
                 </div>
 
-                {/* Phần cấu hình định nghĩa lại tên cột theo phong cách của người dùng (CUSTOM RE-DEFINITION GRID) */}
-                {rawImportedData.length > 0 && (
+                {/* HIỂN THỊ CẤU HÌNH GHÉP CÁC SHEET KHI PHÁT HIỆN TỆP NHIỀU SHEET */}
+                {detectedSheets.length > 1 && (
+                  <div className="bg-[#111827]/90 rounded-2xl p-5 border border-amber-500/35 space-y-4 animate-slide-up mt-4">
+                    <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
+                      <div className="p-1.5 bg-amber-950/50 rounded-lg border border-amber-500/25">
+                        <FileSpreadsheet className="w-5 h-5 text-amber-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                          ⚡ Phát hiện File có nhiều Sheet ({detectedSheets.length} Sheets)
+                        </h4>
+                        <p className="text-[11px] text-amber-200/80">
+                          Bạn có thể ghép (gộp) dữ liệu của nhiều Sheet này lại với nhau dựa trên một cột chung (ví dụ: Mã số thuế, Mã định danh, ID,...).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#1f2937]/40 p-4 rounded-xl border border-gray-800">
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-300 block mb-1.5 font-mono">
+                          1. CHỌN CÁC SHEET MUỐN GHÉP:
+                        </label>
+                        <div className="max-h-[140px] overflow-y-auto space-y-1.5 p-2 bg-[#111827] rounded-lg border border-gray-800">
+                          {detectedSheets.map(sheet => {
+                            const isSelected = selectedSheetsToMerge.includes(sheet);
+                            return (
+                              <label key={sheet} className="flex items-center gap-2 text-xs text-gray-300 hover:text-white cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {
+                                    if (isSelected) {
+                                      setSelectedSheetsToMerge(selectedSheetsToMerge.filter(s => s !== sheet));
+                                    } else {
+                                      setSelectedSheetsToMerge([...selectedSheetsToMerge, sheet]);
+                                    }
+                                  }}
+                                  className="rounded border-gray-700 bg-gray-950 text-amber-500 focus:ring-amber-500"
+                                />
+                                <span className={isSelected ? "text-amber-300 font-semibold" : ""}>{sheet}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col justify-between space-y-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-gray-200 block font-mono">
+                            2. CHỌN CỘT LIÊN KẾT CHUNG (KEY COLUMN):
+                          </label>
+                          <select
+                            value={sheetMergeCommonKey}
+                            onChange={(e) => setSheetMergeCommonKey(e.target.value)}
+                            className="w-full bg-[#111827] border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono"
+                          >
+                            <option value="">-- Chọn cột định danh dùng để gộp dòng --</option>
+                            {columns.map(c => (
+                              <option key={c} value={c}>
+                                🔑 Cột: {c}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-[10px] text-gray-500 italic">
+                            Hệ thống sẽ đồng nhất, phối hợp các thông tin cột của dòng từ các Sheet dựa theo giá trị trùng khớp tại cột này.
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={handleMergeWorkbookSheets}
+                          disabled={selectedSheetsToMerge.length < 2 || !sheetMergeCommonKey}
+                          className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 disabled:from-gray-700 disabled:to-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          ⚡ GHÉP CÁC SHEET THÀNH 1 BẢNG CHUNG
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {/* Phần cấu hình định nghĩa lại tên cột theo phong cách của người dùng (CUSTOM RE-DEFINITION GRID) */}
+              {rawImportedData.length > 0 && (
                   <div className="bg-[#111827]/90 rounded-2xl p-5 border border-purple-500/20 space-y-5 animate-slide-up">
                     
                     {/* BẢN ĐỒ ÁNH XẠ VAI TRÒ CỘT CHỦ ĐỘNG */}
@@ -3553,6 +3962,191 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
+                    ⚠️ Chưa có tệp tin đầu vào để kích hoạt hạch toán!
+                  </div>
+                )}
+              </div>
+
+              {/* PHÂN HỆ TỔNG HỢP CHÉO PHỐI HỢP HAI CHIỀU (ĐỊA BÀN XÃ × NGÀNH VSIC) */}
+              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> TỔNG HỢP BÁO CÁO PHỐI HỢP HAI CHIỀU (ĐỊA BÀN × VSIC)
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Gom nhóm dữ liệu đồng thời theo cả tiêu chí Xã/Địa bàn và Phân cấp ngành kinh tế quốc gia. Tính toán tự động tổng thể chỉ tiêu: Doanh Thu, Lao Động và đếm số lượng doanh nghiệp của cặp địa bàn - chuyên ngành tương ứng.
+                  </p>
+                </div>
+
+                {mainData.length > 0 ? (
+                  <div className="bg-[#111827]/80 rounded-2xl p-5 border border-purple-500/20 shadow-xl space-y-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-gray-950/30 p-4 rounded-xl border border-gray-800">
+                      
+                      {/* Chọn địa bàn */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-300 block font-mono">1. CỘT ĐỊA BÀN (XÃ/PHƯỜNG):</label>
+                        <select
+                          value={crossReportXaCol}
+                          onChange={(e) => setCrossReportXaCol(e.target.value)}
+                          className="w-full bg-[#111827] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-purple-500 font-medium"
+                        >
+                          <option value="">-- Chọn cột xã --</option>
+                          {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      {/* Chọn cột mã ngành */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-300 block font-mono">2. CỘT MÃ NGÀNH VSIC:</label>
+                        <select
+                          value={crossReportManganhCol}
+                          onChange={(e) => setCrossReportManganhCol(e.target.value)}
+                          className="w-full bg-[#111827] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-purple-500 font-medium"
+                        >
+                          <option value="">-- Chọn cột mã ngành --</option>
+                          {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      {/* Chọn chỉ tiêu doanh thu */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-300 block font-mono">3. CỘT SỐ LIỆU DOANH THU:</label>
+                        <select
+                          value={crossReportDoanhThuCol}
+                          onChange={(e) => setCrossReportDoanhThuCol(e.target.value)}
+                          className="w-full bg-[#111827] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-purple-500 font-medium"
+                        >
+                          <option value="">-- Chọn cột doanh thu (không bắt buộc) --</option>
+                          {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      {/* Chọn chỉ tiêu lao động */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-300 block font-mono">4. CỘT SỐ LIỆU LAO ĐỘNG:</label>
+                        <select
+                          value={crossReportLaoDongCol}
+                          onChange={(e) => setCrossReportLaoDongCol(e.target.value)}
+                          className="w-full bg-[#111827] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-purple-500 font-medium"
+                        >
+                          <option value="">-- Chọn cột lao động (không bắt buộc) --</option>
+                          {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                    </div>
+
+                    {/* Cấp phân ngành */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-950/20 p-4 rounded-xl border border-gray-800">
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-bold text-purple-300 block font-mono">5. CẤP ĐỘ PHÂN NGHÀNH HẠCH TOÁN MONG MUỐN:</span>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer select-none">
+                            <input
+                              type="radio"
+                              name="crossReportLevelRadio"
+                              checked={crossReportLevel === 1}
+                              onChange={() => setCrossReportLevel(1)}
+                              className="text-purple-500 focus:ring-purple-500"
+                            />
+                            Ngành cấp 1 (Chữ cái A-U)
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer select-none">
+                            <input
+                              type="radio"
+                              name="crossReportLevelRadio"
+                              checked={crossReportLevel === 2}
+                              onChange={() => setCrossReportLevel(2)}
+                              className="text-purple-500 focus:ring-purple-500"
+                            />
+                            Ngành cấp 2 (2 chữ số đầu)
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer select-none">
+                            <input
+                              type="radio"
+                              name="crossReportLevelRadio"
+                              checked={crossReportLevel === 5}
+                              onChange={() => setCrossReportLevel(5)}
+                              className="text-purple-500 focus:ring-purple-500"
+                            />
+                            Giữ nguyên mã ngành đầy đủ
+                          </label>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleCalcCrossReport}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-700 hover:to-indigo-800 text-white font-bold text-xs py-3 px-6 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer self-stretch sm:self-auto"
+                      >
+                        ⚡ CHẠY BÁO CÁO PHỐI HỢP
+                      </button>
+                    </div>
+
+                    {/* BẢNG KẾT QUẢ BÁO CÁO DƯỚI ĐÂY */}
+                    {crossReportData.length > 0 && (
+                      <div className="border-t border-gray-800 pt-5 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#1e293b]/40 p-3.5 rounded-xl border border-gray-800">
+                          <div>
+                            <span className="text-xs font-bold text-purple-400 font-mono uppercase tracking-wider block">
+                              🎉 KẾT QUẢ BÁO CÁO PHỐI HỢP CHÉO
+                            </span>
+                            <span className="text-[11px] text-gray-400">
+                              Báo cáo thống nhất gồm {crossReportData.length - 1} phân lớp chi tiết và 1 dòng tổng lũy kế toàn cục.
+                            </span>
+                          </div>
+                          
+                          <button
+                            onClick={handleExportCrossReportExcel}
+                            className="bg-[#1f2937] hover:bg-[#374151] text-purple-300 border border-purple-900 font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm ml-auto"
+                          >
+                            📥 Tải xuống File Excel Báo cáo phối hợp (.xlsx)
+                          </button>
+                        </div>
+
+                        <div className="overflow-x-auto border border-gray-850 rounded-xl bg-gray-950/40 max-h-[400px]">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="bg-[#1f2937] border-b border-gray-800 text-gray-300 font-mono text-[11px] sticky top-0 z-10">
+                                {crossReportCols.map(col => (
+                                  <th key={col} className={`p-3 font-semibold ${
+                                    col.includes("hạch toán") || col.includes("Số lượng") ? "text-right" : ""
+                                  }`}>{col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/40 text-gray-200 font-sans">
+                              {crossReportData.map((row, rIdx) => {
+                                const isTotal = row[`STT`] === "LŨY KẾ";
+                                return (
+                                  <tr 
+                                    key={rIdx} 
+                                    className={`hover:bg-gray-850/10 transition-colors ${
+                                      isTotal ? "bg-purple-950/25 font-bold border-t-2 border-purple-900 text-purple-300" : ""
+                                    }`}
+                                  >
+                                    {crossReportCols.map(col => {
+                                      const cellVal = row[col];
+                                      const isNumeric = typeof cellVal === "number" && col !== "STT";
+                                      return (
+                                        <td key={col} className={`p-3 ${
+                                          isNumeric ? "font-mono text-emerald-400 text-right font-semibold" : ""
+                                        }`}>
+                                          {isNumeric ? cellVal.toLocaleString("en-US") : String(cellVal)}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                ) : (
+                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-purple-400 border border-purple-950">
                     ⚠️ Chưa có tệp tin đầu vào để kích hoạt hạch toán!
                   </div>
                 )}
@@ -4345,7 +4939,7 @@ export default function App() {
                         </div>
                       </div>
 
-                    </div>
+                    </div> 
 
                     <button 
                       onClick={handleLogicCheck}
