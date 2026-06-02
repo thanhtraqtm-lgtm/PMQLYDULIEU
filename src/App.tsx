@@ -2509,7 +2509,7 @@ export default function App() {
               <div className="bg-gradient-to-r from-purple-900/40 via-[#1f2937] to-[#1f2937] border border-purple-500/20 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 justify-between">
                 <div className="space-y-3 max-w-2xl">
                   <span className="bg-purple-900/50 border border-purple-500/30 text-purple-400 text-xs font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    Phát hành chuẩn mực V38.5
+                    GIỚI THIỆU 
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
                     CÔNG CỤ LÀM SẠCH DỮ LIỆU
