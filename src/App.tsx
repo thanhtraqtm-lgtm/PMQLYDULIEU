@@ -43,10 +43,11 @@ function openDB(): Promise<IDBDatabase> {
 async function saveAppState(state: AppState): Promise<void> {
   try {
     const db = await openDB();
+    const serialized = JSON.stringify(state);
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readwrite");
       const store = transaction.objectStore(STORE_NAME);
-      const request = store.put(state, "currentSession");
+      const request = store.put(serialized, "currentSession");
       request.onsuccess = () => resolve();
       request.onerror = () => reject(new Error("Lỗi khi lưu dữ liệu vào IndexedDB"));
     });
@@ -63,7 +64,20 @@ async function loadAppState(): Promise<AppState | null> {
       const store = transaction.objectStore(STORE_NAME);
       const request = store.get("currentSession");
       request.onsuccess = () => {
-        resolve(request.result || null);
+        const val = request.result;
+        if (!val) {
+          resolve(null);
+          return;
+        }
+        if (typeof val === "string") {
+          try {
+            resolve(JSON.parse(val));
+          } catch (e) {
+            reject(new Error("Dữ liệu phiên làm việc bị hỏng, đang khởi tạo lại..."));
+          }
+        } else {
+          resolve(val); // Tương thích ngược dạng Object cũ
+        }
       };
       request.onerror = () => {
         reject(new Error("Lỗi khi đọc dữ liệu từ IndexedDB"));
@@ -284,8 +298,8 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [mainData, rawImportedData, columns, fileName, mapping, customColConfigs]);
 
-  // Thuật toán dọn dẹp dải ô Workbook trống thừa thãi và làm gọn tinh chất Worksheet
-  // Đảm bảo không bao giờ gọi Object.keys() hay for...in trên Worksheet làm phình/lỗi bộ nhớ hoặc lỗi "Too many properties to enumerate"
+  // Thuật toán hiệu chỉnh dải ô (Range) trực tiếp trên Worksheet cực kỳ nhanh chóng và an toàn
+  // Không bao giờ sao chép thủ công từng ô dữ liệu, tránh tối đa việc lặp hàng triệu lần và không gọi Object.keys() để loại bỏ hoàn toàn lỗi "Too many properties to enumerate"
   const optimizeAndCompactSheet = (wb: XLSX.WorkBook, sheetName: string): XLSX.WorkSheet => {
     const ws = wb.Sheets[sheetName];
     if (!ws || !ws['!ref']) return ws;
@@ -304,9 +318,9 @@ export default function App() {
 
     if (endRow <= startRow) return ws;
 
-    // Hàm kiểm tra xem dòng r có dữ liệu thực tế hay không
+    // Hàm kiểm tra nhanh xem dòng r có dữ liệu thực tế hay không
     const checkRowHasData = (r: number): boolean => {
-      const maxColToSearch = Math.min(endCol, startCol + 100);
+      const maxColToSearch = Math.min(endCol, startCol + 50); // Giới hạn kiểm tra 50 cột đầu tiên để tối ưu tốc độ dò tìm
       for (let c = startCol; c <= maxColToSearch; c++) {
         const cellRef = XLSX.utils.encode_cell({ r, c });
         const cellObj = ws[cellRef];
@@ -317,13 +331,28 @@ export default function App() {
       return false;
     };
 
-    // Tìm hàng cuối cùng thực sự chứa dữ liệu bằng thuật toán Jump Search cực nhanh (tránh lặp 1 triệu dòng)
+    // Kiểm tra nhanh xem 10 dòng cuối cùng có dữ liệu không. Nếu có -> tệp thật sự đầy đủ, dải ô chuẩn xác!
+    let isGenuineLargeFile = false;
+    const checkStart = Math.max(startRow, endRow - 10);
+    for (let r = endRow; r >= checkStart; r--) {
+      if (checkRowHasData(r)) {
+        isGenuineLargeFile = true;
+        break;
+      }
+    }
+    
+    // Nếu tệp chuẩn xác không phình loại vỏ trống, giữ nguyên và trả về luôn
+    if (isGenuineLargeFile) {
+      return ws;
+    }
+
+    // Nếu dải ô có hiện tượng bị phình rộng vô lý, dò ngược lên bằng bước nhảy giảm dần cực nhanh
     let realLastRow = startRow;
-    let currentMaxToCheck = endRow;
+    let currentHigh = endRow;
     const steps = [10000, 1000, 100, 10, 1];
     
     for (const step of steps) {
-      let r = currentMaxToCheck;
+      let r = currentHigh;
       while (r > realLastRow) {
         if (checkRowHasData(r)) {
           realLastRow = r;
@@ -331,60 +360,16 @@ export default function App() {
         }
         r -= step;
       }
-      currentMaxToCheck = Math.min(endRow, realLastRow + step);
+      currentHigh = Math.min(endRow, realLastRow + step);
     }
 
-    // Tìm cột cuối cùng thực tế chứa dữ liệu
-    let realLastCol = startCol;
-    const maxColLimit = Math.min(endCol, startCol + 100);
-    for (let c = maxColLimit; c >= startCol; c--) {
-      let colHasData = false;
-      const rowStep = Math.max(1, Math.floor((realLastRow - startRow) / 200));
-      for (let r = startRow; r <= realLastRow; r += rowStep) {
-        const cellRef = XLSX.utils.encode_cell({ r, c });
-        const cellObj = ws[cellRef];
-        if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
-          colHasData = true;
-          break;
-        }
-      }
-      if (colHasData) {
-        realLastCol = c;
-        break;
-      }
-    }
-
-    // TẠO MỘT WORKSHEET MỚI HOÀN TOÀN SẠCH SẼ, CHỈ CHỨA CÁC ĐỐI TƯỢNG CÓ DỮ LIỆU THỰC SỰ
-    // Điều này triệt tiêu hoàn toàn tất cả các thuộc tính rác làm phình object và gây lỗi hệ thống
-    const newWs: XLSX.WorkSheet = {};
-
-    // 1. Sao chép các thuộc tính cấu hình hệ thống (bắt đầu bằng dấu !)
-    const systemKeys = ['!ref', '!cols', '!rows', '!merges', '!protect', '!autofilter', '!views', '!type'];
-    systemKeys.forEach(key => {
-      if (ws[key] !== undefined) {
-        newWs[key] = ws[key];
-      }
-    });
-
-    // Cập nhật lại dải ô !ref chuẩn xác tuyệt đối cho Sheet mới
-    newWs['!ref'] = XLSX.utils.encode_range({
+    // Cập nhật dải ô !ref hiệu chuẩn trực tiếp cực kỳ nhẹ nhàng mà không nhân bản dữ liệu
+    ws['!ref'] = XLSX.utils.encode_range({
       s: { r: startRow, c: startCol },
-      e: { r: realLastRow, c: Math.max(realLastCol, startCol) }
+      e: { r: realLastRow, c: endCol }
     });
 
-    // 2. Chỉ sao chép các ô thực tế có dữ liệu nằm trong dải ô hoạt động thực tế mới
-    for (let r = startRow; r <= realLastRow; r++) {
-      for (let c = startCol; c <= realLastCol; c++) {
-        const cellRef = XLSX.utils.encode_cell({ r, c });
-        const cellObj = ws[cellRef];
-        if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
-          newWs[cellRef] = cellObj;
-        }
-      }
-    }
-
-    wb.Sheets[sheetName] = newWs;
-    return newWs;
+    return ws;
   };
 
   // Mock data generator
