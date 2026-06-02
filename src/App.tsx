@@ -284,7 +284,7 @@ export default function App() {
   const [newIfRule, setNewIfRule] = useState<LogicRule>({ col: "", op: "==", val: "" });
   const [newThenRule, setNewThenRule] = useState<LogicRule>({ col: "", op: "==", val: "" });
 
-  // States cho Phân Hệ 1: Tổng hợp ngành cấp 2 (Mới độc lập)
+  // States cho Phân  1: Tổng hợp ngành cấp 2 (Mới độc lập)
   const [t2IndustryCol, setT2IndustryCol] = useState<string>("");
   const [t2MetricCols, setT2MetricCols] = useState<string[]>([]);
   const [t2AggMethod, setT2AggMethod] = useState<"sum" | "avg">("sum");
@@ -299,7 +299,7 @@ export default function App() {
   const [quickReportLaoDongCol, setQuickReportLaoDongCol] = useState<string>("");
   const [pivotManganhCol, setPivotManganhCol] = useState<string>("");
 
-  // States cho Phân Hệ 2: Chuẩn hóa khớp ngành VSIC cấp 5 (Mới độc lập)
+  // States cho Phân  2: Chuẩn hóa khớp ngành VSIC cấp 5 (Mới độc lập)
   const [stdIndustryCol, setStdIndustryCol] = useState<string>("");
   const [stdDescriptionCol, setStdDescriptionCol] = useState<string>("");
   const [stdReportAnomalies, setStdReportAnomalies] = useState<any[]>([]);
@@ -1513,7 +1513,7 @@ export default function App() {
   // 3. CHỨC NĂNG TÁCH DỮ LIỆU THEO CỘT HOÀN TOÀN TỰ ĐỘNG (EXPORT ZIP)
   const handleSplitData = async () => {
     if (mainData.length === 0) {
-      alert("Không có dữ liệu trong hệ thống! Vui lòng nạp tệp chính trước.");
+      alert("Không có dữ liệu trong  thống! Vui lòng nạp tệp chính trước.");
       return;
     }
     if (!splitCol) {
@@ -1752,7 +1752,7 @@ export default function App() {
     setActiveTab("xemdulieu");
   };
 
-  // PHÂN HỆ 1: TỔNG HỢP BÁO CÁO THEO ĐẦU NGÀNH CẤP 1 & CẤP 2 VSIC (MỚI ĐỘC LẬP)
+  // PHÂN  1: TỔNG HỢP BÁO CÁO THEO ĐẦU NGÀNH CẤP 1 & CẤP 2 VSIC (MỚI ĐỘC LẬP)
   const handleExportT2Excel = () => {
     if (t2ReportData.length === 0) {
       alert(`Chưa có dữ liệu báo cáo ngành cấp ${t2ReportLevel} để xuất!`);
@@ -2545,7 +2545,7 @@ export default function App() {
             <div className="mx-auto w-14 h-14 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-900/30">
               <Lock className="w-7 h-7 text-white animate-pulse" />
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-white pt-2">CỔNG BẢO MẬT TRUY CẬP</h2>
+            <h2 className="text-xl font-bold tracking-tight text-white pt-2">ĐĂNG NHẬP HỆ THỐNG</h2>
             <p className="text-xs text-gray-400">Vui lòng nhập mật khẩu nội bộ để sử dụng hệ thống VSIC</p>
           </div>
 
@@ -2571,13 +2571,13 @@ export default function App() {
               type="submit"
               className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-650 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              🔐 Xác Nhận Trạm Làm Việc
+              🔐 Xác Nhận Hệ Thống
             </button>
           </form>
 
           <div className="border-t border-gray-800/60 pt-4 text-center space-y-1">
             <p className="text-[11px] text-amber-400/85 italic">
-              💡 Gợi ý: Mật khẩu mặc định là <strong className="font-mono bg-amber-950 px-1.5 py-0.5 rounded border border-amber-900/40 text-amber-300">admin123</strong>
+              💡 Gợi ý: Mật khẩu mặc định là <strong className="font-mono bg-amber-950 px-1.5 py-0.5 rounded border border-amber-900/40 text-amber-300">   </strong>
             </p>
             <p className="text-[10px] text-gray-500 font-mono">Hệ thống bảo lưu mã khóa cục bộ an toàn trong trình duyệt của bạn</p>
           </div>
@@ -2597,7 +2597,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              HỆ THỐNG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC V38.5</span>
+              DM NGÀNH KT <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC 2025</span>
             </h1>
             <p className="text-xs text-gray-400 font-mono">CÔNG CỤ HỖ TRỢ SO SÁNH TỔNG HỢP DỮ LIỆU</p>
           </div>
@@ -2664,7 +2664,7 @@ export default function App() {
                   : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
               }`}
             >
-              <Home className="w-4 h-4" /> 🏠 Trang Chủ Tổng Quan
+              <Home className="w-4 h-4" /> 🏠 TRANG CHỦ TỔNG QUAN
             </button>
 
             <button 
@@ -2681,7 +2681,7 @@ export default function App() {
               <span className="text-[10px] font-mono bg-[#111827] text-gray-400 px-1.5 py-0.5 rounded-md">{mainData.length}</span>
             </button>
 
-            <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 pt-4 mb-2">Công cụ liên hợp</div>
+            <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 pt-4 mb-2">CÔNG CỤ XỬ LÝ DỮ LIỆU</div>
 
             <button 
               onClick={() => setActiveTab("ghepnoi")}
@@ -2691,7 +2691,7 @@ export default function App() {
                   : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
               }`}
             >
-              <GitMerge className="w-4 h-4 text-blue-400" /> 🌿 Ghép Nối Dữ Liệu
+              <GitMerge className="w-4 h-4 text-blue-400" /> 🌿 GHÉP NỐI DỮ LIỆU
             </button>
 
             <button 
@@ -2702,7 +2702,7 @@ export default function App() {
                   : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
               }`}
             >
-              <Combine className="w-4 h-4 text-cyan-400" /> 🔍 So Sánh Đối Chiếu
+              <Combine className="w-4 h-4 text-cyan-400" /> 🔍 SO SÁNH ĐỐI CHIẾU
             </button>
 
             <button 
@@ -2713,7 +2713,7 @@ export default function App() {
                   : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
               }`}
             >
-              <Scissors className="w-4 h-4 text-pink-400" /> ✂️ Tách File Hàng Loạt
+              <Scissors className="w-4 h-4 text-pink-400" /> ✂️ TÁCH FILE HÀNG LOẠT
             </button>
 
             <button 
@@ -2724,7 +2724,7 @@ export default function App() {
                   : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
               }`}
             >
-              <BarChart3 className="w-4 h-4 text-amber-400" /> 📊 Tổng Hợp Báo Cáo
+              <BarChart3 className="w-4 h-4 text-amber-400" /> 📊 TỔNG HỢP BÁO CÁO
             </button>
 
             <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 pt-4 mb-2">Thông minh & Rà soát</div>
@@ -2737,7 +2737,7 @@ export default function App() {
                   : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
               }`}
             >
-              <Brain className="w-4 h-4 text-indigo-400" /> 🧠 Chuẩn Hóa VSIC & AI
+              <Brain className="w-4 h-4 text-indigo-400" /> 🧠 CHUẨN HÓA MÃ NGÀNH
             </button>
 
             <button 
@@ -2748,7 +2748,7 @@ export default function App() {
                   : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
               }`}
             >
-              <CheckSquare className="w-4 h-4 text-emerald-400" /> 🛂 Cỗ Máy Kiểm Tra Logic
+              <CheckSquare className="w-4 h-4 text-emerald-400" /> 🛂 KIỂM TRA LOGIC
             </button>
           </div>
 
@@ -2841,10 +2841,10 @@ export default function App() {
                     Phát hành chuẩn mực V38.5
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    Hệ Thống Phân Tích & Chuẩn Hóa Dữ Liệu Ngành Quốc Gia
+                    CÔNG CỤ XỬ LÝ DỮ LIỆU
                   </h2>
                   <p className="text-gray-300 text-sm leading-relaxed">
-                    Công cụ chuyên sâu hỗ trợ thống kê dữ liệu doanh nghiệp, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa cao cấp.
+                    Công cụ chuyên sâu hỗ trợ xử lý dữ liệu, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa.
                   </p>
                   <div className="pt-2 flex items-center gap-4">
                     <button 
@@ -2868,10 +2868,10 @@ export default function App() {
               <div className="space-y-6">
                 <div className="border-b border-[#374151] pb-4">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> BẢN ĐỒ CẨM NANG & KÍCH HOẠT CHỨC NĂNG NHANH
+                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> HƯỚNG DẪN & KÍCH HOẠT CHỨC NĂNG NHANH
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
-                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Quý khách có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
+                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Bạn có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
                   </p>
                 </div>
 
@@ -3032,7 +3032,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* CHỨC NĂNG 7: Cỗ máy kiểm tra logic */}
+                  {/* CHỨC NĂNG 7: công cụ kiểm tra logic */}
                   <div className="bg-[#1f2937]/50 border border-emerald-500/20 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-emerald-500/40 transition-all col-span-1 md:col-span-2 lg:col-span-3 group">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
