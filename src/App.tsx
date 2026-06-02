@@ -126,7 +126,8 @@ import {
   Search,
   Plus,
   Trash2,
-  FileCheck
+  FileCheck,
+  Compass
 } from "lucide-react";
 
 import { 
@@ -237,37 +238,7 @@ export default function App() {
   const [stdReportAnomalies, setStdReportAnomalies] = useState<any[]>([]);
   const [stdMatchStats, setStdMatchStats] = useState<{ total: number; valid: number; invalid: number; conflicts: number }>({ total: 0, valid: 0, invalid: 0, conflicts: 0 });
 
-  // Tự động rà quét và điền thông minh ban đầu cho các cấu hình độc lập mỗi khi tệp đổi
-  useEffect(() => {
-    if (columns.length > 0) {
-      const indCol = columns.find(c => {
-        const low = c.toLowerCase();
-        return low.includes("mã ngành") || low.includes("manganh") || low.includes("ma_nganh") || low.includes("ngành") || low.includes("nganh") || low.includes("vsic");
-      }) || columns[0] || "";
-      setT2IndustryCol(indCol);
-      setStdIndustryCol(indCol);
 
-      const descCol = columns.find(c => {
-        const low = c.toLowerCase();
-        return low.includes("mô tả") || low.includes("mota") || low.includes("hoatdong") || low.includes("hoạt động");
-      }) || columns[0] || "";
-      setStdDescriptionCol(descCol);
-
-      const numericCols = columns.filter(c => {
-        const low = c.toLowerCase();
-        return low.includes("thu") || low.includes("lao") || low.includes("sản lượng") || low.includes("sanluong") || low.includes("số") || low.includes("so") || low.includes("tien") || low.includes("tiền") || low.includes("vốn");
-      });
-      if (numericCols.length > 0) {
-        setT2MetricCols(numericCols);
-      } else {
-        const fallbackCols = columns.filter(c => {
-          const low = c.toLowerCase();
-          return !low.includes("mô tả") && !low.includes("mota") && !low.includes("địa") && !low.includes("id");
-        });
-        setT2MetricCols(fallbackCols.slice(0, 2));
-      }
-    }
-  }, [columns]);
 
   // Phân trang cho viewer
   const [viewPage, setViewPage] = useState<number>(1);
@@ -410,58 +381,6 @@ export default function App() {
     return ws;
   };
 
-  // Mock data generator
-  const loadMockData = () => {
-    const mock = [
-      { STT: "1", MaST: "0100021312", TenDN: "Công ty Cổ phần Lúa Gạo Việt Nam", MoTa: "Hoạt động trồng lúa nước chất lượng cao và chăn nuôi heo thịt", MaNganhDTV: "1110", Xa: "Xã Mỹ Lộc", DoanhThu: "4500", LaoDong: "32" },
-      { STT: "2", MaST: "0200843213", TenDN: "Đại lý Thương mại Lộc Phát", MoTa: "Bán buôn lúa gạo hữu cơ, bán lẻ dầu ăn bánh kẹo sữa", MaNganhDTV: "46321", Xa: "Xã An Hòa", DoanhThu: "1280", LaoDong: "5" },
-      { STT: "3", MaST: "0301132345", TenDN: "Công ty Đầu tư Xây dựng Hoàn Mỹ", MoTa: "Thi công công trình xây dựng nhà ở dân dụng các loại", MaNganhDTV: "4100", Xa: "Xã Mỹ Lộc", DoanhThu: "8900", LaoDong: "120" },
-      { STT: "4", MaST: "0401833441", TenDN: "Cơ sở Khai thác Đá Quý An Bình", MoTa: "Khai thác cát sỏi đất sét làm vật liệu xây dựng", MaNganhDTV: "811", Xa: "Xã Mỹ Lộc", DoanhThu: "620", LaoDong: "18" },
-      { STT: "5", MaST: "0502123984", TenDN: "Phòng Khám Đa Khoa Sức Khỏe Vàng", MoTa: "Đại lý bán buôn thiết bị y tế dân dụng gia đình", MaNganhDTV: "4659", Xa: "Xã An Hòa", DoanhThu: "3100", LaoDong: "12" },
-      { STT: "6", MaST: "0601243124", TenDN: "Nhà hàng Trúc Lâm Quán", MoTa: "Dịch vụ nhà hàng ăn uống phục vụ lưu động du khách", MaNganhDTV: "56100", Xa: "Xã Tân Bình", DoanhThu: "1800", LaoDong: "25" },
-      { STT: "7", MaST: "0701982736", TenDN: "Cơ sở dệt may Hoàng Gia", MoTa: "Chăn nuôi trâu bò và trồng ngô sắn gia đình tự tiêu", MaNganhDTV: "98100", Xa: "Xã Tân Bình", DoanhThu: "450", LaoDong: "2" }
-    ];
-    setRawImportedData(mock);
-    setMainData(mock);
-    setColumns(Object.keys(mock[0]));
-    setFileName("Du_Lieu_Doanh_Nghiep_Mau.xlsx");
-
-    // Khởi tạo danh sách cấu hình cột động
-    const initConfigs = Object.keys(mock[0]).map(c => {
-      let role: "mota" | "manganh" | "xa" | "doanhthu" | "laodong" | "idCol" | "" = "";
-      if (c === "MoTa") role = "mota";
-      else if (c === "MaNganhDTV") role = "manganh";
-      else if (c === "Xa") role = "xa";
-      else if (c === "DoanhThu") role = "doanhthu";
-      else if (c === "LaoDong") role = "laodong";
-      else if (c === "MaST") role = "idCol";
-      
-      return {
-        originalName: c,
-        use: true,
-        newName: c === "MoTa" ? "Mô Tả Hoạt Động" :
-                 c === "MaNganhDTV" ? "Mã Ngành Đăng Ký" :
-                 c === "Xa" ? "Địa bàn (Xã)" :
-                 c === "DoanhThu" ? "Doanh Thu" :
-                 c === "LaoDong" ? "Tổng số Lao Động" :
-                 c === "MaST" ? "Mã Số Thuế" : c,
-        role
-      };
-    });
-    setCustomColConfigs(initConfigs);
-
-    // Tự động suy đoán Mapping cột ban đầu
-    setMapping({
-      mota: "Mô Tả Hoạt Động",
-      manganh: "Mã Ngành Đăng Ký",
-      xa: "Địa bàn (Xã)",
-      doanhthu: "Doanh Thu",
-      laodong: "Tổng số Lao Động",
-      idCol: "Mã Số Thuế"
-    });
-    setActiveTab("xemdulieu");
-  };
-
   // Đọc file CSV hoặc Excel bằng xlsx
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "main" | "old" | "new" | "left" | "right") => {
     const file = e.target.files?.[0];
@@ -481,16 +400,13 @@ export default function App() {
           type: "array",
           cellFormula: false,
           cellHTML: false,
-          cellStyles: false,
-          dense: true // Sử dụng Dense mode giúp lưu dạng cấu hình mảng 2D nhằm phòng tránh triệt để lỗi "Too many properties to enumerate" trên V8 với tệp lớn (như 50MB+)
+          cellStyles: false
         });
 
         const wsName = wb.SheetNames[0];
+        const ws = wb.Sheets[wsName];
 
-        // Tối ưu hóa dải ô và làm gọn tinh chất Worksheet để tránh quá tải bộ nhớ và triệt tiêu hoàn toàn lỗi "Too many properties to enumerate"
-        const ws = optimizeAndCompactSheet(wb, wsName);
-
-        const data = XLSX.utils.sheet_to_json(ws, { dense: true } as any) as any[];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
 
         if (data.length === 0) {
           alert("Tệp trống hoặc không chứa dữ liệu hợp lệ!");
@@ -508,31 +424,17 @@ export default function App() {
 
           // Khởi tạo danh sách cấu hình cột động từ tệp vừa nạp
           const initConfigs = cols.map(c => {
-            const low = c.toLowerCase();
-            let role: "mota" | "manganh" | "xa" | "doanhthu" | "laodong" | "idCol" | "" = "";
-            if (low.includes("mô tả") || low.includes("mota") || low.includes("hoatdong")) role = "mota";
-            if (low.includes("mã ngành") || low.includes("manganh") || low.includes("ma_nganh") || low.includes("dtv") || low.includes("vsic")) role = "manganh";
-            if (low.includes("xã") || low.includes("xa") || low.includes("diaban") || low.includes("dia_ban")) role = "xa";
-            if (low.includes("doanh thu") || low.includes("doanhthu") || low.includes("thu_nhap")) role = "doanhthu";
-            if (low.includes("lao động") || low.includes("laodong") || low.includes("nhan_su")) role = "laodong";
-            if (low.includes("mst") || low.includes("mã số") || low.includes("ident") || low.includes("id")) role = "idCol";
-
             return {
               originalName: c,
               use: true,
               newName: c, // giữ nguyên tên ban đầu, cho phép người dùng sửa đổi trực tiếp
-              role
+              role: "" as any // Không tự động gán bất cứ vai trò nào mặc định
             };
           });
           setCustomColConfigs(initConfigs);
 
-          // Thử tìm tự động mapping từ tên cột tương tự
+          // Không tự động mapping, để trống hoàn toàn để người dùng tự gán thủ công
           const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
-          initConfigs.forEach(cfg => {
-            if (cfg.role) {
-              autoMap[cfg.role] = cfg.newName;
-            }
-          });
           setMapping(autoMap);
           setActiveTab("xemdulieu");
 
@@ -602,36 +504,17 @@ export default function App() {
       return newRow;
     });
 
-    // Cập nhật cấu hình mapping chỉ tay từ hệ thống tới các tên cột mới định nghĩa
-    const newMapping: ColumnMapping = {
-      mota: "",
-      manganh: "",
-      xa: "",
-      doanhthu: "",
-      laodong: "",
-      idCol: ""
-    };
-
-    // Tự động phân tích và gán Mapping vai trò từ tên mới dễ nhớ để tương thích 100% với các phân hệ khác
-    activeConfigs.forEach(cfg => {
-      const low = cfg.newName.toLowerCase().trim();
-      if (low.includes("mô tả") || low.includes("mota") || low.includes("hoatdong") || low.includes("hoạt động")) {
-        newMapping.mota = cfg.newName.trim();
-      }
-      if (low.includes("mã ngành") || low.includes("manganh") || low.includes("vsic") || low.includes("ma_nganh") || low.includes("ngành đăng ký")) {
-        newMapping.manganh = cfg.newName.trim();
-      }
-      if (low.includes("xã") || low.includes("xa") || low.includes("địa bàn") || low.includes("diaban")) {
-        newMapping.xa = cfg.newName.trim();
-      }
-      if (low.includes("doanh thu") || low.includes("doanhthu") || low.includes("doanh_thu") || low.includes("thu nhập")) {
-        newMapping.doanhthu = cfg.newName.trim();
-      }
-      if (low.includes("lao động") || low.includes("laodong") || low.includes("lao_dong") || low.includes("nhân sự")) {
-        newMapping.laodong = cfg.newName.trim();
-      }
-      if (low.includes("mã số") || low.includes("mst") || low.includes("mã số thuế") || low.includes("id")) {
-        newMapping.idCol = cfg.newName.trim();
+    // Cập nhật cấu hình mapping bảo toàn theo chỉ định người dùng khi đổi tên cột
+    const newMapping: ColumnMapping = { ...mapping };
+    Object.keys(newMapping).forEach((roleKey) => {
+      const currentMappedCol = newMapping[roleKey as keyof ColumnMapping];
+      if (currentMappedCol) {
+        const config = customColConfigs.find(cfg => cfg.originalName === currentMappedCol && cfg.use);
+        if (config) {
+          newMapping[roleKey as keyof ColumnMapping] = config.newName.trim();
+        } else {
+          newMapping[roleKey as keyof ColumnMapping] = "";
+        }
       }
     });
 
@@ -2017,13 +1900,6 @@ export default function App() {
               <AlertTriangle className="w-3.5 h-3.5" /> Chưa có dữ liệu nguồn
             </span>
           )}
-
-          <button 
-            onClick={loadMockData}
-            className="bg-[#374151] hover:bg-[#4b5563] text-gray-200 text-xs font-semibold px-4 py-2 rounded-lg transition-all border border-[#4b5563] flex items-center gap-1.5 cursor-pointer shadow-sm"
-          >
-            <Database className="w-3.5 h-3.5 text-blue-400" /> Nạp dữ liệu mẫu
-          </button>
         </div>
       </header>
 
@@ -2182,10 +2058,10 @@ export default function App() {
                   </p>
                   <div className="pt-2 flex items-center gap-4">
                     <button 
-                      onClick={loadMockData}
+                      onClick={() => setActiveTab("xemdulieu")}
                       className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-2 cursor-pointer"
                     >
-                      Bắt đầu nhanh với Dữ liệu mẫu <ArrowRight className="w-4 h-4" />
+                      📂 Nạp file dữ liệu của bạn để bắt đầu <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -2451,6 +2327,155 @@ export default function App() {
                 {/* Phần cấu hình định nghĩa lại tên cột theo phong cách của người dùng (CUSTOM RE-DEFINITION GRID) */}
                 {rawImportedData.length > 0 && (
                   <div className="bg-[#111827]/90 rounded-2xl p-5 border border-purple-500/20 space-y-5 animate-slide-up">
+                    
+                    {/* BẢN ĐỒ ÁNH XẠ VAI TRÒ CỘT CHỦ ĐỘNG */}
+                    <div className="bg-[#1e1b4b]/20 border border-purple-500/20 rounded-2xl p-5 space-y-4">
+                      <div>
+                        <div className="text-xs font-bold text-amber-400 tracking-wider uppercase font-mono flex items-center gap-1.5">
+                          <Compass className="w-5 h-5 text-amber-400 animate-pulse" /> BẢN ĐỒ ÁNH XẠ VAI TRÒ CỘT CHỦ ĐỘNG (DỌN SẠCH TỰ ĐỘNG)
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Vui lòng tùy chọn (chỉ tay) chính xác các cột từ tệp tin tương ứng với vai trò bên dưới để kích hoạt các phép toán phân tích AI, kiểm tra lỗi, hoặc hạch toán. Không có hoạt động tự động gán mò đè lại lựa chọn của bạn.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* 1. Mã ngành */}
+                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
+                          <label className="text-xs font-bold text-purple-300 block">
+                            🏷️ Mã Ngành VSIC Đăng Ký (*):
+                          </label>
+                          <select
+                            value={mapping.manganh || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setMapping(prev => {
+                                const m = { ...prev, manganh: val };
+                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
+                                return m;
+                              });
+                            }}
+                            className="w-full bg-[#090d16] border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">-- Chọn Cột --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+
+                        {/* 2. Mô tả */}
+                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
+                          <label className="text-xs font-bold text-purple-300 block">
+                            📝 Mô tả Hoạt Động Thực Tế (*):
+                          </label>
+                          <select
+                            value={mapping.mota || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setMapping(prev => {
+                                const m = { ...prev, mota: val };
+                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
+                                return m;
+                              });
+                            }}
+                            className="w-full bg-[#090d16] border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">-- Chọn Cột --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+
+                        {/* 3. Địa bàn xã */}
+                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
+                          <label className="text-xs font-bold text-purple-300 block">
+                            🗺️ Địa Bàn (Xã, Phường):
+                          </label>
+                          <select
+                            value={mapping.xa || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setMapping(prev => {
+                                const m = { ...prev, xa: val };
+                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
+                                return m;
+                              });
+                            }}
+                            className="w-full bg-[#090d16] border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">-- Chọn Cột --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+
+                        {/* 4. Doanh thu */}
+                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
+                          <label className="text-xs font-bold text-gray-300 block">
+                            💰 Doanh Thu / Thu Nhập (Tùy chọn):
+                          </label>
+                          <select
+                            value={mapping.doanhthu || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setMapping(prev => {
+                                const m = { ...prev, doanhthu: val };
+                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
+                                return m;
+                              });
+                            }}
+                            className="w-full bg-[#090d16] border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">-- Chọn Cột --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+
+                        {/* 5. Lao động */}
+                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
+                          <label className="text-xs font-bold text-gray-300 block">
+                            👥 Số Lao Động (Tùy chọn):
+                          </label>
+                          <select
+                            value={mapping.laodong || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setMapping(prev => {
+                                const m = { ...prev, laodong: val };
+                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
+                                return m;
+                              });
+                            }}
+                            className="w-full bg-[#090d16] border border-gray-850 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">-- Chọn Cột --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+
+                        {/* 6. Định danh MST */}
+                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
+                          <label className="text-xs font-bold text-gray-300 block">
+                            🔑 Mã Khóa Định Danh / MST:
+                          </label>
+                          <select
+                            value={mapping.idCol || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setMapping(prev => {
+                                const m = { ...prev, idCol: val };
+                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
+                                return m;
+                              });
+                            }}
+                            className="w-full bg-[#090d16] border border-gray-850 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">-- Chọn Cột --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <hr className="border-gray-800/60 my-2" />
+
                     <div className="border-b border-gray-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <div className="text-xs font-bold text-purple-400 tracking-wider uppercase font-mono flex items-center gap-1.5">
@@ -2719,7 +2744,7 @@ export default function App() {
                   <div>
                     <h4 className="text-base font-bold text-white">Chưa có cơ sở dữ liệu nạp vào</h4>
                     <p className="text-xs text-gray-400 max-w-md mx-auto pt-1 leading-relaxed">
-                      Hãy chọn "Tải tệp dữ liệu chính" ở ô phía trên hoặc nhấp nút "Nạp dữ liệu mẫu" ở góc trên để trải nghiệm thử nghiệm nhanh toàn bộ cơ cấu.
+                      Hãy chọn "Tải tệp dữ liệu chính" ở ô phía trên để nạp bảng tài liệu và kích hoạt toàn bộ cơ cấu.
                     </p>
                   </div>
                 </div>
