@@ -224,6 +224,51 @@ export default function App() {
   const [newIfRule, setNewIfRule] = useState<LogicRule>({ col: "", op: "==", val: "" });
   const [newThenRule, setNewThenRule] = useState<LogicRule>({ col: "", op: "==", val: "" });
 
+  // States cho Phân Hệ 1: Tổng hợp ngành cấp 2 (Mới độc lập)
+  const [t2IndustryCol, setT2IndustryCol] = useState<string>("");
+  const [t2MetricCols, setT2MetricCols] = useState<string[]>([]);
+  const [t2AggMethod, setT2AggMethod] = useState<"sum" | "avg">("sum");
+  const [t2ReportData, setT2ReportData] = useState<any[]>([]);
+  const [t2ReportCols, setT2ReportCols] = useState<string[]>([]);
+
+  // States cho Phân Hệ 2: Chuẩn hóa khớp ngành VSIC cấp 5 (Mới độc lập)
+  const [stdIndustryCol, setStdIndustryCol] = useState<string>("");
+  const [stdDescriptionCol, setStdDescriptionCol] = useState<string>("");
+  const [stdReportAnomalies, setStdReportAnomalies] = useState<any[]>([]);
+  const [stdMatchStats, setStdMatchStats] = useState<{ total: number; valid: number; invalid: number; conflicts: number }>({ total: 0, valid: 0, invalid: 0, conflicts: 0 });
+
+  // Tự động rà quét và điền thông minh ban đầu cho các cấu hình độc lập mỗi khi tệp đổi
+  useEffect(() => {
+    if (columns.length > 0) {
+      const indCol = columns.find(c => {
+        const low = c.toLowerCase();
+        return low.includes("mã ngành") || low.includes("manganh") || low.includes("ma_nganh") || low.includes("ngành") || low.includes("nganh") || low.includes("vsic");
+      }) || columns[0] || "";
+      setT2IndustryCol(indCol);
+      setStdIndustryCol(indCol);
+
+      const descCol = columns.find(c => {
+        const low = c.toLowerCase();
+        return low.includes("mô tả") || low.includes("mota") || low.includes("hoatdong") || low.includes("hoạt động");
+      }) || columns[0] || "";
+      setStdDescriptionCol(descCol);
+
+      const numericCols = columns.filter(c => {
+        const low = c.toLowerCase();
+        return low.includes("thu") || low.includes("lao") || low.includes("sản lượng") || low.includes("sanluong") || low.includes("số") || low.includes("so") || low.includes("tien") || low.includes("tiền") || low.includes("vốn");
+      });
+      if (numericCols.length > 0) {
+        setT2MetricCols(numericCols);
+      } else {
+        const fallbackCols = columns.filter(c => {
+          const low = c.toLowerCase();
+          return !low.includes("mô tả") && !low.includes("mota") && !low.includes("địa") && !low.includes("id");
+        });
+        setT2MetricCols(fallbackCols.slice(0, 2));
+      }
+    }
+  }, [columns]);
+
   // Phân trang cho viewer
   const [viewPage, setViewPage] = useState<number>(1);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -299,7 +344,7 @@ export default function App() {
   }, [mainData, rawImportedData, columns, fileName, mapping, customColConfigs]);
 
   // Thuật toán hiệu chỉnh dải ô (Range) trực tiếp trên Worksheet cực kỳ nhanh chóng và an toàn
-  // Không bao giờ sao chép thủ công từng ô dữ liệu, tránh tối đa việc lặp hàng triệu lần và không gọi Object.keys() để loại bỏ hoàn toàn lỗi "Too many properties to enumerate"
+  // Hỗ trợ cấu trúc Dense Worksheet (lưu trữ dạng mảng 2 chiều !data thay vì flat keys), tránh cực đọ việc lặp hàng triệu lần và không gọi Object.keys() loại bỏ hoàn toàn "Too many properties to enumerate"
   const optimizeAndCompactSheet = (wb: XLSX.WorkBook, sheetName: string): XLSX.WorkSheet => {
     const ws = wb.Sheets[sheetName];
     if (!ws || !ws['!ref']) return ws;
@@ -321,11 +366,22 @@ export default function App() {
     // Hàm kiểm tra nhanh xem dòng r có dữ liệu thực tế hay không
     const checkRowHasData = (r: number): boolean => {
       const maxColToSearch = Math.min(endCol, startCol + 50); // Giới hạn kiểm tra 50 cột đầu tiên để tối ưu tốc độ dò tìm
-      for (let c = startCol; c <= maxColToSearch; c++) {
-        const cellRef = XLSX.utils.encode_cell({ r, c });
-        const cellObj = ws[cellRef];
-        if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
-          return true;
+      if (ws['!data']) {
+        const rowData = ws['!data'][r];
+        if (!rowData) return false;
+        for (let c = startCol; c <= maxColToSearch; c++) {
+          const cellObj = rowData[c];
+          if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
+            return true;
+          }
+        }
+      } else {
+        for (let c = startCol; c <= maxColToSearch; c++) {
+          const cellRef = XLSX.utils.encode_cell({ r, c });
+          const cellObj = ws[cellRef];
+          if (cellObj && cellObj.v !== undefined && cellObj.v !== null && String(cellObj.v).trim() !== "") {
+            return true;
+          }
         }
       }
       return false;
@@ -361,6 +417,11 @@ export default function App() {
         r -= step;
       }
       currentHigh = Math.min(endRow, realLastRow + step);
+    }
+
+    // Giải phóng bớt mảng dòng nếu sử dụng cấu hình Sheet dạng dense
+    if (ws['!data'] && ws['!data'].length > realLastRow + 1) {
+      ws['!data'].length = realLastRow + 1;
     }
 
     // Cập nhật dải ô !ref hiệu chuẩn trực tiếp cực kỳ nhẹ nhàng mà không nhân bản dữ liệu
@@ -443,7 +504,8 @@ export default function App() {
           type: "array",
           cellFormula: false,
           cellHTML: false,
-          cellStyles: false
+          cellStyles: false,
+          dense: true // Sử dụng Dense mode giúp lưu dạng cấu hình mảng 2D nhằm phòng tránh triệt để lỗi "Too many properties to enumerate" trên V8 với tệp lớn (như 50MB+)
         });
 
         const wsName = wb.SheetNames[0];
@@ -573,9 +635,26 @@ export default function App() {
       idCol: ""
     };
 
+    // Tự động phân tích và gán Mapping vai trò từ tên mới dễ nhớ để tương thích 100% với các phân hệ khác
     activeConfigs.forEach(cfg => {
-      if (cfg.role) {
-        newMapping[cfg.role] = cfg.newName.trim();
+      const low = cfg.newName.toLowerCase().trim();
+      if (low.includes("mô tả") || low.includes("mota") || low.includes("hoatdong") || low.includes("hoạt động")) {
+        newMapping.mota = cfg.newName.trim();
+      }
+      if (low.includes("mã ngành") || low.includes("manganh") || low.includes("vsic") || low.includes("ma_nganh") || low.includes("ngành đăng ký")) {
+        newMapping.manganh = cfg.newName.trim();
+      }
+      if (low.includes("xã") || low.includes("xa") || low.includes("địa bàn") || low.includes("diaban")) {
+        newMapping.xa = cfg.newName.trim();
+      }
+      if (low.includes("doanh thu") || low.includes("doanhthu") || low.includes("doanh_thu") || low.includes("thu nhập")) {
+        newMapping.doanhthu = cfg.newName.trim();
+      }
+      if (low.includes("lao động") || low.includes("laodong") || low.includes("lao_dong") || low.includes("nhân sự")) {
+        newMapping.laodong = cfg.newName.trim();
+      }
+      if (low.includes("mã số") || low.includes("mst") || low.includes("mã số thuế") || low.includes("id")) {
+        newMapping.idCol = cfg.newName.trim();
       }
     });
 
@@ -1164,6 +1243,314 @@ export default function App() {
     await sleep(400);
     setLoading(false);
     setActiveTab("xemdulieu");
+  };
+
+  // PHÂN HỆ 1: TỔNG HỢP BÁO CÁO THEO ĐẦU NGÀNH CẤP 2 (MỚI ĐỘC LẬP)
+  const handleExportT2Excel = () => {
+    if (t2ReportData.length === 0) {
+      alert("Chưa có dữ liệu báo cáo ngành cấp 2 để xuất!");
+      return;
+    }
+    setLoading(true);
+    setStatusMessage("Đang chuẩn bị tệp Excel Báo cáo Ngành Cấp 2...");
+    setTimeout(() => {
+      try {
+        const ws = XLSX.utils.json_to_sheet(t2ReportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Báo cáo ngành cấp 2");
+        XLSX.writeFile(wb, `Bao_Cao_Nganh_Cap2_${t2AggMethod === "sum" ? "Tong" : "TB"}.xlsx`);
+        setStatusMessage("Tải xuống Báo cáo Ngành Cấp 2 thành công!");
+      } catch (e: any) {
+        alert("Lỗi xuất Excel ngành cấp 2: " + e.message);
+      } finally {
+        setLoading(false);
+      }
+    }, 200);
+  };
+
+  const handleCalcLevel2Summary = async () => {
+    if (mainData.length === 0) {
+      alert("Không tìm thấy dữ liệu nguồn chính! Vui lòng nạp tệp chính trước.");
+      return;
+    }
+    if (!t2IndustryCol) {
+      alert("Vui lòng chọn cột chứa Mã ngành cấp 5 hoặc cấp 8 ở bộ chọn!");
+      return;
+    }
+    if (t2MetricCols.length === 0) {
+      alert("Vui lòng tích chọn ít nhất một cột số liệu (Doanh thu, Lao động...) để tổng hợp!");
+      return;
+    }
+
+    setLoading(true);
+    setProgress(10);
+    setStatusMessage("Đang quét dữ liệu nguồn và tách lọc 2 số đầu để lấy mã ngành cấp 2...");
+    await sleep(200);
+
+    // Grouping map
+    const groups = new Map<string, any[]>();
+    mainData.forEach(row => {
+      const rawVal = row[t2IndustryCol];
+      const normalized = normalizeSectorCode(rawVal);
+      // Lấy 2 số đầu của mã ngành làm ngành cấp 2 (VSIC luôn gồm 2 chữ số đầu đại diện cấp 2)
+      const level2Code = normalized ? normalized.slice(0, 2) : "";
+      const grpKey = level2Code || "CHUA_XAC_DINH";
+
+      if (!groups.has(grpKey)) {
+        groups.set(grpKey, []);
+      }
+      groups.get(grpKey)!.push(row);
+    });
+
+    setProgress(50);
+    setStatusMessage("Đang đối chiếu ngành cấp 2 nhúng trong code và cộng dồn lũy kế chỉ số dữ liệu...");
+    await sleep(150);
+
+    const reportRows: any[] = [];
+    const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+      if (a === "CHUA_XAC_DINH") return 1;
+      if (b === "CHUA_XAC_DINH") return -1;
+      return a.localeCompare(b);
+    });
+
+    sortedKeys.forEach((key, idx) => {
+      const rowsInGroup = groups.get(key) || [];
+      const count = rowsInGroup.length;
+      
+      let level2Name = "Mã ngành trống hoặc không hợp lệ";
+      if (key !== "CHUA_XAC_DINH") {
+        level2Name = vsicRawData[key] || "Ngành cấp 2 chưa định nghĩa chuẩn mực";
+      }
+
+      const reportRow: any = {
+        "STT": idx + 1,
+        "Mã ngành cấp 2": key === "CHUA_XAC_DINH" ? "Chưa xác định" : key,
+        "Tên ngành cấp 2": level2Name,
+        "Số đơn vị (DN)": count
+      };
+
+      // Aggregate each selected numerical column
+      t2MetricCols.forEach(metricCol => {
+        let sum = 0;
+        let validCount = 0;
+
+        rowsInGroup.forEach(r => {
+          const rawNum = r[metricCol];
+          if (rawNum !== undefined && rawNum !== null && rawNum !== "") {
+            const num = parseFloat(String(rawNum).replace(/[^0-9.\-]/g, ""));
+            if (!isNaN(num)) {
+              sum += num;
+              validCount++;
+            }
+          }
+        });
+
+        const fieldKey = `${t2AggMethod === "sum" ? "Tổng" : "Trung bình"} ${metricCol}`;
+        if (t2AggMethod === "sum") {
+          reportRow[fieldKey] = Math.round(sum * 100) / 100;
+        } else {
+          const avg = validCount > 0 ? (sum / validCount) : 0;
+          reportRow[fieldKey] = Math.round(avg * 100) / 100;
+        }
+      });
+
+      reportRows.push(reportRow);
+    });
+
+    // Tạo dòng Tổng Cộng (Grand Total Row)
+    if (reportRows.length > 0) {
+      const totalRow: any = {
+        "STT": "",
+        "Mã ngành cấp 2": "TỔNG CỘNG LŨY KẾ",
+        "Tên ngành cấp 2": `Hệ thống tổng quy nạp thành ${sortedKeys.length} nhóm ngành cấp 2`,
+        "Số đơn vị (DN)": mainData.length
+      };
+
+      t2MetricCols.forEach(metricCol => {
+        let sumAll = 0;
+        let rowValidCount = 0;
+
+        mainData.forEach(r => {
+          const rawVal = r[metricCol];
+          if (rawVal !== undefined && rawVal !== null && rawVal !== "") {
+            const num = parseFloat(String(rawVal).replace(/[^0-9.\-]/g, ""));
+            if (!isNaN(num)) {
+              sumAll += num;
+              rowValidCount++;
+            }
+          }
+        });
+
+        const fieldKey = `${t2AggMethod === "sum" ? "Tổng" : "Trung bình"} ${metricCol}`;
+        if (t2AggMethod === "sum") {
+          totalRow[fieldKey] = Math.round(sumAll * 100) / 100;
+        } else {
+          const avgAll = rowValidCount > 0 ? (sumAll / rowValidCount) : 0;
+          totalRow[fieldKey] = Math.round(avgAll * 100) / 100;
+        }
+      });
+
+      reportRows.push(totalRow);
+    }
+
+    setT2ReportData(reportRows);
+    if (reportRows.length > 0) {
+      setT2ReportCols(Object.keys(reportRows[0]));
+    }
+
+    setProgress(100);
+    setStatusMessage(`Tổng hợp báo cáo ngành cấp 2 hoàn tất thành công!`);
+    await sleep(300);
+    setLoading(false);
+  };
+
+  // PHÂN HỆ 2: CHUẨN HÓA & KHỚP MÃ NGÀNH VSIC CẤP 5 (MỚI ĐỘC LẬP)
+  const handleStandardizeSectorsAndMatch = async () => {
+    if (mainData.length === 0) {
+      alert("Không tìm thấy dữ liệu nguồn chính! Vui lòng nạp tệp chính trước.");
+      return;
+    }
+    if (!stdIndustryCol) {
+      alert("Vui lòng chọn cột chứa Mã ngành cấp 5 cần chuẩn hóa!");
+      return;
+    }
+
+    setLoading(true);
+    setProgress(5);
+    setStatusMessage("Đang quét danh sách mã ngành và tiến hành chuẩn hóa mẫu tự liên hợp...");
+    await sleep(200);
+
+    let validCount = 0;
+    let invalidCount = 0;
+    let conflictCount = 0;
+    const anomalies: any[] = [];
+
+    // Tạo mảng bản ghi mới bổ sung cột của "Tên Ngành Chuẩn VSIC" và "Trạng Thái Đối Chiếu VSIC" sát cạnh cột gốc
+    const updatedRows = mainData.map((row, idx) => {
+      const rawCode = row[stdIndustryCol];
+      const rawDesc = stdDescriptionCol ? String(row[stdDescriptionCol] || "") : "";
+      
+      const cleanCode = normalizeSectorCode(rawCode);
+      const isExistInVSIC = !!vsicRawData[cleanCode];
+      const stdName = vsicRawData[cleanCode] || "";
+
+      if (isExistInVSIC) {
+        validCount++;
+      } else {
+        invalidCount++;
+      }
+
+      // Đối chiếu quy luật logic hoạt động mô tả & mã ngành để phát hiện mâu thuẫn lệch vai trò
+      let auditStatus = "✅ Đạt chuẩn VSIC quốc gia";
+      let anomalyReason = "";
+
+      if (!isExistInVSIC) {
+        auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
+        anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục hệ thống phân cấp VSIC quốc gia`;
+      } else if (rawDesc.trim() !== "") {
+        const descLow = rawDesc.toLowerCase();
+        const stdLow = stdName.toLowerCase();
+
+        // 1. Lệch hạch toán: Nông nghiệp vs Phục vụ thương mại
+        const hasFeederWords = descLow.includes("trồng") || descLow.includes("nuôi") || descLow.includes("bắt") || descLow.includes("thu hoạch") || descLow.includes("đánh bắt");
+        const hasTradeWords = descLow.includes("bán buôn") || descLow.includes("bán lẻ") || descLow.includes("môi giới") || descLow.includes("đại lý") || descLow.includes("thương mại");
+        
+        const stdIsFeeder = stdLow.includes("nông nghiệp") || stdLow.includes("lâm nghiệp") || stdIsFeederWord(stdLow);
+        const stdIsTrade = stdLow.includes("bán buôn") || stdLow.includes("bán lẻ") || stdLow.includes("thương mại");
+
+        if (hasTradeWords && stdIsFeeder) {
+          auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Phân phối thương mại và sản xuất nông nghiệp)";
+          anomalyReason = `Mô tả ghi thương mại (${rawDesc}) nhưng lại gán mã thuộc ngành trồng trọt/chăn nuôi sản xuất trực tiếp (${cleanCode} - ${stdName})`;
+          conflictCount++;
+        } else if (hasFeederWords && stdIsTrade) {
+          auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Tự sản tự tiêu nông nghiệp và phân phối đại lý)";
+          anomalyReason = `Mô tả ghi trồng trọt, khai mỏ (${rawDesc}) nhưng mã ngành lại gán đại lý bán buôn, dịch vụ phân phối (${cleanCode} - ${stdName})`;
+          conflictCount++;
+        }
+
+        // 2. Chế biến sản xuất vs Dịch vụ ăn uống, xây dựng
+        const hasManufacture = descLow.includes("sản xuất") || descLow.includes("chế tạo") || descLow.includes("gia công") || descLow.includes("lắp đặt");
+        const hasService = descLow.includes("ăn uống") || descLow.includes("nhà hàng") || descLow.includes("quán") || descLow.includes("giáo dục") || descLow.includes("dịch vụ");
+
+        const stdIsManufacture = stdLow.includes("sản xuất") || stdLow.includes("chế biến") || stdLow.includes("chế tạo");
+        const stdIsService = stdLow.includes("ăn uống") || stdLow.includes("nhà hàng") || stdLow.includes("giáo dục") || stdLow.includes("dịch vụ");
+
+        if (hasManufacture && stdIsService) {
+          auditStatus = "⚠️ Nghi ngờ lệch mã (Sản xuất gia công vs Dịch vụ ăn uống hoặc đào tạo)";
+          anomalyReason = `Mô tả ghi chế tạo gia công (${rawDesc}) nhưng mã ngành lại thuộc về cung ứng ăn uống hoặc dịch vụ dân sinh (${cleanCode} - ${stdName})`;
+          conflictCount++;
+        } else if (hasService && stdIsManufacture) {
+          auditStatus = "⚠️ Nghi ngờ lệch mã (Cung ứng dịch vụ vs Chế biến sản xuất công nghiệp)";
+          anomalyReason = `Mô tả ghi phục vụ ẩm thực, giáo dục (${rawDesc}) nhưng mã ngành lại hạch toán vào sản xuất công nghiệp nặng/nhẹ (${cleanCode} - ${stdName})`;
+          conflictCount++;
+        }
+      }
+
+      if (anomalyReason) {
+        anomalies.push({
+          dongSTT: idx + 1,
+          maDN: row["Mã Số Thuế"] || row["MaST"] || `Bản ghi số ${idx + 1}`,
+          maGoc: rawCode,
+          motaGoc: rawDesc,
+          nganhChuan: stdName || "(Thất bại khi tra cứu)",
+          phanTichloi: anomalyReason
+        });
+      }
+
+      // Xây dựng Bản ghi mới co cụm, bơm cột Tên Ngành Chuẩn VSIC và Trạng Thái Đối Chiếu VSIC nằm ngay bên cạnh cột Mô Tả Hoạt Động / Mã Ngành để dễ đối chiếu
+      const flexRow: any = {};
+      Object.keys(row).forEach(key => {
+        flexRow[key] = row[key];
+        if (key === stdDescriptionCol) {
+          flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+          flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
+        }
+      });
+
+      // Nếu không khớp được vị trí cột mô tả thì tự chêm cột mới vào kế cột Mã ngành
+      if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
+        Object.keys(row).forEach(key => {
+          flexRow[key] = row[key];
+          if (key === stdIndustryCol) {
+            flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+            flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
+          }
+        });
+      }
+
+      // Nếu vẫn thiếu do trùng cấu hình dặc biệt
+      if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
+        flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+        flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
+      }
+
+      return flexRow;
+    });
+
+    const newCols = Object.keys(updatedRows[0] || {});
+    setMainData(updatedRows);
+    setColumns(newCols);
+    setStdReportAnomalies(anomalies);
+    setStdMatchStats({
+      total: updatedRows.length,
+      valid: validCount,
+      invalid: invalidCount,
+      conflicts: conflictCount
+    });
+
+    // Tự sao lưu vĩnh viễn vào hệ thống
+    autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
+
+    setProgress(100);
+    setStatusMessage("Chuẩn hóa mã ngành thành công! Đã bổ sung cột trực tiếp bên cạnh cột của bạn.");
+    await sleep(350);
+    setLoading(false);
+    
+    alert(`Chuẩn hóa hoàn tất!\n- Tổng cộng: ${updatedRows.length} dòng\n- Khớp VSIC: ${validCount} dòng\n- Lệch chuẩn: ${invalidCount} dòng\n- Nghi ngờ bất nhất mã vs mô tả: ${conflictCount} dòng.`);
+  };
+
+  const stdIsFeederWord = (txt: string): boolean => {
+    return txt.includes("trồng") || txt.includes("nuôi") || txt.includes("thủy sản") || txt.includes("mỏ") || txt.includes("lâm nghiệp");
   };
 
   // 5. CHỨC NĂNG BÁO CÁO NHANH THEO PHÂN CẤP NGÀNH & XÃ CHUẨN XÁC
@@ -2155,29 +2542,41 @@ export default function App() {
                           <tr className="bg-[#1f2937]/50 border-b border-gray-800 text-gray-400 font-mono text-[11px]">
                             <th className="p-3 text-center w-[70px]">SỬ DỤNG</th>
                             <th className="p-3 text-center w-[50px]">STT</th>
-                            <th className="p-3">TÊN CỘT GỐC (KÝ HIỆU TRONG FILE)</th>
-                            <th className="p-3">TÊN MỚI DỄ HIỂU, DỄ NHỚ ĐỊNH NGHĨA LẠI</th>
-                            <th className="p-3 w-[250px]">VAI TRÒ NGHIỆP VỤ HỆ THỐNG</th>
+                            <th className="p-3">TÊN CỘT GỐC TRONG FILE (NHẤP ĐÚP ĐỂ CHỌN NHANH ⚡)</th>
+                            <th className="p-3">TÊN MỚI ĐỊNH NGHĨA (ĐỂ TRỐNG = LOẠI BỎ KHỎI FILE)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-800/60 font-sans">
                           {customColConfigs.map((cfg, idx) => {
-                            const isSystemMappable = ["mota", "manganh", "xa", "doanhthu", "laodong", "idCol"].includes(cfg.role);
+                            const isIncluded = cfg.newName.trim() !== "";
                             return (
                               <tr 
                                 key={cfg.originalName} 
                                 className={`transition-colors hover:bg-gray-800/15 ${
-                                  cfg.use ? "bg-transparent" : "bg-gray-950/30 opacity-50"
+                                  isIncluded ? "bg-purple-950/5" : "bg-gray-950/30 opacity-60"
                                 }`}
+                                onDoubleClick={() => {
+                                  // Nháy đúp vào cột gốc để điền nhanh tên mới
+                                  const updated = [...customColConfigs];
+                                  updated[idx].newName = cfg.originalName;
+                                  updated[idx].use = true;
+                                  setCustomColConfigs(updated);
+                                }}
+                                title="Nhấp đúp vào dòng này để tự động điền nhanh Tên cột gốc thành Tên mới!"
                               >
                                 {/* Cột Checkbox Sử Dụng */}
                                 <td className="p-3 text-center">
                                   <input 
                                     type="checkbox"
-                                    checked={cfg.use}
+                                    checked={cfg.use && isIncluded}
                                     onChange={(e) => {
                                       const updated = [...customColConfigs];
                                       updated[idx].use = e.target.checked;
+                                      if (e.target.checked && updated[idx].newName.trim() === "") {
+                                        updated[idx].newName = cfg.originalName;
+                                      } else if (!e.target.checked) {
+                                        updated[idx].newName = "";
+                                      }
                                       setCustomColConfigs(updated);
                                     }}
                                     className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
@@ -2190,10 +2589,16 @@ export default function App() {
                                 </td>
 
                                 {/* Tên Gốc */}
-                                <td className="p-3">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-mono bg-gray-800 px-2 py-0.5 rounded text-gray-300 border border-gray-700 max-w-[200px] truncate block" title={cfg.originalName}>
+                                <td 
+                                  className="p-3 font-semibold text-gray-300 font-mono cursor-pointer hover:text-purple-400 transition-all"
+                                  title="Nhấn đúp vào đây để chọn nhanh giữ tên cột gốc làm định nghĩa!"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="bg-[#1f2937] px-2.5 py-1 rounded text-gray-200 border border-gray-700 max-w-[250px] truncate block">
                                       {cfg.originalName}
+                                    </span>
+                                    <span className="text-[10px] text-gray-500 hover:text-purple-400 select-none">
+                                      {isIncluded ? "⚡ Đã gán" : "🖱️ Nháy đúp để lấy"}
                                     </span>
                                   </div>
                                 </td>
@@ -2203,52 +2608,15 @@ export default function App() {
                                   <input 
                                     type="text"
                                     value={cfg.newName}
-                                    disabled={!cfg.use}
                                     onChange={(e) => {
                                       const updated = [...customColConfigs];
                                       updated[idx].newName = e.target.value;
+                                      updated[idx].use = e.target.value.trim() !== "";
                                       setCustomColConfigs(updated);
                                     }}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-medium placeholder-gray-600 disabled:opacity-40 disabled:bg-gray-950"
-                                    placeholder="Nhập tên cột mới dễ nhớ..."
+                                    className="w-full bg-gray-950 border border-purple-950/50 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-medium placeholder-gray-700 font-mono"
+                                    placeholder="Điền tên mới hoặc để trống dể loại bỏ..."
                                   />
-                                </td>
-
-                                {/* Dropdown vai trò nghiệp vụ */}
-                                <td className="p-3">
-                                  <select
-                                    value={cfg.role}
-                                    disabled={!cfg.use}
-                                    onChange={(e) => {
-                                      const updated = [...customColConfigs];
-                                      const val = e.target.value as any;
-                                      
-                                      // Tránh việc gán trùng vai trò duy nhất cho cột khác
-                                      if (val !== "") {
-                                        updated.forEach((c, cIdx) => {
-                                          if (cIdx !== idx && c.role === val) {
-                                            c.role = "";
-                                          }
-                                        });
-                                      }
-                                      
-                                      updated[idx].role = val;
-                                      setCustomColConfigs(updated);
-                                    }}
-                                    className={`w-full bg-slate-900 border text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-purple-500 ${
-                                      isSystemMappable 
-                                        ? "border-purple-500 text-purple-300 font-bold" 
-                                        : "border-gray-700 text-gray-400"
-                                    } disabled:opacity-40`}
-                                  >
-                                    <option value="">-- Không gán vai trò --</option>
-                                    <option value="mota">Mô tả hoạt động KD</option>
-                                    <option value="manganh">Mã ngành thực tế (VSIC)</option>
-                                    <option value="xa">Địa bàn (Xã)</option>
-                                    <option value="doanhthu">Doanh thu</option>
-                                    <option value="laodong">Lao động</option>
-                                    <option value="idCol">Mã doanh nghiệp (Unique keys)</option>
-                                  </select>
                                 </td>
                               </tr>
                             );
@@ -2258,12 +2626,27 @@ export default function App() {
                     </div>
 
                     {/* Nút Kích hoạt Tái cấu trúc bảng */}
-                    <div className="flex justify-end pt-2">
+                    <div className="flex justify-between items-center pt-2">
+                      <button 
+                        onClick={() => {
+                          // Clear all defined names to let user select only what they want
+                          const cleared = customColConfigs.map(c => ({
+                            ...c,
+                            use: false,
+                            newName: ""
+                          }));
+                          setCustomColConfigs(cleared);
+                        }}
+                        className="bg-red-950/30 hover:bg-red-900/40 text-red-400 border border-red-900/30 font-bold text-[11px] px-3.5 py-2 rounded-xl transition-all cursor-pointer"
+                      >
+                        ❌ Xóa hết định nghĩa (Để trống tất cả)
+                      </button>
+
                       <button
                         onClick={handleApplyColumnRedefinition}
                         className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-purple-950/40 flex items-center gap-2 cursor-pointer border border-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
                       >
-                        <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & TÁI TẠO BẢNG DỮ LIỆU MỚI
+                        <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC GỌN NHẸ TỔ TẠO FILE MỚI
                       </button>
                     </div>
                   </div>
@@ -2545,10 +2928,169 @@ export default function App() {
           {/* 6. TAB TỔNG HỢP BÁO CÁO ĐỘNG */}
           {activeTab === "tonghop" && (
             <div className="space-y-6 animate-fade-in">
+              {/* PHÂN HỆ TỔNG HỢP BÁO CÁO THEO NGÀNH CẤP 2 CHUYÊN BIỆT ĐỘC LẬP */}
               <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-amber-400" /> TỔNG HỢP DỮ LIỆU ĐA CHIỀU (PIVOT SUMMARY)
+                    <BarChart3 className="w-5 h-5 text-amber-400" /> TỔNG HỢP BÁO CÁO THEO ĐẦU NGÀNH CẤP 2 (VSIC)
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Hệ thống tự động phát hiện tất cả các cột trong tệp tin vừa nạp. Trích lọc nhanh 2 số đầu tiên của cột mã ngành bạn chọn để kết hợp tính toán ra các mẫu thống kê cấp 2 (SUM/AVG).
+                  </p>
+                </div>
+
+                {mainData.length > 0 ? (
+                  <div className="bg-[#111827]/80 rounded-2xl p-5 border border-amber-500/20 shadow-xl space-y-5">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                      {/* Chọn cột mã ngành */}
+                      <div className="space-y-2 bg-gray-950/30 p-4 rounded-xl border border-gray-800">
+                        <label className="text-xs font-bold text-gray-300 block font-mono">1. CHỌN CỘT CHỨA MÃ NGÀNH (CẤP 5/CẤP 8):</label>
+                        <select
+                          value={t2IndustryCol}
+                          onChange={(e) => setT2IndustryCol(e.target.value)}
+                          className="w-full bg-[#111827] border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-amber-500 font-medium"
+                        >
+                          <option value="">-- Chọn cột chứa mã ngành --</option>
+                          {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <p className="text-[10px] text-gray-500 italic">
+                          (Thế hệ 2 chữ số đầu tự đối chiếu từ VSIC chuẩn quốc gia)
+                        </p>
+                      </div>
+
+                      {/* Chọn các cột số liệu */}
+                      <div className="space-y-2 bg-gray-950/30 p-4 rounded-xl border border-gray-800">
+                        <label className="text-xs font-bold text-gray-300 block font-mono">2. CỘT SỐ LIỆU THỐNG KÊ LŨY KẾ:</label>
+                        <div className="max-h-[120px] overflow-y-auto space-y-1.5 p-2 bg-[#111827] rounded-lg border border-gray-800">
+                          {columns.length === 0 ? (
+                            <span className="text-[11px] text-gray-500 italic">Vui lòng tải tệp...</span>
+                          ) : (
+                            columns.map(c => {
+                              const isChosen = t2MetricCols.includes(c);
+                              return (
+                                <label key={c} className="flex items-center gap-2 text-xs text-gray-300 hover:text-white cursor-pointer select-none">
+                                  <input 
+                                    type="checkbox"
+                                    checked={isChosen}
+                                    onChange={() => {
+                                      if (isChosen) {
+                                        setT2MetricCols(t2MetricCols.filter(col => col !== c));
+                                      } else {
+                                        setT2MetricCols([...t2MetricCols, c]);
+                                      }
+                                    }}
+                                    className="rounded border-gray-700 bg-gray-950 text-amber-500 focus:ring-amber-500"
+                                  />
+                                  {c}
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-500 italic">Đánh tích chọn để cộng dồn: Doanh thu, Lao động, Vốn...</p>
+                      </div>
+
+                      {/* Phép tính hạch toán */}
+                      <div className="space-y-3 bg-gray-950/30 p-4 rounded-xl border border-gray-800 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-300 block font-mono">3. CHỈ TIÊU TÍNH TOÁN:</label>
+                          <div className="flex gap-4">
+                            <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="t2MethodRadio"
+                                checked={t2AggMethod === "sum"}
+                                onChange={() => setT2AggMethod("sum")}
+                                className="text-amber-500 focus:ring-amber-500"
+                              />
+                              Tổng cộng (SUM)
+                            </label>
+                            <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="t2MethodRadio"
+                                checked={t2AggMethod === "avg"}
+                                onChange={() => setT2AggMethod("avg")}
+                                className="text-amber-500 focus:ring-amber-500"
+                              />
+                              Trung bình (AVG)
+                            </label>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={handleCalcLevel2Summary}
+                          className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white font-bold text-xs py-2.5 px-4 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          ⚡ BẮT ĐẦU TỔNG HỢP BÁO CÁO NGÀNH CẤP 2
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* HIỂN THỊ KẾT QUẢ KHI CÓ DỮ LIỆU */}
+                    {t2ReportData.length > 0 && (
+                      <div className="border-t border-gray-800 pt-5 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#1e293b]/40 p-3 rounded-lg border border-gray-800">
+                          <span className="text-xs font-bold text-amber-400 font-mono uppercase tracking-wider">
+                            🎁 KẾT QUẢ HẠCH TOÁN ({t2ReportData.length - 1} ngành cấp 2 tổng hợp + 1 dòng cộng)
+                          </span>
+                          <button
+                            onClick={handleExportT2Excel}
+                            className="bg-[#1f2937] hover:bg-[#374151] text-amber-300 border border-amber-950 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm ml-auto"
+                          >
+                            📥 Tải xuống File Excel Báo cáo cấp 2 (.xlsx)
+                          </button>
+                        </div>
+
+                        <div className="overflow-x-auto border border-gray-850 rounded-xl bg-gray-950/40 max-h-[350px]">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="bg-[#1f2937] border-b border-gray-800 text-gray-300 font-mono text-[11px] sticky top-0 z-10">
+                                {t2ReportCols.map(col => (
+                                  <th key={col} className="p-3 font-semibold">{col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/40 text-gray-200 font-sans">
+                              {t2ReportData.map((row, rIdx) => {
+                                const isTotal = row["Mã ngành cấp 2"] === "TỔNG CỘNG LŨY KẾ";
+                                return (
+                                  <tr 
+                                    key={rIdx} 
+                                    className={`hover:bg-gray-850/10 transition-colors ${
+                                      isTotal ? "bg-amber-950/25 font-bold border-t-2 border-amber-900 text-amber-300" : ""
+                                    }`}
+                                  >
+                                    {t2ReportCols.map(col => {
+                                      const cellVal = row[col];
+                                      const isNumeric = typeof cellVal === "number";
+                                      return (
+                                        <td key={col} className={`p-3 ${isNumeric ? "font-mono text-emerald-400 text-right font-semibold" : ""}`}>
+                                          {isNumeric ? cellVal.toLocaleString("en-US") : String(cellVal)}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
+                    ⚠️ Chưa có tệp tin đầu vào để kích hoạt hạch toán!
+                  </div>
+                )}
+              </div>
+
+              {/* TỔNG HỢP DỮ LIỆU ĐA CHIỀU (PIVOT SUMMARY - Phối hợp thêm) */}
+              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-amber-400" /> BÁO CÁO XOAY CHIỀU ĐA NĂNG & TRỤC TÙY CHỌN
                   </h3>
                   <p className="text-xs text-gray-400">Lắp ráp các công thức tổng hợp, gom nhóm tính Tổng, Đếm dộc nhất, Đếm tần suất hoặc Tìm Trung Bình từ tệp dữ liệu đã nạp.</p>
                 </div>
@@ -2793,64 +3335,120 @@ export default function App() {
 
                 {mainData.length > 0 ? (
                   <div className="space-y-6 border-t border-gray-800 pt-6">
-                    
-                    <div className="bg-[#111827]/60 rounded-xl p-5 border border-indigo-500/10 grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-indigo-400 block font-mono uppercase">Mã ngành thực nhập (Lấy từ map)</label>
-                        <div className="text-xs text-gray-300 font-medium">Cột gắn nhãn: <span className="text-emerald-400 font-mono font-bold">"{mapping.manganh || "Chưa chọn!"}"</span></div>
-                        <p className="text-[11px] text-gray-400 font-sans">Hệ thống sẽ phân tích mã này thành các cột phân cấp: Nganh_Cap_1, Nganh_Cap_2, Nganh_Cap_3, Nganh_Cap_4, Nganh_Cap_5 và tự so sánh cha con đệ quy chuẩn 100%.</p>
+                    {/* BỘ ĐIỀU KHIỂN CHUẨN HÓA ĐỘC LẬP TÙY CHỌN CỘT */}
+                    <div className="bg-[#111827]/85 p-6 rounded-2xl border border-indigo-500/20 shadow-xl space-y-5">
+                      <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
+                        <CheckCircle2 className="w-5 h-5 text-indigo-400" />
+                        <h4 className="text-sm font-bold text-white uppercase tracking-wider font-mono">1. Cấu hình & Kích hoạt chuẩn hóa mã ngành VSIC</h4>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-indigo-400 block font-mono uppercase">mô tả hoạt động kinh doanh (Lấy từ map)</label>
-                        <div className="text-xs text-gray-300 font-medium">Cột gắn nhãn: <span className="text-emerald-400 font-mono font-bold">"{mapping.mota || "Chưa chọn!"}"</span></div>
-                        <p className="text-[11px] text-gray-400 font-sans">Chuỗi mô tả hoạt động sẽ được bóc tách từ khóa chính để hệ thống đối chiếu xem có lệch lĩnh vực, sai ngành đăng ký hay không.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {/* Chọn cột mã ngành */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-300 block font-mono">CHỌN CỘT CHỨA MÃ NGÀNH KINH TẾ (CẤP 5):</label>
+                          <select
+                            value={stdIndustryCol}
+                            onChange={(e) => setStdIndustryCol(e.target.value)}
+                            className="w-full bg-[#1e293b] border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                          >
+                            <option value="">-- Chọn cột mã ngành --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <span className="text-[10px] text-gray-500 block italic leading-normal">
+                            Hệ thống sẽ chuẩn hóa mã ngành này sang cấp 5, thêm mô tả tự động đặt sát cạnh cột mô tả doanh nghiệp của bạn.
+                          </span>
+                        </div>
+
+                        {/* Chọn cột mô tả */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-300 block font-mono">CHỌN CỘT CHI TIẾT MÔ TẢ HOẠT ĐỘNG KD (ĐỐI CHIẾU LOGIC LỆCH):</label>
+                          <select
+                            value={stdDescriptionCol}
+                            onChange={(e) => setStdDescriptionCol(e.target.value)}
+                            className="w-full bg-[#1e293b] border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="">-- Chọn cột mô tả hoạt động --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <span className="text-[10px] text-gray-500 block italic leading-normal">
+                            Hệ thống tự đối chiếu từ khóa trong mô tả với mã ngành chuẩn để cảnh báo các dòng nghi ngờ hạch toán lệch vai trò.
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          onClick={handleStandardizeSectorsAndMatch}
+                          className="bg-gradient-to-r from-indigo-600 to-[#4f46e5] hover:from-indigo-700 hover:to-[#4338ca] text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-950/40 flex items-center gap-2 cursor-pointer border border-indigo-500/20 active:scale-95"
+                        >
+                          <Brain className="w-4 h-4 text-indigo-200" /> ⚡ THỰC HIỆN SO KHỚP & CHUẨN HÓA TOÀN BỘ NGÀNH
+                        </button>
                       </div>
                     </div>
 
-                    {/* LỰA CHỌN BỘ PHÂN PHÂN TÍCH */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      
-                      {/* CÁCH 1: ALGORITHM MATCHER - SIÊU TỐC */}
-                      <div className="bg-[#111827] rounded-xl p-5 border border-gray-800 flex flex-col justify-between">
-                        <div className="space-y-2">
+                    {/* HIỂN THỊ KẾT QUẢ THỐNG KÊ SO KHỚP CHUẨN VSIC */}
+                    {stdMatchStats.total > 0 && (
+                      <div className="bg-[#1e293b]/35 border border-indigo-500/10 p-5 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                        <div className="bg-[#111827]/60 p-3 rounded-xl border border-gray-800">
+                          <div className="text-[10px] text-gray-400 font-bold uppercase font-mono mb-1">Tổng bản ghi rà soát</div>
+                          <div className="text-xl font-bold text-white font-mono">{stdMatchStats.total}</div>
+                        </div>
+
+                        <div className="bg-[#111827]/60 p-3 rounded-xl border border-gray-800">
+                          <div className="text-[10px] text-emerald-400 font-bold uppercase font-mono mb-1">Khớp chuẩn VSIC</div>
+                          <div className="text-xl font-bold text-emerald-400 font-mono">{stdMatchStats.valid} <span className="text-[10px] font-normal text-gray-400">({Math.round(stdMatchStats.valid / stdMatchStats.total * 100)}%)</span></div>
+                        </div>
+
+                        <div className="bg-[#111827]/60 p-3 rounded-xl border border-gray-800">
+                          <div className="text-[10px] text-red-400 font-bold uppercase font-mono mb-1">Lỗi mã VSIC</div>
+                          <div className="text-xl font-bold text-red-400 font-mono">{stdMatchStats.invalid}</div>
+                        </div>
+
+                        <div className="bg-[#111827]/60 p-3 rounded-xl border border-gray-800">
+                          <div className="text-[10px] text-amber-400 font-bold uppercase font-mono mb-1">Nghi ngờ bất nhất logic</div>
+                          <div className="text-xl font-bold text-amber-400 font-mono">{stdMatchStats.conflicts}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* DANH SÁCH BẢN GHI PHÁT HIỆN LỆCH LOGIC CHÉO */}
+                    {stdReportAnomalies.length > 0 && (
+                      <div className="bg-[#1e293b]/40 border border-amber-500/20 rounded-2xl p-5 space-y-4">
+                        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                           <div className="flex items-center gap-2">
-                            <span className="bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded-md">Khuyên dùng</span>
-                            <h4 className="text-sm font-bold text-white">Cách 1: Thuật toán so khớp thông minh (Siêu tốc 100% Offline)</h4>
+                            <span className="bg-amber-950 text-amber-300 font-mono text-[10px] px-2.5 py-0.5 rounded-full border border-amber-800">CẢNH BÁO LỆCH MÃ</span>
+                            <h4 className="text-sm font-bold text-white">DANH SÁCH PHÁT HIỆN XUNG ĐỘT QUY LUẬT LOGIC ({stdReportAnomalies.length} DÀN Ý)</h4>
                           </div>
-                          <p className="text-xs text-gray-400 leading-relaxed font-sans">
-                            Áp dụng động cơ <strong>Client-Side Smart Matcher</strong> tự thiết kế. Tự động rà quét hàng nghìn dòng, phân tách cụm từ tiếng Việt chuyên sâu tích lũy, sắp xếp phân nhóm. Đảm bảo chạy mượt mà tức thì, không bị dính mạng chậm, hiển thị tiến trình % chính xác.
-                          </p>
                         </div>
-                        <button 
-                          onClick={() => handleStandardizeSectors(false)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all w-full mt-6 shadow-md shadow-emerald-900/10 cursor-pointer"
-                        >
-                          Chạy nhanh bằng thuật toán thông minh
-                        </button>
-                      </div>
 
-                      {/* CÁCH 2: GEMINI API SERVER-SIDE PROXY */}
-                      <div className="bg-[#111827] rounded-xl p-5 border border-[#374151] flex flex-col justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="bg-indigo-950/40 border border-indigo-500/30 text-indigo-400 font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded-md">Trí tuệ nhân tạo</span>
-                            <h4 className="text-sm font-bold text-white">Cách 2: Giải pháp phân tích lập luận Gemini 3.5 AI</h4>
-                          </div>
-                          <p className="text-xs text-gray-400 leading-relaxed font-sans">
-                            Hệ thống sẽ gửi mô tả hoạt động qua cổng dịch vụ an toàn (server-side secrets) của Gemini 3.5 Flash để dịch hoạt động, suy luận logic lĩnh vực chuẩn xác và lý giải nguyên nhân tự nhiên. Thích hợp cho mẫu dữ liệu nhỏ hoặc muốn rà soát chiều sâu tinh xảo.
-                          </p>
+                        <div className="overflow-x-auto border border-gray-850 rounded-xl bg-gray-950/40 max-h-[300px]">
+                          <table className="w-full text-left text-xs min-w-[750px]">
+                            <thead>
+                              <tr className="bg-[#1f2937] border-b border-gray-850 text-gray-300 font-mono text-[11px] sticky top-0 z-10">
+                                <th className="p-3 text-center w-[60px]">DÒNG</th>
+                                <th className="p-3 w-[120px]">MÃ DOANH NGHIỆP</th>
+                                <th className="p-3 w-[100px] text-center">MÃ NGÀNH NHẬP</th>
+                                <th className="p-3">MÔ TẢ HOẠT ĐỘNG THỰC TẾ</th>
+                                <th className="p-3">TÊN NGÀNH CHUẨN (VSIC)</th>
+                                <th className="p-3 text-amber-400">PHÁT HIỆN MÂU THUẪN LOGIC</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/45 text-gray-200">
+                              {stdReportAnomalies.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-gray-800/10 transition-colors">
+                                  <td className="p-3 text-center font-mono text-gray-400">{item.dongSTT}</td>
+                                  <td className="p-3 font-semibold text-gray-300">{item.maDN}</td>
+                                  <td className="p-3 text-center font-mono font-bold text-red-400 bg-red-950/5">{item.maGoc}</td>
+                                  <td className="p-3 font-sans line-clamp-2 max-w-[250px] truncate" title={item.motaGoc}>{item.motaGoc}</td>
+                                  <td className="p-3 font-sans text-gray-300">{item.nganhChuan}</td>
+                                  <td className="p-3 font-sans text-amber-300 bg-amber-950/10 italic font-medium">{item.phanTichloi}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                        
-                        <button 
-                          onClick={() => handleStandardizeSectors(true)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all w-full mt-6 shadow-md shadow-indigo-900/10 cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <Brain className="w-4 h-4 text-pink-400" /> Chạy bằng Trí Tuệ Nhân Tạo (Gemini 3.5 API)
-                        </button>
                       </div>
-
-                    </div>
+                    )}
 
                     {/* CÔNG CỤ TỰ ĐỘNG PHÂN TÍCH BẤT NHẤT QUÁN ĐA CHIỀU (MÃ ⇄ MÔ TẢ) */}
                     <div className="bg-[#111827]/80 rounded-2xl p-6 border border-purple-500/20 space-y-6">
