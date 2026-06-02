@@ -1061,7 +1061,7 @@ export default function App() {
   // 3. CHỨC NĂNG TÁCH DỮ LIỆU THEO CỘT HOÀN TOÀN TỰ ĐỘNG (EXPORT ZIP)
   const handleSplitData = async () => {
     if (mainData.length === 0) {
-      alert("Không có dữ liệu trong hệ thống! Vui lòng nạp tệp chính trước.");
+      alert("Không có dữ liệu trong ! Vui lòng nạp tệp chính trước.");
       return;
     }
     if (!splitCol) {
@@ -1416,7 +1416,7 @@ export default function App() {
       const totalRow: any = {
         "STT": "",
         "Mã ngành cấp 2": "TỔNG CỘNG LŨY KẾ",
-        "Tên ngành cấp 2": `Hệ thống tổng quy nạp thành ${sortedKeys.length} nhóm ngành cấp 2`,
+        "Tên ngành cấp 2": ` tổng quy nạp thành ${sortedKeys.length} nhóm ngành cấp 2`,
         "Số đơn vị (DN)": mainData.length
       };
 
@@ -1500,7 +1500,7 @@ export default function App() {
 
       if (!isExistInVSIC) {
         auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
-        anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục hệ thống phân cấp VSIC quốc gia`;
+        anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục  phân cấp VSIC quốc gia`;
       } else if (rawDesc.trim() !== "") {
         const descLow = rawDesc.toLowerCase();
         const stdLow = stdName.toLowerCase();
@@ -1592,7 +1592,7 @@ export default function App() {
       conflicts: conflictCount
     });
 
-    // Tự sao lưu vĩnh viễn vào hệ thống
+    // Tự sao lưu vĩnh viễn vào 
     autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
 
     setProgress(100);
@@ -2068,7 +2068,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              HỆ THỐNG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC V38.5</span>
+              HỆ THỐNG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC 2025</span>
             </h1>
             <p className="text-xs text-gray-400 font-mono">CÔNG CỤ HỖ TRỢ SO SÁNH TỔNG HỢP DỮ LIỆU</p>
           </div>
@@ -2245,12 +2245,10 @@ export default function App() {
                     Phát hành chuẩn mực V38.5
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    Hệ Thống Phân Tích & Chuẩn Hóa Dữ Liệu Ngành Quốc Gia
+                    CÔNG CỤ HỖ TRỢ DƯ LIỆU
                   </h2>
                   <p className="text-gray-300 text-sm leading-relaxed">
-                    Công cụ chuyên sâu hỗ trợ thống kê dữ liệu doanh nghiệp, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa cao cấp.
-                  </p>
-                  <div className="pt-2 flex items-center gap-4">
+                    Công cụ hỗ trợ cho phép đọc tất cả các file có định dạng cột khác nhau không phụ thuộc vào tên cột số lượng cột điểm mạnh nó đọc và cho phép định nghĩa lại tên cột nếu tên cột ký hiệu hoặc khó nhớ về 1 dạng do người dùng quy định nó có chức năng ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động. Tổng hợp theo ngành câp 1 và 2 và công cụ kiểm tra logic. 
                     <button 
                       onClick={() => setActiveTab("xemdulieu")}
                       className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-2 cursor-pointer"
@@ -2272,10 +2270,10 @@ export default function App() {
               <div className="space-y-6">
                 <div className="border-b border-[#374151] pb-4">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> BẢN ĐỒ CẨM NANG & KÍCH HOẠT CHỨC NĂNG NHANH
+                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> CÁCH DÙNG & KÍCH HOẠT CHỨC NĂNG NHANH
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
-                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Quý khách có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
+                    công cụ hỗ trợ đầy đủ 7 chức năng người dùng có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
                   </p>
                 </div>
 
@@ -2318,7 +2316,7 @@ export default function App() {
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors">
-                        🌿 Ghép Nối Dữ Liệu
+                        🌿 Ghép dữ liệu
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Tự động tích hợp thông tin từ tệp phụ lục vào tệp tin chính dựa trên cột liên quan chung (như Mã số thuế, Mã doanh nghiệp,...). Giải quyết nỗi lo ghép thủ công dễ gây xô lệch hoặc gõ nhầm dòng dữ liệu.
@@ -2366,7 +2364,7 @@ export default function App() {
                           <Scissors className="w-5 h-5" />
                         </div>
                         <span className="bg-pink-900/40 text-pink-300 border border-pink-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          BẺ TÁCH HOÀN LOẠT
+                          TÁCH DỮ LIỆU 
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-pink-300 transition-colors">
@@ -2436,7 +2434,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* CHỨC NĂNG 7: Cỗ máy kiểm tra logic */}
+                  {/* CHỨC NĂNG 7: Chức năng kiểm tra logic */}
                   <div className="bg-[#1f2937]/50 border border-emerald-500/20 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-emerald-500/40 transition-all col-span-1 md:col-span-2 lg:col-span-3 group">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -2448,7 +2446,7 @@ export default function App() {
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
-                        Control Panel 🛂 Cỗ Máy Kiểm Tra Logic
+                        Control Panel 🛂 Chức năng Kiểm Tra Logic
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Thiết lập các quy định ràng buộc điều kiện thông minh dạng <code>NẾU (điều kiện) THÌ PHẢI (điều kiện kia)</code> tùy ý. Bộ máy sẽ lập tức rà soát toàn bộ tệp Excel thu về danh sách hồ sơ bất tuần tự (ví dụ: mô tả có chứa xi-măng nhưng mã ngành lại đăng ký nông nghiệp, hoặc lao động siêu lớn nhưng doanh thu rỗng).
@@ -2467,7 +2465,7 @@ export default function App() {
               {/* Gợi ý quy trình xử lý dữ liệu chuẩn */}
               <div className="bg-[#1e1b4b]/20 border border-purple-500/20 rounded-2xl p-6 space-y-4">
                 <h4 className="text-sm font-bold text-purple-300 flex items-center gap-2">
-                  <Info className="w-4 h-4 text-purple-400 animate-pulse" /> ĐỀ XUẤT 3 BƯỚC VẬN HÀNH CHUẨN TRÊN HỆ THỐNG
+                  <Info className="w-4 h-4 text-purple-400 animate-pulse" /> HƯỚNG DẪN 3 BƯỚC SỬ DỤNG CÔNG CỤ 
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-gray-300 leading-relaxed">
                   <div className="space-y-1">
