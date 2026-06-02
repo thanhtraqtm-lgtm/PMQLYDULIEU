@@ -1,7 +1,94 @@
 import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
-import { saveAppState, loadAppState, clearAppState } from "./db";
+// --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) INTEGRATED DIRECTLY FOR RELIABLE PORTABILITY ---
+const DB_NAME = "VTongDatabase";
+const DB_VERSION = 1;
+const STORE_NAME = "appState";
+
+interface AppState {
+  mainData: any[];
+  rawImportedData: any[];
+  columns: string[];
+  fileName: string;
+  mapping: {
+    mota: string;
+    manganh: string;
+    xa: string;
+    doanhthu: string;
+    laodong: string;
+    idCol: string;
+  };
+  customColConfigs: any[];
+}
+
+function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onerror = () => {
+      reject(new Error("Không thể khởi tạo cơ sở dữ liệu IndexedDB"));
+    };
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+  });
+}
+
+async function saveAppState(state: AppState): Promise<void> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.put(state, "currentSession");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error("Lỗi khi lưu dữ liệu vào IndexedDB"));
+    });
+  } catch (error) {
+    console.error("IndexedDB Save Error:", error);
+  }
+}
+
+async function loadAppState(): Promise<AppState | null> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get("currentSession");
+      request.onsuccess = () => {
+        resolve(request.result || null);
+      };
+      request.onerror = () => {
+        reject(new Error("Lỗi khi đọc dữ liệu từ IndexedDB"));
+      };
+    });
+  } catch (error) {
+    console.error("IndexedDB Load Error:", error);
+    return null;
+  }
+}
+
+async function clearAppState(): Promise<void> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.delete("currentSession");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error("Lỗi khi xóa dữ liệu IndexedDB"));
+    });
+  } catch (error) {
+    console.error("IndexedDB Clear Error:", error);
+  }
+}
 import { 
   Home, 
   FileSpreadsheet, 
