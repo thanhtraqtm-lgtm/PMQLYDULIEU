@@ -122,6 +122,7 @@ import {
   Brain,
   Layers,
   ArrowRight,
+  ArrowRightLeft,
   Database,
   RefreshCw,
   Search,
@@ -146,6 +147,7 @@ import {
 
 import SectorRevenueChart from "./components/SectorRevenueChart";
 import VsicCatalogExplorer from "./components/VsicCatalogExplorer";
+import DescriptorMatchScanner from "./components/DescriptorMatchScanner";
 
 // Interface define
 interface ColumnMapping {
@@ -309,6 +311,13 @@ export default function App() {
   const [stdDescriptionCol, setStdDescriptionCol] = useState<string>("");
   const [stdReportAnomalies, setStdReportAnomalies] = useState<any[]>([]);
   const [stdMatchStats, setStdMatchStats] = useState<{ total: number; valid: number; invalid: number; conflicts: number }>({ total: 0, valid: 0, invalid: 0, conflicts: 0 });
+
+  // States cho Phân Hệ Đối chiếu 2 cột tự chọn (Theo yêu cầu người dùng)
+  const [crossCompareColA, setCrossCompareColA] = useState<string>("");
+  const [crossCompareColB, setCrossCompareColB] = useState<string>("");
+  const [crossCompareRule, setCrossCompareRule] = useState<string>("normalize");
+  const [crossCompareAnomalies, setCrossCompareAnomalies] = useState<any[]>([]);
+  const [crossCompareStats, setCrossCompareStats] = useState<{ total: number; matchCount: number; mismatchCount: number }>({ total: 0, matchCount: 0, mismatchCount: 0 });
 
   // Tự động tìm kiếm dự đoán ban đầu cho các bộ chọn báo cáo động độc lập giúp người dùng tiện thao tác
   useEffect(() => {
@@ -2081,6 +2090,131 @@ export default function App() {
     return txt.includes("trồng") || txt.includes("nuôi") || txt.includes("thủy sản") || txt.includes("mỏ") || txt.includes("lâm nghiệp");
   };
 
+  // PHÂN HỆ ĐỐI CHIẾU CHÉO SONG SONG 2 CỘT TÙY CHỌN (Yêu cầu người dùng)
+  const handleCrossColumnCompare = async () => {
+    if (mainData.length === 0) {
+      alert("Không tìm thấy dữ liệu nguồn chính! Vui lòng nạp tệp chính trước bản ghi.");
+      return;
+    }
+    if (!crossCompareColA || !crossCompareColB) {
+      alert("Vui lòng chọn đầy đủ cả 2 cột cần so khớp, đối chiếu!");
+      return;
+    }
+    if (crossCompareColA === crossCompareColB) {
+      alert("Vui lòng chọn 2 cột có tên khác nhau để so sánh đối chiếu!");
+      return;
+    }
+
+    setLoading(true);
+    setProgress(15);
+    setStatusMessage(`Đang tiến hành đối chiếu song song hai cột: [${crossCompareColA}] và [${crossCompareColB}]...`);
+    await sleep(250);
+
+    let matchCount = 0;
+    let mismatchCount = 0;
+    const anomalies: any[] = [];
+
+    const updatedRows = mainData.map((row, idx) => {
+      const valA = row[crossCompareColA] !== undefined && row[crossCompareColA] !== null ? String(row[crossCompareColA]).trim() : "";
+      const valB = row[crossCompareColB] !== undefined && row[crossCompareColB] !== null ? String(row[crossCompareColB]).trim() : "";
+
+      let isMatch = false;
+      let explanation = "";
+
+      if (crossCompareRule === "exact") {
+        isMatch = valA === valB;
+        if (!isMatch) {
+          explanation = `Ký tự khác hoàn toàn (so sánh chuẩn xác cả chữ hoa/thường, dấu cách)`;
+        }
+      } else if (crossCompareRule === "normalize") {
+        const cleanA = valA.toLowerCase().replace(/\s+/g, " ");
+        const cleanB = valB.toLowerCase().replace(/\s+/g, " ");
+        isMatch = cleanA === cleanB;
+        if (!isMatch) {
+          explanation = `Chuỗi văn bản gốc không trùng nhau (sau khi đã chuẩn hóa khoảng trắng & bỏ viết hoa)`;
+        }
+      } else if (crossCompareRule === "sector_code") {
+        const codeA = valA.replace(/\D/g, "");
+        const codeB = valB.replace(/\D/g, "");
+        if (codeA === codeB && codeA !== "") {
+          isMatch = true;
+        } else if (codeA !== "" && codeB !== "") {
+          isMatch = codeA.startsWith(codeB) || codeB.startsWith(codeA);
+          if (isMatch) {
+            explanation = `Khấu chuẩn quy nạp phân cấp theo logic cha-con (VD: ${valA} so với ${valB})`;
+          } else {
+            explanation = `Mã ngành hoàn toàn khác biệt nhóm phân cấp (VD: ${valA} so với ${valB})`;
+          }
+        } else {
+          isMatch = valA === valB;
+          if (!isMatch) {
+            explanation = `Mã bị trống hoặc không thể phân giải số ngành hơp chuẩn`;
+          }
+        }
+      } else if (crossCompareRule === "substring") {
+        const descLowA = valA.toLowerCase();
+        const descLowB = valB.toLowerCase();
+        isMatch = descLowA.includes(descLowB) || descLowB.includes(descLowA);
+        if (isMatch) {
+          explanation = `Thỏa mãn: Một giá trị chứa phụ đề / từ khóa của giá trị còn lại`;
+        } else {
+          explanation = `Không có bất kỳ cụm từ khóa liên đới chéo nhau`;
+        }
+      }
+
+      if (isMatch) {
+        matchCount++;
+      } else {
+        mismatchCount++;
+        anomalies.push({
+          dongSTT: idx + 1,
+          maDN: row["Mã Số Thuế"] || row["MaST"] || row["Số GPKD"] || `Bản ghi số ${idx + 1}`,
+          valA: valA || "(Không có dữ liệu)",
+          valB: valB || "(Không có dữ liệu)",
+          reason: explanation
+        });
+      }
+
+      const flexRow: any = {};
+      const colCompareResult = `Đối Chiếu [${crossCompareColA}] vs [${crossCompareColB}]`;
+      const colCompareFlag = `Đánh Dấu Lệch [${crossCompareColA}] vs [${crossCompareColB}]`;
+
+      Object.keys(row).forEach(key => {
+        flexRow[key] = row[key];
+        if (key === crossCompareColB) {
+          flexRow[colCompareResult] = isMatch ? "✅ TRÙNG KHỚP" : "❌ LỆCH BẤT NHẤT";
+          flexRow[colCompareFlag] = isMatch ? "" : "⚠️ SAI LỆCH CẦN SỬA";
+        }
+      });
+
+      if (flexRow[colCompareResult] === undefined) {
+        flexRow[colCompareResult] = isMatch ? "✅ TRÙNG KHỚP" : "❌ LỆCH BẤT NHẤT";
+        flexRow[colCompareFlag] = isMatch ? "" : "⚠️ SAI LỆCH CẦN SỬA";
+      }
+
+      return flexRow;
+    });
+
+    const newCols = Object.keys(updatedRows[0] || {});
+    setMainData(updatedRows);
+    setColumns(newCols);
+    setCrossCompareAnomalies(anomalies);
+    setCrossCompareStats({
+      total: updatedRows.length,
+      matchCount: matchCount,
+      mismatchCount: mismatchCount
+    });
+
+    autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
+
+    setProgress(100);
+    setStatusMessage(`Đối chiếu chéo hoàn tất! Phát hiện ${mismatchCount} lỗi lệch.`);
+    await sleep(350);
+    setLoading(false);
+
+    alert(`Đối chiếu hoàn tất!\n- Tổng cộng: ${updatedRows.length} dòng\n- Khớp nhau: ${matchCount} dòng\n- Sai lệch/Mâu thuẫn: ${mismatchCount} dòng.\nCác cột báo cáo mới đã được tự động thêm vào bảng tính của bạn.`);
+  };
+
   // 5. CHỨC NĂNG BÁO CÁO NHANH THEO PHÂN CẤP NGÀNH & XÃ CHUẨN XÁC
   const handleQuickReport = async (level: number) => {
     if (mainData.length === 0) {
@@ -2784,6 +2918,17 @@ export default function App() {
               }`}
             >
               <CheckSquare className="w-4 h-4 text-emerald-400" /> 🛂 Cỗ Máy Kiểm Tra Logic
+            </button>
+
+            <button 
+              onClick={() => setActiveTab("doichieumota")}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                activeTab === "doichieumota" 
+                  ? "bg-purple-600/15 text-purple-400 border border-purple-500/20 shadow-purple-500/10 shadow-sm" 
+                  : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
+              }`}
+            >
+              <ArrowRightLeft className="w-4 h-4 text-purple-400 animate-pulse" /> 🔄 Đối Chiếu Mô Tả Ngành
             </button>
 
             <button 
@@ -4561,6 +4706,143 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* BỘ ĐIỀU KHIỂN ĐỐI CHIẾU SONG SONG HAI CỘT TÙY CHỌN (Khớp & Đánh Dấu Sai Lệch) */}
+                    <div className="bg-[#111827]/85 p-6 rounded-2xl border border-cyan-500/20 shadow-xl space-y-5">
+                      <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
+                        <Combine className="w-5 h-5 text-cyan-400" />
+                        <h4 className="text-sm font-bold text-white uppercase tracking-wider font-mono">2. ĐỐI CHIẾU SONG SONG HAI CỘT TÙY CHỌN & ĐÁNH DẤU SAI LỆCH</h4>
+                      </div>
+
+                      <p className="text-xs text-gray-400">
+                        Chỉ định bất kỳ 2 cột nào trong tệp dữ liệu đã nạp (ví dụ: so sánh giữa <em>"Mã ngành tự gõ"</em> với <em>"Mã ngành do AI gợi ý"</em> hoặc <em>"Tên ngành doanh nghiệp khai"</em> với <em>"Tên ngành chuẩn VSIC"</em>). Chương trình sẽ rà lỗi song song, đánh dấu trạng thái và ghi chú ngay lập tức vào bảng tính.
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        {/* Chọn cột 1 */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-cyan-400 block font-mono">CHỌN CỘT THỨ NHẤT (CỘT A):</label>
+                          <select
+                            value={crossCompareColA}
+                            onChange={(e) => setCrossCompareColA(e.target.value)}
+                            className="w-full bg-[#1e293b] border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 font-mono"
+                          >
+                            <option value="">-- Chọn Cột A --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <span className="text-[10px] text-gray-500 block italic leading-normal">
+                            Giá trị gốc đem so sánh.
+                          </span>
+                        </div>
+
+                        {/* Chọn cột 2 */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-cyan-400 block font-mono">CHỌN CỘT THỨ HAI (CỘT B):</label>
+                          <select
+                            value={crossCompareColB}
+                            onChange={(e) => setCrossCompareColB(e.target.value)}
+                            className="w-full bg-[#1e293b] border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 font-mono"
+                          >
+                            <option value="">-- Chọn Cột B --</option>
+                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <span className="text-[10px] text-gray-500 block italic leading-normal">
+                            Giá trị đối chứng tin cậy.
+                          </span>
+                        </div>
+
+                        {/* Quy luật so khớp */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-300 block font-mono">CHỌN LUẬT ĐỐI CHIẾU LỆCH:</label>
+                          <select
+                            value={crossCompareRule}
+                            onChange={(e) => setCrossCompareRule(e.target.value)}
+                            className="w-full bg-[#1e293b] border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 font-sans"
+                          >
+                            <option value="normalize">Chuẩn hóa chữ thường + Bỏ dấu cách dư thừa (Khuyên dùng cho tên ngành)</option>
+                            <option value="exact">Trùng khớp chính xác tuyệt đối (Phân biệt hoa thường)</option>
+                            <option value="sector_code">So khớp mã ngành VSIC (Lọc chỉ lấy số, chấp nhận quy nạp cha-con)</option>
+                            <option value="substring">Chứa cụm từ của nhau (Substring match)</option>
+                          </select>
+                          <span className="text-[10px] text-gray-500 block italic leading-normal">
+                            Phương thức logic để lọc và đánh dấu lỗi lệch.
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          onClick={handleCrossColumnCompare}
+                          className="bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-cyan-950/40 flex items-center gap-2 cursor-pointer border border-cyan-500/20 active:scale-95"
+                        >
+                          <Combine className="w-4 h-4 text-cyan-200" /> ⚡ THỰC THI KIỂM TRA ĐỔI CHIẾU & ĐÁNH DẤU SAI LỆCH
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* HIỂN THỊ THÔNG SỐ ĐỐI CHIẾU CHÉO */}
+                    {crossCompareStats.total > 0 && (
+                      <div className="bg-[#1e293b]/25 border border-cyan-500/10 p-5 rounded-2xl grid grid-cols-3 gap-4 text-center">
+                        <div className="bg-[#111827]/60 p-3 rounded-xl border border-gray-800">
+                          <div className="text-[10px] text-gray-400 font-bold uppercase font-mono mb-1">Tổng bản ghi đối chiếu</div>
+                          <div className="text-lg font-bold text-white font-mono">{crossCompareStats.total}</div>
+                        </div>
+
+                        <div className="bg-[#111827]/60 p-3 rounded-xl border border-gray-800">
+                          <div className="text-[10px] text-emerald-400 font-bold uppercase font-mono mb-1">Khớp trùng nhau</div>
+                          <div className="text-lg font-bold text-emerald-400 font-mono">
+                            {crossCompareStats.matchCount} <span className="text-[10px] font-normal text-gray-400">({Math.round(crossCompareStats.matchCount / crossCompareStats.total * 100)}%)</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-[#111827]/60 p-3 rounded-xl border border-red-500/10">
+                          <div className="text-[10px] text-rose-400 font-bold uppercase font-mono mb-1">Phát hiện Lệch sai</div>
+                          <div className="text-lg font-bold text-rose-400 font-mono">
+                            {crossCompareStats.mismatchCount} <span className="text-[10px] font-normal text-gray-400">({Math.round(crossCompareStats.mismatchCount / crossCompareStats.total * 100)}%)</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* DANH SÁCH LỖI LỆCH SONG SONG PHÁT HIỆN ĐƯỢC */}
+                    {crossCompareAnomalies.length > 0 && (
+                      <div className="bg-[#1e293b]/40 border border-rose-500/20 rounded-2xl p-5 space-y-4">
+                        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-rose-950 text-rose-400 font-mono text-[10px] px-2.5 py-0.5 rounded-full border border-rose-800 animate-pulse">Lệch sai</span>
+                            <h4 className="text-sm font-bold text-white uppercase">Danh sách phát hiện lệch giữa 2 cột ({crossCompareAnomalies.length} dòng lỗi)</h4>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto border border-gray-850 rounded-xl bg-gray-950/40 max-h-[300px]">
+                          <table className="w-full text-left text-xs min-w-[700px]">
+                            <thead>
+                              <tr className="bg-[#1f2937] border-b border-gray-850 text-gray-300 font-mono text-[11px] sticky top-0 z-10">
+                                <th className="p-3 text-center w-[60px]">DÒNG</th>
+                                <th className="p-3 w-[150px]">MÃ DOANH NGHIỆP</th>
+                                <th className="p-3">GIÁ TRỊ CỘT A ({crossCompareColA})</th>
+                                <th className="p-3">GIÁ TRỊ CỘT B ({crossCompareColB})</th>
+                                <th className="p-3 text-amber-400">LUẬT BÁO LỆCH</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/45 text-gray-200">
+                              {crossCompareAnomalies.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-red-950/5 transition-colors">
+                                  <td className="p-3 text-center font-mono text-gray-400">{item.dongSTT}</td>
+                                  <td className="p-3 font-semibold text-gray-300">{item.maDN}</td>
+                                  <td className="p-3 font-sans text-red-300 bg-red-950/10 font-medium">{item.valA}</td>
+                                  <td className="p-3 font-sans text-emerald-300 bg-emerald-950/5">{item.valB}</td>
+                                  <td className="p-3 font-sans text-amber-300 italic">{item.reason}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="text-[11px] text-gray-400">
+                          💡 <strong>Mẹo nhỏ:</strong> Tệp tin hiện tại đã được tự động thêm 2 cột: <strong>"Đối Chiếu [{crossCompareColA}] vs [{crossCompareColB}]"</strong> và <strong>"Đánh Dấu Lệch [{crossCompareColA}] vs [{crossCompareColB}]"</strong>. Bạn có thể sang tab <em>"Xem Dữ Liệu"</em> để kiểm tra bảng hoặc tải trực tiếp File Excel về máy để có dòng cảnh báo này trong bảng tính!
+                        </div>
+                      </div>
+                    )}
+
                     {/* HIỂN THỊ KẾT QUẢ THỐNG KÊ SO KHỚP CHUẨN VSIC */}
                     {stdMatchStats.total > 0 && (
                       <div className="bg-[#1e293b]/35 border border-indigo-500/10 p-5 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
@@ -5019,6 +5301,24 @@ export default function App() {
           {activeTab === "danhmucvsic" && (
             <div className="space-y-6 animate-fade-in">
               <VsicCatalogExplorer />
+            </div>
+          )}
+
+          {/* 11. TAB ĐỐI CHIẾU MÔ TẢ ĐTV VÀ TÊN NGÀNH CHUẨN */}
+          {activeTab === "doichieumota" && (
+            <div className="space-y-6 animate-fade-in">
+              {mainData.length > 0 ? (
+                <DescriptorMatchScanner mainData={mainData} columns={columns} />
+              ) : (
+                <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 text-center space-y-3">
+                  <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-4 rounded-xl inline-block">
+                    ⚠️ Chưa có dữ liệu nguồn chính!
+                  </div>
+                  <p className="text-xs text-gray-400 max-w-md mx-auto">
+                    Vui lòng quay lại tab <strong>Trang Chủ / Nạp Dữ Liệu</strong> để tải tệp Excel dữ liệu của bạn lên trước khi thực hiện quy trình so sánh đối chiếu ngữ nghĩa mô tả ĐTV và tên ngành chuẩn.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
