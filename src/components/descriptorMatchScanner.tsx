@@ -137,8 +137,8 @@ function evaluateSimilarity(descDTV: string, descStandard: string): {
     }
 
     // Nếu từ khóa có trong hệ thống ánh xạ từ đồng nghĩa
-    const synonyms = SYNONYM_MAP[wDtv];
-    if (synonyms) {
+    const synonyms = Object.prototype.hasOwnProperty.call(SYNONYM_MAP, wDtv) ? SYNONYM_MAP[wDtv] : undefined;
+    if (synonyms && Array.isArray(synonyms)) {
       const hasSynonymMatch = synonyms.some(syn => wordsStd.includes(syn) || stdNorm.includes(syn));
       if (hasSynonymMatch) {
          matches += 0.85; // Điểm quy nạp gián tiếp qua từ đồng nghĩa

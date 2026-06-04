@@ -50,6 +50,23 @@ export default function VsicCatalogExplorer() {
     }
   });
 
+  // Trạng thái cập nhật, chỉnh sửa thủ công trực tiếp tên ngành
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string>("");
+
+  const handleSaveEdit = (code: string) => {
+    if (!editingName.trim()) return;
+    const updated = { ...customCatalog, [code]: editingName.trim() };
+    setCustomCatalog(updated);
+    try {
+      localStorage.setItem("custom_vsic_data", JSON.stringify(updated));
+    } catch (e) {
+      console.warn("localStorage error:", e);
+    }
+    vsicRawData[code] = editingName.trim();
+    setEditingCode(null);
+  };
+
   // Hồi phục và hợp nhất dữ liệu gốc tùy biến theo chế độ pureMode
   useEffect(() => {
     if (pureMode) {
@@ -135,7 +152,7 @@ export default function VsicCatalogExplorer() {
         const data = e.target?.result;
         if (!data) return;
 
-        const workbook = XLSX.read(data, { type: "binary" });
+        const workbook = XLSX.read(data, { type: "array" });
         const firstSheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[firstSheetName];
         
@@ -291,7 +308,7 @@ export default function VsicCatalogExplorer() {
         });
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -610,7 +627,50 @@ export default function VsicCatalogExplorer() {
                           </span>
                         </td>
                         <td className="p-3.5 text-sm text-gray-200 font-sans group-hover:text-white transition-colors leading-relaxed">
-                          {item.name}
+                          {editingCode === item.code ? (
+                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                className="flex-1 bg-[#111827] border border-purple-500 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleSaveEdit(item.code);
+                                  else if (e.key === "Escape") setEditingCode(null);
+                                }}
+                              />
+                              <button
+                                onClick={() => handleSaveEdit(item.code)}
+                                className="p-1.5 bg-emerald-600/20 hover:bg-emerald-600/45 text-emerald-400 border border-emerald-500/20 rounded-lg cursor-pointer transition-all flex items-center justify-center"
+                                title="Lưu"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setEditingCode(null)}
+                                className="p-1.5 bg-gray-800 hover:bg-gray-750 text-gray-400 border border-gray-700 rounded-lg cursor-pointer transition-all flex items-center justify-center"
+                                title="Hủy"
+                              >
+                                <span className="text-xs font-bold px-1 select-none">Hủy</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-4">
+                              <span>{item.name}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingCode(item.code);
+                                  setEditingName(item.name);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 hover:text-purple-400 p-1.5 rounded bg-gray-800/50 hover:bg-gray-800 border border-transparent hover:border-gray-700 transition-all flex items-center justify-center cursor-pointer"
+                                title="Sửa tên ngành"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pencil"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                              </button>
+                            </div>
+                          )}
                         </td>
                         <td className="p-3.5 text-center">
                           {isCustom ? (
