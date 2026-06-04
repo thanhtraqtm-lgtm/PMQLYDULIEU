@@ -494,7 +494,7 @@ export default function DescriptorMatchScanner({ mainData, columns }: Descriptor
               <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Khớp an toàn</span>
               <p className="text-xl font-black text-emerald-400 font-mono">
                 {stats.safe.toLocaleString()} 
-                <span className="text-xs text-gray-500 ml-1 font-normal">({Math.round(stats.safe / stats.total * 100)}%)</span>
+                <span className="text-xs text-gray-500 ml-1 font-normal">({stats.total > 0 ? Math.round(stats.safe / stats.total * 100) : 0}%)</span>
               </p>
             </div>
             <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
@@ -508,7 +508,7 @@ export default function DescriptorMatchScanner({ mainData, columns }: Descriptor
               <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Nghi ngờ sai lệch</span>
               <p className="text-xl font-black text-amber-400 font-mono">
                 {stats.suspicious.toLocaleString()} 
-                <span className="text-xs text-gray-500 ml-1 font-normal">({Math.round(stats.suspicious / stats.total * 100)}%)</span>
+                <span className="text-xs text-gray-500 ml-1 font-normal">({stats.total > 0 ? Math.round(stats.suspicious / stats.total * 100) : 0}%)</span>
               </p>
             </div>
             <div className="bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
@@ -522,7 +522,7 @@ export default function DescriptorMatchScanner({ mainData, columns }: Descriptor
               <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider">Sai biệt nặng</span>
               <p className="text-xl font-black text-rose-400 font-mono">
                 {stats.critical.toLocaleString()} 
-                <span className="text-xs text-gray-500 ml-1 font-normal">({Math.round(stats.critical / stats.total * 100)}%)</span>
+                <span className="text-xs text-gray-500 ml-1 font-normal">({stats.total > 0 ? Math.round(stats.critical / stats.total * 100) : 0}%)</span>
               </p>
             </div>
             <div className="bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">

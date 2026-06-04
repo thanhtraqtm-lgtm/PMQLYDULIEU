@@ -1440,12 +1440,14 @@ export default function App() {
 
     const oldMap = new Map();
     oldData.forEach(row => {
+      if (!row || typeof row !== 'object') return;
       const k = String(row[diffKey] || "").trim();
       if (k) oldMap.set(k, row);
     });
 
     const newMap = new Map();
     newData.forEach(row => {
+      if (!row || typeof row !== 'object') return;
       const k = String(row[diffKey] || "").trim();
       if (k) newMap.set(k, row);
     });
@@ -1455,8 +1457,10 @@ export default function App() {
     const batchSize = Math.max(1, Math.floor(allKeys.length / 20));
 
     // Lấy tập hợp tất cả các cột của cả hai file
-    const oldCols = Object.keys(oldData[0] || {});
-    const newCols = Object.keys(newData[0] || {});
+    const firstOldRow = oldData.find(r => r && typeof r === 'object') || {};
+    const firstNewRow = newData.find(r => r && typeof r === 'object') || {};
+    const oldCols = Object.keys(firstOldRow);
+    const newCols = Object.keys(firstNewRow);
     const unionCols = Array.from(new Set([...oldCols, ...newCols])).filter(c => c !== diffKey);
 
     for (let i = 0; i < allKeys.length; i++) {
@@ -2631,6 +2635,7 @@ export default function App() {
     };
 
     const results = mainData.map((row, index) => {
+      if (!row || typeof row !== 'object') return row;
       // 1. Phép toán NẾU
       const ifMatches = ifRules.map(r => checkValue(row[r.col], r.op, r.val));
       const satisfiesIf = ifCombine === "AND" 
