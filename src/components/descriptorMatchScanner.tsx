@@ -233,6 +233,17 @@ export default function DescriptorMatchScanner({ mainData, columns }: Descriptor
     setTimeout(() => {
       try {
         const analyzed = mainData.map((row, index) => {
+          if (!row || typeof row !== 'object') {
+            return {
+              index: index + 1,
+              originalRow: {},
+              descDTV: "",
+              descStandard: "",
+              score: 0,
+              status: "SAFE",
+              reason: "Dòng trống"
+            };
+          }
           const valDtv = String(row[colDTV] || "").trim();
           const valStd = String(row[colStandard] || "").trim();
           

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { 
   Search, 
   Database, 
@@ -12,9 +12,10 @@ import {
   AlertTriangle, 
   Check, 
   FileSpreadsheet,
-  HelpCircle
+  HelpCircle,
+  ToggleLeft
 } from "lucide-react";
-import { vsicRawData } from "../data/vsic";
+import { vsicRawData, clearAllSectorsInVSIC, loadSectorsIntoVSIC } from "../data/vsic";
 import * as XLSX from "xlsx";
 
 export default function VsicCatalogExplorer() {
@@ -30,6 +31,15 @@ export default function VsicCatalogExplorer() {
     addedCount?: number;
   }>({});
 
+  // Chế độ thuần khiết (Chỉ dùng danh mục nạp vào, xóa sạch danh mục mặc định của app)
+  const [pureMode, setPureMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("custom_vsic_is_pure") === "true";
+    } catch {
+      return false;
+    }
+  });
+
   // Danh mục bổ sung của người dùng lưu trong localStorage
   const [customCatalog, setCustomCatalog] = useState<{ [key: string]: string }>(() => {
     try {
@@ -40,11 +50,16 @@ export default function VsicCatalogExplorer() {
     }
   });
 
+  // Hồi phục và hợp nhất dữ liệu gốc tùy biến theo chế độ pureMode
+  useEffect(() => {
+    if (pureMode) {
+      clearAllSectorsInVSIC();
+    }
+    Object.assign(vsicRawData, customCatalog);
+  }, [pureMode, customCatalog]);
+
   // Hợp nhất dữ liệu gốc và dữ liệu tùy biến người dùng nạp vào để xem/tìm kiếm
   const vsicList = useMemo(() => {
-    // Luôn ghi đè dữ liệu tùy chỉnh của người dùng vào bộ từ điển đang hoạt động của hệ thống
-    Object.assign(vsicRawData, customCatalog);
-
     return Object.entries(vsicRawData).map(([code, name]) => {
       let cap = 5;
       if (/^[A-Z]$/.test(code)) cap = 1;
@@ -53,7 +68,7 @@ export default function VsicCatalogExplorer() {
       else if (code.length === 4) cap = 4;
       return { code, name, cap };
     });
-  }, [customCatalog]);
+  }, [customCatalog, pureMode]);
 
   const quickSearches = ["56101", "56302", "47521", "68104", "Bán lẻ", "Nhà hàng", "Cà phê", "Sản xuất"];
 
@@ -75,29 +90,30 @@ export default function VsicCatalogExplorer() {
   const displayLimit = 150;
   const displayedItems = filteredList.slice(0, displayLimit);
 
-  // 1. CHỨC NĂNG TẢI FILE MẪU EXCEL/CSV
+  // 1. CHỨC NĂNG TẢI FILE MẪU BAN ĐẦU (Theo đúng cấu trúc 5 cấp người dùng yêu cầu)
   const handleDownloadTemplate = (format: "csv" | "xlsx") => {
-    const headers = ["Mã Ngành", "Tên Ngành"];
+    const headers = ["NganhCap1", "NganhCap2", "NganhCap3", "NganhCap4", "NganhCap5", "TenNganh"];
     const rows = [
-      ["56101", "Quán bún chả nướng"],
-      ["56302", "Quán cà phê, bán giải khát"],
-      ["47521", "Bán lẻ đồ sắt, ngũ kim"],
-      ["68104", "Cho thuê nhà phục vụ kinh doanh thương mại"],
-      ["47731", "Bán lẻ hoa tươi, cây cảnh hoa cảnh"]
+      ["A", "", "", "", "", "Nông nghiệp, lâm nghiệp và thủy sản"],
+      ["A", "01", "", "", "", "Nông nghiệp và hoạt động dịch vụ có liên quan"],
+      ["A", "01", "011", "", "", "Trồng cây hàng năm"],
+      ["A", "01", "011", "0111", "", "Trồng lúa"],
+      ["A", "01", "011", "0111", "01110", "Trồng lúa"],
+      ["A", "01", "011", "0112", "", "Trồng ngô và cây lương thực có hạt khác"],
+      ["A", "01", "011", "0112", "01120", "Trồng ngô và cây lương thực có hạt khác"]
     ];
 
     if (format === "csv") {
-      let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // Thêm BOM để hiển thị tiếng Việt trên Excel ko bị lỗi
+      let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // Thêm BOM
       csvContent += headers.join(",") + "\n";
       rows.forEach(r => {
-        // Bao bọc các cột có dấu phẩy bằng dấu nháy kép
         const formattedRow = r.map(val => `"${val.replace(/"/g, '""')}"`);
         csvContent += formattedRow.join(",") + "\n";
       });
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "Mau_Danh_Muc_Nganh_VSIC_Bo_Sung.csv");
+      link.setAttribute("download", "Mau_Danh_Muc_Nganh_5_Cap.csv");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -106,12 +122,12 @@ export default function VsicCatalogExplorer() {
       const wsData = [headers, ...rows];
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(wsData);
-      XLSX.utils.book_append_sheet(wb, ws, "Mau_Danh_Muc_Nganh_Bo_Sung");
-      XLSX.writeFile(wb, "Mau_Danh_Muc_Nganh_VSIC_Bo_Sung.xlsx");
+      XLSX.utils.book_append_sheet(wb, ws, "Danh_Muc_Mau_5_Cap");
+      XLSX.writeFile(wb, "Mau_Danh_Muc_Nganh_5_Cap.xlsx");
     }
   };
 
-  // 2. CHỨC NĂNG PARSE FILE EXCEL/CSV DO NGƯỜI DÙNG TẢI LÊN
+  // 2. CHỨC NĂNG PARSE FILE EXCEL/CSV (Hỗ trợ cấu trúc 5 cấp chi tiết + 2 cột thông thường)
   const handleProcessFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -123,93 +139,150 @@ export default function VsicCatalogExplorer() {
         const firstSheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[firstSheetName];
         
-        // Đọc dưới dạng text JSON
+        // Đọc dưới dạng mảng 2 chiều
         const rawRows = XLSX.utils.sheet_to_json<any>(sheet, { header: 1 });
         if (rawRows.length < 2) {
           setUploadStatus({
             success: false,
-            message: "Tệp tải lên rỗng hoặc không có dòng tiêu đề (Dòng 1)."
+            message: "Tệp tải lên trống hoặc không có dòng tiêu đề (Dòng 1)."
           });
           return;
         }
 
-        // Tìm cột mã ngành và cột tên ngành bằng duyệt thông minh đầu tiên hàng tiêu đề
-        const headerRow = rawRows[0].map((h: any) => String(h).trim().toLowerCase());
+        // Tìm chỉ số các cột trong hàng tiêu đề
+        const headerRow = rawRows[0].map((h: any) => String(h || "").trim().toLowerCase());
         
-        let codeIndex = -1;
-        let nameIndex = -1;
+        // Dò tìm cho cấu trúc 5 cấp
+        let cap1Idx = -1;
+        let cap2Idx = -1;
+        let cap3Idx = -1;
+        let cap4Idx = -1;
+        let cap5Idx = -1;
+        let tenNganhIdx = -1;
+
+        // Dò tìm cho trường hợp tệp 2 cột đơn giản
+        let codeIdxSimple = -1;
+        let nameIdxSimple = -1;
 
         for (let i = 0; i < headerRow.length; i++) {
           const h = headerRow[i];
-          if (h.includes("mã") || h.includes("ma") || h.includes("code") || h.includes("sector") || h.includes("mst") || h.includes("id")) {
-            if (codeIndex === -1) codeIndex = i;
+          // 5 cấp
+          if (h.includes("cap1") || h.includes("cấp 1") || h.includes("cap 1") || h.includes("nganhcap1")) cap1Idx = i;
+          else if (h.includes("cap2") || h.includes("cấp 2") || h.includes("cap 2") || h.includes("nganhcap2")) cap2Idx = i;
+          else if (h.includes("cap3") || h.includes("cấp 3") || h.includes("cap 3") || h.includes("nganhcap3")) cap3Idx = i;
+          else if (h.includes("cap4") || h.includes("cấp 4") || h.includes("cap 4") || h.includes("nganhcap4")) cap4Idx = i;
+          else if (h.includes("cap5") || h.includes("cấp 5") || h.includes("cap 5") || h.includes("nganhcap5")) cap5Idx = i;
+          else if (h.includes("tên ngành") || h.includes("tennganh") || h.includes("tên gọi") || h.includes("tên") || h.includes("ten") || h.includes("name") || h.includes("mô tả") || h.includes("mota")) {
+            tenNganhIdx = i;
           }
-          if (h.includes("tên") || h.includes("ten") || h.includes("name") || h.includes("mô tả") || h.includes("mota") || h.includes("label") || h.includes("diễn giải")) {
-            if (nameIndex === -1) nameIndex = i;
+
+          // 2 cột thông thường fallback
+          if (h.includes("mã") || h.includes("ma") || h.includes("code") || h.includes("sector") || h.includes("id")) {
+            if (codeIdxSimple === -1) codeIdxSimple = i;
           }
         }
 
-        // Nếu không tự động nhận ra, dùng tạm Cột 0 làm Mã ngành, Cột 1 làm Tên ngành làm fallback
-        if (codeIndex === -1) codeIndex = 0;
-        if (nameIndex === -1) nameIndex = headerRow.length > 1 ? 1 : 0;
-
-        if (codeIndex === nameIndex && rawRows[0].length > 1) {
-          nameIndex = 1;
-        }
+        const is5LevelStructure = (cap1Idx !== -1 || cap2Idx !== -1 || cap3Idx !== -1 || cap4Idx !== -1 || cap5Idx !== -1) && tenNganhIdx !== -1;
 
         const newCustomDict: { [key: string]: string } = {};
         let added = 0;
 
-        for (let r = 1; r < rawRows.length; r++) {
-          const row = rawRows[r];
-          if (!row || row.length === 0) continue;
+        if (is5LevelStructure) {
+          // Bóc tách theo logic 5 cấp
+          for (let r = 1; r < rawRows.length; r++) {
+            const row = rawRows[r];
+            if (!row || row.length === 0) continue;
 
-          let rawCode = row[codeIndex];
-          let rawName = row[nameIndex];
+            const val1 = cap1Idx !== -1 && row[cap1Idx] !== undefined && row[cap1Idx] !== null ? String(row[cap1Idx]).trim() : "";
+            const val2 = cap2Idx !== -1 && row[cap2Idx] !== undefined && row[cap2Idx] !== null ? String(row[cap2Idx]).trim() : "";
+            const val3 = cap3Idx !== -1 && row[cap3Idx] !== undefined && row[cap3Idx] !== null ? String(row[cap3Idx]).trim() : "";
+            const val4 = cap4Idx !== -1 && row[cap4Idx] !== undefined && row[cap4Idx] !== null ? String(row[cap4Idx]).trim() : "";
+            const val5 = cap5Idx !== -1 && row[cap5Idx] !== undefined && row[cap5Idx] !== null ? String(row[cap5Idx]).trim() : "";
+            const nameVal = tenNganhIdx !== -1 && row[tenNganhIdx] !== undefined && row[tenNganhIdx] !== null ? String(row[tenNganhIdx]).trim() : "";
 
-          if (rawCode === undefined || rawCode === null) continue;
+            if (!nameVal) continue;
 
-          // Chuẩn hóa mã khóa
-          let cleanCode = String(rawCode).trim().replace(/\D/g, ""); // chỉ lấy ký số cho mã số
-          if (!cleanCode) {
-            // Chấp nhận chữ cái (cấp 1)
-            const letterCode = String(rawCode).trim().toUpperCase();
-            if (/^[A-U]$/.test(letterCode)) {
-              cleanCode = letterCode;
+            // Lựa chọn mã chuẩn từ sâu nhất đến khái quát nhất (Cấp 5 -> Cấp 1)
+            let rawCode = "";
+            if (val5) rawCode = val5;
+            else if (val4) rawCode = val4;
+            else if (val3) rawCode = val3;
+            else if (val2) rawCode = val2;
+            else if (val1) rawCode = val1;
+
+            if (!rawCode) continue;
+
+            // Chuẩn hóa
+            let cleanCode = rawCode.replace(/\D/g, "");
+            if (!cleanCode && /^[A-Ua-u]$/.test(rawCode)) {
+              cleanCode = rawCode.toUpperCase();
+            }
+
+            if (cleanCode) {
+              newCustomDict[cleanCode] = nameVal;
+              added++;
             }
           }
+        } else {
+          // Tệp 2 cột đơn giản fallback
+          if (codeIdxSimple === -1) codeIdxSimple = 0;
+          if (nameIdxSimple === -1) nameIdxSimple = headerRow.length > 1 ? 1 : 0;
+          if (codeIdxSimple === nameIdxSimple && rawRows[0].length > 1) nameIdxSimple = 1;
 
-          let cleanName = rawName ? String(rawName).trim() : "";
+          for (let r = 1; r < rawRows.length; r++) {
+            const row = rawRows[r];
+            if (!row || row.length === 0) continue;
 
-          if (cleanCode && cleanName) {
-            newCustomDict[cleanCode] = cleanName;
-            added++;
+            let rawCode = row[codeIdxSimple];
+            let rawName = row[nameIdxSimple];
+
+            if (rawCode === undefined || rawCode === null) continue;
+
+            let cleanCode = String(rawCode).trim().replace(/\D/g, "");
+            if (!cleanCode) {
+              const letterCode = String(rawCode).trim().toUpperCase();
+              if (/^[A-U]$/.test(letterCode)) {
+                cleanCode = letterCode;
+              }
+            }
+
+            let cleanName = rawName ? String(rawName).trim() : "";
+            if (cleanCode && cleanName) {
+              newCustomDict[cleanCode] = cleanName;
+              added++;
+            }
           }
         }
 
         if (added === 0) {
           setUploadStatus({
             success: false,
-            message: `Hệ thống không tìm thấy mã chuẩn nào từ File. Đầu cột rà soát tự động: Mã Ngành (Cột ${codeIndex + 1}), Tên Ngành (Cột ${nameIndex + 1}).`
+            message: "Hệ thống không tìm thấy hàng dữ liệu ngành hợp lệ nào từ file của bạn. Hãy đảm bảo file đúng mẫu cấu trúc 5 cấp."
           });
           return;
         }
 
-        // Hợp nhất vào Catalog hiện tại và lưu trữ vĩnh viễn
-        const merged = { ...customCatalog, ...newCustomDict };
+        // Lưu trữ
+        let merged = {};
+        if (pureMode) {
+          // Xóa hết cũ, chỉ sử dụng tệp nạp vào làm danh mục
+          merged = newCustomDict;
+          clearAllSectorsInVSIC();
+        } else {
+          // Sáp nhập đồng thời
+          merged = { ...customCatalog, ...newCustomDict };
+        }
+
         setCustomCatalog(merged);
         localStorage.setItem("custom_vsic_data", JSON.stringify(merged));
-        
-        // Cập nhật nóng vào vsicRawData tức thời
         Object.assign(vsicRawData, merged);
 
         setUploadStatus({
           success: true,
-          message: `Nạp thành công ${added} nhóm phân cấp ngành mới! Hệ thống đã hợp nhất vào từ điển tra cứu.`,
+          message: `Nạp thành công ${added} danh mục cấp nhóm thành công! Hệ thống đã tự động liên kiết dữ liệu.`,
           addedCount: added
         });
 
-        // Tự động xóa file input cho lần sau
         if (fileInputRef.current) fileInputRef.current.value = "";
       } catch (err: any) {
         setUploadStatus({
@@ -247,14 +320,27 @@ export default function VsicCatalogExplorer() {
 
   // 4. XÓA DANH MỤC TÙY CHỈNH, QUAY VỀ MẶC ĐỊNH
   const handleResetCatalog = () => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa bỏ hoàn toàn danh mục ngành tự chọn đã nạp, phản hồi lại danh mục mặc định ban đầu không?")) {
-      // Xóa trong localStorage
+    if (window.confirm("Bạn có chắc chắn muốn xóa tất cả danh mục ngành tự nạp và khôi phục về danh mục gốc định dạng mặc định của hệ thống không?")) {
       localStorage.removeItem("custom_vsic_data");
+      localStorage.removeItem("custom_vsic_is_pure");
       setCustomCatalog({});
-      
-      // Khôi phục nóng bằng trang tải lại hoặc thủ công
-      alert("Đã xóa bỏ hoàn tất danh mục tự nạp. Hệ thống quay về danh mục chuẩn quốc gia!");
-      window.location.reload(); // Tải lại trang nhanh để reset triệt để
+      setPureMode(false);
+      alert("Đã hoàn tất khôi phục danh mục chuẩn của hệ thống!");
+      window.location.reload();
+    }
+  };
+
+  // Xử lý thay đổi chế độ PureMode
+  const handlePureModeToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isChecked = e.target.checked;
+    setPureMode(isChecked);
+    localStorage.setItem("custom_vsic_is_pure", isChecked ? "true" : "false");
+    
+    if (isChecked) {
+      alert("Đã chuyển sang chế độ Danh mục Thuần! Danh mục chuẩn của hệ thống đã được ẩn đi, chỉ sử dụng mã ngành do bạn tải lên.");
+    } else {
+      alert("Đã tắt chế độ Danh mục Thuần! Danh mục chuẩn của hệ thống đã được sáp nhập trở lại.");
+      window.location.reload();
     }
   };
 
@@ -298,7 +384,7 @@ export default function VsicCatalogExplorer() {
             <FileSpreadsheet className="w-10 h-10 text-gray-400 mx-auto mb-3" />
             <p className="text-sm text-gray-200 font-semibold">Tải lên tệp CSV hoặc Excel chứa danh mục mở rộng</p>
             <p className="text-xs text-gray-500 mt-1">Kéo thả file vào đây hoặc click để duyệt từ máy tính</p>
-            <p className="text-[10px] text-purple-400/80 font-mono mt-2 italic">*Hệ thống tự đối chiếu thông minh cột [Mã Ngành] và [Tên Ngành]</p>
+            <p className="text-[10px] text-purple-400/80 font-mono mt-2 italic">*Hệ thống tự đối chiếu thông minh cột [NganhCap1] đến [NganhCap5] thành Mã chuẩn</p>
           </div>
 
           {/* Hiển thị kết quả nạp */}
@@ -324,7 +410,7 @@ export default function VsicCatalogExplorer() {
               <Download className="w-4 h-4 text-amber-400" /> TẢI FILE MẪU BAN ĐẦU
             </h4>
             <p className="text-xs text-gray-400 leading-normal">
-              Bạn chưa rõ cấu trúc điền file thế nào? Hãy tải về file mẫu của chúng tôi, mở trên Excel, copy danh sách mã của bạn dán vào rồi upload lại!
+              Bạn chưa rõ cấu trúc điền file thế nào? Hãy tải về file mẫu của chúng tôi, mở trên Excel, copy danh sách mã của bạn dán vào rồi nạp tệp 5 cấp!
             </p>
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button 
@@ -343,12 +429,28 @@ export default function VsicCatalogExplorer() {
           </div>
 
           <div className="border-t border-gray-800 pt-4 space-y-3">
+            <div className="flex items-center justify-between bg-purple-950/20 border border-purple-500/20 rounded-xl p-3 mb-2">
+              <div>
+                <p className="text-xs font-bold text-purple-300">Chế độ Danh mục Riêng</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">Mở tính năng xóa danh mục hệ thống mặc định; chỉ xử lý duy nhất danh mục 5 cấp quý khách nạp.</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer select-none">
+                <input 
+                  type="checkbox" 
+                  checked={pureMode} 
+                  onChange={handlePureModeToggle} 
+                  className="sr-only peer" 
+                />
+                <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
+              </label>
+            </div>
+
             <div className="flex items-center justify-between text-xs text-gray-400">
               <span>Đã nạp bổ sung:</span>
               <strong className="text-purple-400 font-mono text-sm">{customKeys.length} mã ngành</strong>
             </div>
             
-            {customKeys.length > 0 && (
+            {(customKeys.length > 0 || pureMode) && (
               <button
                 onClick={handleResetCatalog}
                 className="w-full flex items-center justify-center gap-1.5 bg-red-950/25 hover:bg-red-950/40 border border-red-500/20 text-red-400 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all"

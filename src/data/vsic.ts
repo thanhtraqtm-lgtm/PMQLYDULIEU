@@ -1777,8 +1777,23 @@ export const smartSuggestSectorByDescription = (description: string): { ma: stri
 };
 
 // Tự động khôi phục danh bạ ngành nghề tùy chọn do NSD nạp bổ sung từ localStorage khi tải trang
+export const clearAllSectorsInVSIC = () => {
+  for (const key in vsicRawData) {
+    delete vsicRawData[key];
+  }
+};
+
+export const loadSectorsIntoVSIC = (catalog: { [key: string]: string }) => {
+  Object.assign(vsicRawData, catalog);
+};
+
 try {
   if (typeof window !== "undefined" && window.localStorage) {
+    const isPure = window.localStorage.getItem("custom_vsic_is_pure") === "true";
+    if (isPure) {
+      clearAllSectorsInVSIC();
+    }
+    
     const customDataString = window.localStorage.getItem("custom_vsic_data");
     if (customDataString) {
       const customDict = JSON.parse(customDataString);

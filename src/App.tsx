@@ -1956,134 +1956,140 @@ export default function App() {
     setStatusMessage("Đang quét danh sách mã ngành và tiến hành chuẩn hóa mẫu tự liên hợp...");
     await sleep(200);
 
-    let validCount = 0;
-    let invalidCount = 0;
-    let conflictCount = 0;
-    const anomalies: any[] = [];
+    try {
+      let validCount = 0;
+      let invalidCount = 0;
+      let conflictCount = 0;
+      const anomalies: any[] = [];
 
-    // Tạo mảng bản ghi mới bổ sung cột của "Tên Ngành Chuẩn VSIC" và "Trạng Thái Đối Chiếu VSIC" sát cạnh cột gốc
-    const updatedRows = mainData.map((row, idx) => {
-      const rawCode = row[stdIndustryCol];
-      const rawDesc = stdDescriptionCol ? String(row[stdDescriptionCol] || "") : "";
-      
-      const cleanCode = normalizeSectorCode(rawCode);
-      const lookupResult = lookupSectorNameWithFallback(cleanCode);
-      const isExistInVSIC = lookupResult.level > 0;
-      const stdName = lookupResult.name;
-
-      if (isExistInVSIC) {
-        validCount++;
-      } else {
-        invalidCount++;
-      }
-
-      // Đối chiếu quy luật logic hoạt động mô tả & mã ngành để phát hiện mâu thuẫn lệch vai trò
-      let auditStatus = lookupResult.exactMatched ? "✅ Đạt chuẩn VSIC quốc gia" : "✅ Khớp quy nạp cấp học";
-      let anomalyReason = "";
-
-      if (!isExistInVSIC) {
-        auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
-        anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục hệ thống phân cấp VSIC quốc gia`;
-      } else if (rawDesc.trim() !== "") {
-        const descLow = rawDesc.toLowerCase();
-        const stdLow = stdName.toLowerCase();
-
-        // 1. Lệch hạch toán: Nông nghiệp vs Phục vụ thương mại
-        const hasFeederWords = descLow.includes("trồng") || descLow.includes("nuôi") || descLow.includes("bắt") || descLow.includes("thu hoạch") || descLow.includes("đánh bắt");
-        const hasTradeWords = descLow.includes("bán buôn") || descLow.includes("bán lẻ") || descLow.includes("môi giới") || descLow.includes("đại lý") || descLow.includes("thương mại");
+      // Tạo mảng bản ghi mới bổ sung cột của "Tên Ngành Chuẩn VSIC" và "Trạng Thái Đối Chiếu VSIC" sát cạnh cột gốc
+      const updatedRows = mainData.map((row, idx) => {
+        if (!row || typeof row !== 'object') return row;
+        const rawCode = row[stdIndustryCol];
+        const rawDesc = stdDescriptionCol ? String(row[stdDescriptionCol] || "") : "";
         
-        const stdIsFeeder = stdLow.includes("nông nghiệp") || stdLow.includes("lâm nghiệp") || stdIsFeederWord(stdLow);
-        const stdIsTrade = stdLow.includes("bán buôn") || stdLow.includes("bán lẻ") || stdLow.includes("thương mại");
+        const cleanCode = normalizeSectorCode(rawCode);
+        const lookupResult = lookupSectorNameWithFallback(cleanCode);
+        const isExistInVSIC = lookupResult.level > 0;
+        const stdName = lookupResult.name;
 
-        if (hasTradeWords && stdIsFeeder) {
-          auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Phân phối thương mại và sản xuất nông nghiệp)";
-          anomalyReason = `Mô tả ghi thương mại (${rawDesc}) nhưng lại gán mã thuộc ngành trồng trọt/chăn nuôi sản xuất trực tiếp (${cleanCode} - ${stdName})`;
-          conflictCount++;
-        } else if (hasFeederWords && stdIsTrade) {
-          auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Tự sản tự tiêu nông nghiệp và phân phối đại lý)";
-          anomalyReason = `Mô tả ghi trồng trọt, khai mỏ (${rawDesc}) nhưng mã ngành lại gán đại lý bán buôn, dịch vụ phân phối (${cleanCode} - ${stdName})`;
-          conflictCount++;
+        if (isExistInVSIC) {
+          validCount++;
+        } else {
+          invalidCount++;
         }
 
-        // 2. Chế biến sản xuất vs Dịch vụ ăn uống, xây dựng
-        const hasManufacture = descLow.includes("sản xuất") || descLow.includes("chế tạo") || descLow.includes("gia công") || descLow.includes("lắp đặt");
-        const hasService = descLow.includes("ăn uống") || descLow.includes("nhà hàng") || descLow.includes("quán") || descLow.includes("giáo dục") || descLow.includes("dịch vụ");
+        // Đối chiếu quy luật logic hoạt động mô tả & mã ngành để phát hiện mâu thuẫn lệch vai trò
+        let auditStatus = lookupResult.exactMatched ? "✅ Đạt chuẩn VSIC quốc gia" : "✅ Khớp quy nạp cấp học";
+        let anomalyReason = "";
 
-        const stdIsManufacture = stdLow.includes("sản xuất") || stdLow.includes("chế biến") || stdLow.includes("chế tạo");
-        const stdIsService = stdLow.includes("ăn uống") || stdLow.includes("nhà hàng") || stdLow.includes("giáo dục") || stdLow.includes("dịch vụ");
+        if (!isExistInVSIC) {
+          auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
+          anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục hệ thống phân cấp VSIC quốc gia`;
+        } else if (rawDesc.trim() !== "") {
+          const descLow = rawDesc.toLowerCase();
+          const stdLow = stdName.toLowerCase();
 
-        if (hasManufacture && stdIsService) {
-          auditStatus = "⚠️ Nghi ngờ lệch mã (Sản xuất gia công vs Dịch vụ ăn uống hoặc đào tạo)";
-          anomalyReason = `Mô tả ghi chế tạo gia công (${rawDesc}) nhưng mã ngành lại thuộc về cung ứng ăn uống hoặc dịch vụ dân sinh (${cleanCode} - ${stdName})`;
-          conflictCount++;
-        } else if (hasService && stdIsManufacture) {
-          auditStatus = "⚠️ Nghi ngờ lệch mã (Cung ứng dịch vụ vs Chế biến sản xuất công nghiệp)";
-          anomalyReason = `Mô tả ghi phục vụ ẩm thực, giáo dục (${rawDesc}) nhưng mã ngành lại hạch toán vào sản xuất công nghiệp nặng/nhẹ (${cleanCode} - ${stdName})`;
-          conflictCount++;
+          // 1. Lệch hạch toán: Nông nghiệp vs Phục vụ thương mại
+          const hasFeederWords = descLow.includes("trồng") || descLow.includes("nuôi") || descLow.includes("bắt") || descLow.includes("thu hoạch") || descLow.includes("đánh bắt");
+          const hasTradeWords = descLow.includes("bán buôn") || descLow.includes("bán lẻ") || descLow.includes("môi giới") || descLow.includes("đại lý") || descLow.includes("thương mại");
+          
+          const stdIsFeeder = stdLow.includes("nông nghiệp") || stdLow.includes("lâm nghiệp") || stdIsFeederWord(stdLow);
+          const stdIsTrade = stdLow.includes("bán buôn") || stdLow.includes("bán lẻ") || stdLow.includes("thương mại");
+
+          if (hasTradeWords && stdIsFeeder) {
+            auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Phân phối thương mại và sản xuất nông nghiệp)";
+            anomalyReason = `Mô tả ghi thương mại (${rawDesc}) nhưng lại gán mã thuộc ngành trồng trọt/chăn nuôi sản xuất trực tiếp (${cleanCode} - ${stdName})`;
+            conflictCount++;
+          } else if (hasFeederWords && stdIsTrade) {
+            auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Tự sản tự tiêu nông nghiệp và phân phối đại lý)";
+            anomalyReason = `Mô tả ghi trồng trọt, khai mỏ (${rawDesc}) nhưng mã ngành lại gán đại lý bán buôn, dịch vụ phân phối (${cleanCode} - ${stdName})`;
+            conflictCount++;
+          }
+
+          // 2. Chế biến sản xuất vs Dịch vụ ăn uống, xây dựng
+          const hasManufacture = descLow.includes("sản xuất") || descLow.includes("chế tạo") || descLow.includes("gia công") || descLow.includes("lắp đặt");
+          const hasService = descLow.includes("ăn uống") || descLow.includes("nhà hàng") || descLow.includes("quán") || descLow.includes("giáo dục") || descLow.includes("dịch vụ");
+
+          const stdIsManufacture = stdLow.includes("sản xuất") || stdLow.includes("chế biến") || stdLow.includes("chế tạo");
+          const stdIsService = stdLow.includes("ăn uống") || stdLow.includes("nhà hàng") || stdLow.includes("giáo dục") || stdLow.includes("dịch vụ");
+
+          if (hasManufacture && stdIsService) {
+            auditStatus = "⚠️ Nghi ngờ lệch mã (Sản xuất gia công vs Dịch vụ ăn uống hoặc đào tạo)";
+            anomalyReason = `Mô tả ghi chế tạo gia công (${rawDesc}) nhưng mã ngành lại thuộc về cung ứng ăn uống hoặc dịch vụ dân sinh (${cleanCode} - ${stdName})`;
+            conflictCount++;
+          } else if (hasService && stdIsManufacture) {
+            auditStatus = "⚠️ Nghi ngờ lệch mã (Cung ứng dịch vụ vs Chế biến sản xuất công nghiệp)";
+            anomalyReason = `Mô tả ghi phục vụ ẩm thực, giáo dục (${rawDesc}) nhưng mã ngành lại hạch toán vào sản xuất công nghiệp nặng/nhẹ (${cleanCode} - ${stdName})`;
+            conflictCount++;
+          }
         }
-      }
 
-      if (anomalyReason) {
-        anomalies.push({
-          dongSTT: idx + 1,
-          maDN: row["Mã Số Thuế"] || row["MaST"] || `Bản ghi số ${idx + 1}`,
-          maGoc: rawCode,
-          motaGoc: rawDesc,
-          nganhChuan: stdName || "(Thất bại khi tra cứu)",
-          phanTichloi: anomalyReason
-        });
-      }
-
-      // Xây dựng Bản ghi mới co cụm, bơm cột Tên Ngành Chuẩn VSIC và Trạng Thái Đối Chiếu VSIC nằm ngay bên cạnh cột Mô Tả Hoạt Động / Mã Ngành để dễ đối chiếu
-      const flexRow: any = {};
-      Object.keys(row).forEach(key => {
-        flexRow[key] = row[key];
-        if (key === stdDescriptionCol) {
-          flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
-          flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
+        if (anomalyReason) {
+          anomalies.push({
+            dongSTT: idx + 1,
+            maDN: row["Mã Số Thuế"] || row["MaST"] || `Bản ghi số ${idx + 1}`,
+            maGoc: rawCode,
+            motaGoc: rawDesc,
+            nganhChuan: stdName || "(Thất bại khi tra cứu)",
+            phanTichloi: anomalyReason
+          });
         }
-      });
 
-      // Nếu không khớp được vị trí cột mô tả thì tự chêm cột mới vào kế cột Mã ngành
-      if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
+        // Xây dựng Bản ghi mới co cụm, bơm cột Tên Ngành Chuẩn VSIC và Trạng Thái Đối Chiếu VSIC nằm ngay bên cạnh cột Mô Tả Hoạt Động / Mã Ngành để dễ đối chiếu
+        const flexRow: any = {};
         Object.keys(row).forEach(key => {
           flexRow[key] = row[key];
-          if (key === stdIndustryCol) {
+          if (key === stdDescriptionCol) {
             flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
             flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
           }
         });
-      }
 
-      // Nếu vẫn thiếu do trùng cấu hình dặc biệt
-      if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
-        flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
-        flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
-      }
+        // Nếu không khớp được vị trí cột mô tả thì tự chêm cột mới vào kế cột Mã ngành
+        if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
+          Object.keys(row).forEach(key => {
+            flexRow[key] = row[key];
+            if (key === stdIndustryCol) {
+              flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+              flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
+            }
+          });
+        }
 
-      return flexRow;
-    });
+        // Nếu vẫn thiếu do trùng cấu hình dặc biệt
+        if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
+          flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+          flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
+        }
 
-    const newCols = Object.keys(updatedRows[0] || {});
-    setMainData(updatedRows);
-    setColumns(newCols);
-    setStdReportAnomalies(anomalies);
-    setStdMatchStats({
-      total: updatedRows.length,
-      valid: validCount,
-      invalid: invalidCount,
-      conflicts: conflictCount
-    });
+        return flexRow;
+      });
 
-    // Tự sao lưu vĩnh viễn vào hệ thống
-    autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
+      const newCols = Object.keys(updatedRows[0] || {});
+      setMainData(updatedRows);
+      setColumns(newCols);
+      setStdReportAnomalies(anomalies);
+      setStdMatchStats({
+        total: updatedRows.length,
+        valid: validCount,
+        invalid: invalidCount,
+        conflicts: conflictCount
+      });
 
-    setProgress(100);
-    setStatusMessage("Chuẩn hóa mã ngành thành công! Đã bổ sung cột trực tiếp bên cạnh cột của bạn.");
-    await sleep(350);
-    setLoading(false);
-    
-    alert(`Chuẩn hóa hoàn tất!\n- Tổng cộng: ${updatedRows.length} dòng\n- Khớp VSIC: ${validCount} dòng\n- Lệch chuẩn: ${invalidCount} dòng\n- Nghi ngờ bất nhất mã vs mô tả: ${conflictCount} dòng.`);
+      // Tự sao lưu vĩnh viễn vào hệ thống
+      autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
+
+      setProgress(100);
+      setStatusMessage("Chuẩn hóa mã ngành thành công! Đã bổ sung cột trực tiếp bên cạnh cột của bạn.");
+      await sleep(350);
+      setLoading(false);
+      
+      alert(`Chuẩn hóa hoàn tất!\n- Tổng cộng: ${updatedRows.length} dòng\n- Khớp VSIC: ${validCount} dòng\n- Lệch chuẩn: ${invalidCount} dòng\n- Nghi ngờ bất nhất mã vs mô tả: ${conflictCount} dòng.`);
+    } catch (err: any) {
+      alert("Lỗi quá trình chuẩn hóa VSIC: " + err.message);
+      setLoading(false);
+    }
   };
 
   const stdIsFeederWord = (txt: string): boolean => {
@@ -2110,109 +2116,115 @@ export default function App() {
     setStatusMessage(`Đang tiến hành đối chiếu song song hai cột: [${crossCompareColA}] và [${crossCompareColB}]...`);
     await sleep(250);
 
-    let matchCount = 0;
-    let mismatchCount = 0;
-    const anomalies: any[] = [];
+    try {
+      let matchCount = 0;
+      let mismatchCount = 0;
+      const anomalies: any[] = [];
 
-    const updatedRows = mainData.map((row, idx) => {
-      const valA = row[crossCompareColA] !== undefined && row[crossCompareColA] !== null ? String(row[crossCompareColA]).trim() : "";
-      const valB = row[crossCompareColB] !== undefined && row[crossCompareColB] !== null ? String(row[crossCompareColB]).trim() : "";
+      const updatedRows = mainData.map((row, idx) => {
+        if (!row || typeof row !== 'object') return row;
+        const valA = row[crossCompareColA] !== undefined && row[crossCompareColA] !== null ? String(row[crossCompareColA]).trim() : "";
+        const valB = row[crossCompareColB] !== undefined && row[crossCompareColB] !== null ? String(row[crossCompareColB]).trim() : "";
 
-      let isMatch = false;
-      let explanation = "";
+        let isMatch = false;
+        let explanation = "";
 
-      if (crossCompareRule === "exact") {
-        isMatch = valA === valB;
-        if (!isMatch) {
-          explanation = `Ký tự khác hoàn toàn (so sánh chuẩn xác cả chữ hoa/thường, dấu cách)`;
-        }
-      } else if (crossCompareRule === "normalize") {
-        const cleanA = valA.toLowerCase().replace(/\s+/g, " ");
-        const cleanB = valB.toLowerCase().replace(/\s+/g, " ");
-        isMatch = cleanA === cleanB;
-        if (!isMatch) {
-          explanation = `Chuỗi văn bản gốc không trùng nhau (sau khi đã chuẩn hóa khoảng trắng & bỏ viết hoa)`;
-        }
-      } else if (crossCompareRule === "sector_code") {
-        const codeA = valA.replace(/\D/g, "");
-        const codeB = valB.replace(/\D/g, "");
-        if (codeA === codeB && codeA !== "") {
-          isMatch = true;
-        } else if (codeA !== "" && codeB !== "") {
-          isMatch = codeA.startsWith(codeB) || codeB.startsWith(codeA);
-          if (isMatch) {
-            explanation = `Khấu chuẩn quy nạp phân cấp theo logic cha-con (VD: ${valA} so với ${valB})`;
-          } else {
-            explanation = `Mã ngành hoàn toàn khác biệt nhóm phân cấp (VD: ${valA} so với ${valB})`;
-          }
-        } else {
+        if (crossCompareRule === "exact") {
           isMatch = valA === valB;
           if (!isMatch) {
-            explanation = `Mã bị trống hoặc không thể phân giải số ngành hơp chuẩn`;
+            explanation = `Ký tự khác hoàn toàn (so sánh chuẩn xác cả chữ hoa/thường, dấu cách)`;
+          }
+        } else if (crossCompareRule === "normalize") {
+          const cleanA = valA.toLowerCase().replace(/\s+/g, " ");
+          const cleanB = valB.toLowerCase().replace(/\s+/g, " ");
+          isMatch = cleanA === cleanB;
+          if (!isMatch) {
+            explanation = `Chuỗi văn bản gốc không trùng nhau (sau khi đã chuẩn hóa khoảng trắng & bỏ viết hoa)`;
+          }
+        } else if (crossCompareRule === "sector_code") {
+          const codeA = valA.replace(/\D/g, "");
+          const codeB = valB.replace(/\D/g, "");
+          if (codeA === codeB && codeA !== "") {
+            isMatch = true;
+          } else if (codeA !== "" && codeB !== "") {
+            isMatch = codeA.startsWith(codeB) || codeB.startsWith(codeA);
+            if (isMatch) {
+              explanation = `Khấu chuẩn quy nạp phân cấp theo logic cha-con (VD: ${valA} so với ${valB})`;
+            } else {
+              explanation = `Mã ngành hoàn toàn khác biệt nhóm phân cấp (VD: ${valA} so với ${valB})`;
+            }
+          } else {
+            isMatch = valA === valB;
+            if (!isMatch) {
+              explanation = `Mã bị trống hoặc không thể phân giải số ngành hơp chuẩn`;
+            }
+          }
+        } else if (crossCompareRule === "substring") {
+          const descLowA = valA.toLowerCase();
+          const descLowB = valB.toLowerCase();
+          isMatch = descLowA.includes(descLowB) || descLowB.includes(descLowA);
+          if (isMatch) {
+            explanation = `Thỏa mãn: Một giá trị chứa phụ đề / từ khóa của giá trị còn lại`;
+          } else {
+            explanation = `Không có bất kỳ cụm từ khóa liên đới chéo nhau`;
           }
         }
-      } else if (crossCompareRule === "substring") {
-        const descLowA = valA.toLowerCase();
-        const descLowB = valB.toLowerCase();
-        isMatch = descLowA.includes(descLowB) || descLowB.includes(descLowA);
+
         if (isMatch) {
-          explanation = `Thỏa mãn: Một giá trị chứa phụ đề / từ khóa của giá trị còn lại`;
+          matchCount++;
         } else {
-          explanation = `Không có bất kỳ cụm từ khóa liên đới chéo nhau`;
+          mismatchCount++;
+          anomalies.push({
+            dongSTT: idx + 1,
+            maDN: row["Mã Số Thuế"] || row["MaST"] || row["Số GPKD"] || `Bản ghi số ${idx + 1}`,
+            valA: valA || "(Không có dữ liệu)",
+            valB: valB || "(Không có dữ liệu)",
+            reason: explanation
+          });
         }
-      }
 
-      if (isMatch) {
-        matchCount++;
-      } else {
-        mismatchCount++;
-        anomalies.push({
-          dongSTT: idx + 1,
-          maDN: row["Mã Số Thuế"] || row["MaST"] || row["Số GPKD"] || `Bản ghi số ${idx + 1}`,
-          valA: valA || "(Không có dữ liệu)",
-          valB: valB || "(Không có dữ liệu)",
-          reason: explanation
+        const flexRow: any = {};
+        const colCompareResult = `Đối Chiếu [${crossCompareColA}] vs [${crossCompareColB}]`;
+        const colCompareFlag = `Đánh Dấu Lệch [${crossCompareColA}] vs [${crossCompareColB}]`;
+
+        Object.keys(row).forEach(key => {
+          flexRow[key] = row[key];
+          if (key === crossCompareColB) {
+            flexRow[colCompareResult] = isMatch ? "✅ TRÙNG KHỚP" : "❌ LỆCH BẤT NHẤT";
+            flexRow[colCompareFlag] = isMatch ? "" : "⚠️ SAI LỆCH CẦN SỬA";
+          }
         });
-      }
 
-      const flexRow: any = {};
-      const colCompareResult = `Đối Chiếu [${crossCompareColA}] vs [${crossCompareColB}]`;
-      const colCompareFlag = `Đánh Dấu Lệch [${crossCompareColA}] vs [${crossCompareColB}]`;
-
-      Object.keys(row).forEach(key => {
-        flexRow[key] = row[key];
-        if (key === crossCompareColB) {
+        if (flexRow[colCompareResult] === undefined) {
           flexRow[colCompareResult] = isMatch ? "✅ TRÙNG KHỚP" : "❌ LỆCH BẤT NHẤT";
           flexRow[colCompareFlag] = isMatch ? "" : "⚠️ SAI LỆCH CẦN SỬA";
         }
+
+        return flexRow;
       });
 
-      if (flexRow[colCompareResult] === undefined) {
-        flexRow[colCompareResult] = isMatch ? "✅ TRÙNG KHỚP" : "❌ LỆCH BẤT NHẤT";
-        flexRow[colCompareFlag] = isMatch ? "" : "⚠️ SAI LỆCH CẦN SỬA";
-      }
+      const newCols = Object.keys(updatedRows[0] || {});
+      setMainData(updatedRows);
+      setColumns(newCols);
+      setCrossCompareAnomalies(anomalies);
+      setCrossCompareStats({
+        total: updatedRows.length,
+        matchCount: matchCount,
+        mismatchCount: mismatchCount
+      });
 
-      return flexRow;
-    });
+      autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
 
-    const newCols = Object.keys(updatedRows[0] || {});
-    setMainData(updatedRows);
-    setColumns(newCols);
-    setCrossCompareAnomalies(anomalies);
-    setCrossCompareStats({
-      total: updatedRows.length,
-      matchCount: matchCount,
-      mismatchCount: mismatchCount
-    });
+      setProgress(100);
+      setStatusMessage(`Đối chiếu chéo hoàn tất! Phát hiện ${mismatchCount} lỗi lệch.`);
+      await sleep(350);
+      setLoading(false);
 
-    autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
-
-    setProgress(100);
-    setStatusMessage(`Đối chiếu chéo hoàn tất! Phát hiện ${mismatchCount} lỗi lệch.`);
-    await sleep(350);
-    setLoading(false);
-
-    alert(`Đối chiếu hoàn tất!\n- Tổng cộng: ${updatedRows.length} dòng\n- Khớp nhau: ${matchCount} dòng\n- Sai lệch/Mâu thuẫn: ${mismatchCount} dòng.\nCác cột báo cáo mới đã được tự động thêm vào bảng tính của bạn.`);
+      alert(`Đối chiếu hoàn tất!\n- Tổng cộng: ${updatedRows.length} dòng\n- Khớp nhau: ${matchCount} dòng\n- Sai lệch/Mâu thuẫn: ${mismatchCount} dòng.\nCác cột báo cáo mới đã được tự động thêm vào bảng tính của bạn.`);
+    } catch (err: any) {
+      alert("Lỗi quá trình đối chiếu: " + err.message);
+      setLoading(false);
+    }
   };
 
   // 5. CHỨC NĂNG BÁO CÁO NHANH THEO PHÂN CẤP NGÀNH & XÃ CHUẨN XÁC
@@ -2240,63 +2252,113 @@ export default function App() {
     setStatusMessage(`Đang tạo báo cáo nhanh Ngành Cấp ${level} kết hợp Xã...`);
     await sleep(200);
 
-    // Gom dữ liệu mỏng và phân tách bằng bộ nhớ mã ngành chuẩn
-    const processedData = mainData.map(row => {
-      const mng = normalizeSectorCode(row[targetManganh]);
-      
-      let tenNganhLabel = "";
-      if (level === 2) {
-        // Tách 2 chữ số đầu của cột mã ngành do người dùng chỉ định
-        const sec2Code = mng ? mng.slice(0, 2) : "";
-        // Tra cứu trong bộ nhớ tên của mã ngành cấp 2
-        const sec2Name = vsicRawData[sec2Code] || "Ngành cấp 2 chưa định nghĩa";
-        tenNganhLabel = sec2Code ? `${sec2Code} - ${sec2Name}` : "Chưa xác định - Ngành cấp 2 chưa định nghĩa";
-      } else {
-        // level === 1 (Quá trình quy nạp cấp 1)
-        let sec1Code = "";
-        if (mng) {
-          if (/^[a-zA-Z]$/.test(mng)) {
-            sec1Code = mng.toUpperCase();
-          } else {
-            const sec2Code = mng.slice(0, 2);
-            sec1Code = getParentSectorCode(sec2Code) || "";
-          }
+    try {
+      // Gom dữ liệu mỏng và phân tách bằng bộ nhớ mã ngành chuẩn
+      const processedData = mainData.map(row => {
+        if (!row || typeof row !== 'object') {
+          return {
+            _temNganhCap: "Chưa xác định",
+            _tempXa: "Khác"
+          };
         }
-        const sec1Name = vsicRawData[sec1Code] || "Ngành cấp 1 chưa định nghĩa";
-        tenNganhLabel = sec1Code ? `${sec1Code} - ${sec1Name}` : "Chưa xác định - Ngành cấp 1 chưa định nghĩa";
-      }
+        const mng = normalizeSectorCode(row[targetManganh]);
+        
+        let tenNganhLabel = "";
+        if (level === 2) {
+          // Tách 2 chữ số đầu của cột mã ngành do người dùng chỉ định
+          const sec2Code = mng ? mng.slice(0, 2) : "";
+          // Tra cứu trong bộ nhớ tên của mã ngành cấp 2
+          const sec2Name = vsicRawData[sec2Code] || "Ngành cấp 2 chưa định nghĩa";
+          tenNganhLabel = sec2Code ? `${sec2Code} - ${sec2Name}` : "Chưa xác định - Ngành cấp 2 chưa định nghĩa";
+        } else {
+          // level === 1 (Quá trình quy nạp cấp 1)
+          let sec1Code = "";
+          if (mng) {
+            if (/^[a-zA-Z]$/.test(mng)) {
+              sec1Code = mng.toUpperCase();
+            } else {
+              const sec2Code = mng.slice(0, 2);
+              sec1Code = getParentSectorCode(sec2Code) || "";
+            }
+          }
+          const sec1Name = vsicRawData[sec1Code] || "Ngành cấp 1 chưa định nghĩa";
+          tenNganhLabel = sec1Code ? `${sec1Code} - ${sec1Name}` : "Chưa xác định - Ngành cấp 1 chưa định nghĩa";
+        }
 
-      return {
-        ...row,
-        _temNganhCap: tenNganhLabel,
-        _tempXa: String(row[targetXa] || "Khác").trim()
-      };
-    });
-
-    let finalReportRows: any[] = [];
-
-    if (reportType === "pivot") {
-      setStatusMessage("Đang tiến hành xoay (Pivot) gom nhóm theo từng Ngành Kinh Tế làm cột...");
-      await sleep(150);
-
-      const communes = Array.from(new Set(processedData.map(r => r._tempXa))).sort();
-      const sectorLabels = Array.from(new Set(processedData.map(r => r._temNganhCap))).sort();
-
-      communes.forEach((commune, cIdx) => {
-        const communeObj: any = {
-          "Địa_Bàn_Xã": commune
+        return {
+          ...row,
+          _temNganhCap: tenNganhLabel,
+          _tempXa: String(row[targetXa] || "Khác").trim()
         };
+      });
 
-        let totalCommuneDN = 0;
-        let totalCommuneDoanhThu = 0;
-        let totalCommuneLaoDong = 0;
+      let finalReportRows: any[] = [];
 
-        sectorLabels.forEach(sector => {
-          const matchedRows = processedData.filter(r => r._tempXa === commune && r._temNganhCap === sector);
+      if (reportType === "pivot") {
+        setStatusMessage("Đang tiến hành xoay (Pivot) gom nhóm theo từng Ngành Kinh Tế làm cột...");
+        await sleep(150);
+
+        const communes = Array.from(new Set(processedData.map(r => r._tempXa))).sort();
+        const sectorLabels = Array.from(new Set(processedData.map(r => r._temNganhCap))).sort();
+
+        communes.forEach((commune, cIdx) => {
+          const communeObj: any = {
+            "Địa_Bàn_Xã": commune
+          };
+
+          let totalCommuneDN = 0;
+          let totalCommuneDoanhThu = 0;
+          let totalCommuneLaoDong = 0;
+
+          sectorLabels.forEach(sector => {
+            const matchedRows = processedData.filter(r => r._tempXa === commune && r._temNganhCap === sector);
+            let sumDoanhThu = 0;
+            let sumLaoDong = 0;
+
+            matchedRows.forEach(r => {
+              if (targetDoanhThu) {
+                const val = parseFloat(String(r[targetDoanhThu]).replace(/[^0-9.\-]/g, ""));
+                if (!isNaN(val)) sumDoanhThu += val;
+              }
+              if (targetLaoDong) {
+                const val = parseFloat(String(r[targetLaoDong]).replace(/[^0-9.\-]/g, ""));
+                if (!isNaN(val)) sumLaoDong += val;
+              }
+            });
+
+            // Hiển thị kề nhau 2 cột Tổng Doanh Thu và Tổng Lao Động cho đúng ngành
+            communeObj[`${sector} - Tổng Doanh Thu`] = Math.round(sumDoanhThu * 100) / 100;
+            communeObj[`${sector} - Tổng Lao Động`] = Math.round(sumLaoDong);
+
+            totalCommuneDN += matchedRows.length;
+            totalCommuneDoanhThu += sumDoanhThu;
+            totalCommuneLaoDong += sumLaoDong;
+          });
+
+          communeObj["Số_DN_Địa_Phương"] = totalCommuneDN;
+          communeObj["Tổng_Doanh_Thu_Địa_Phương"] = Math.round(totalCommuneDoanhThu * 100) / 100;
+          communeObj["Tổng_Lao_Động_Địa_Phương"] = Math.round(totalCommuneLaoDong);
+
+          finalReportRows.push(communeObj);
+        });
+      } else {
+        // Gom nhóm phẳng truyền thống
+        const groups = new Map<string, any[]>();
+        processedData.forEach(row => {
+          const key = JSON.stringify({ Ngành: row._temNganhCap, Xã: row._tempXa });
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)?.push(row);
+        });
+
+        const keys = Array.from(groups.keys());
+        keys.forEach(keyStr => {
+          const dims = JSON.parse(keyStr);
+          const rowsObj = groups.get(keyStr) || [];
+
           let sumDoanhThu = 0;
           let sumLaoDong = 0;
 
-          matchedRows.forEach(r => {
+          rowsObj.forEach(r => {
             if (targetDoanhThu) {
               const val = parseFloat(String(r[targetDoanhThu]).replace(/[^0-9.\-]/g, ""));
               if (!isNaN(val)) sumDoanhThu += val;
@@ -2307,68 +2369,30 @@ export default function App() {
             }
           });
 
-          // Hiển thị kề nhau 2 cột Tổng Doanh Thu và Tổng Lao Động cho đúng ngành
-          communeObj[`${sector} - Tổng Doanh Thu`] = Math.round(sumDoanhThu * 100) / 100;
-          communeObj[`${sector} - Tổng Lao Động`] = Math.round(sumLaoDong);
-
-          totalCommuneDN += matchedRows.length;
-          totalCommuneDoanhThu += sumDoanhThu;
-          totalCommuneLaoDong += sumLaoDong;
+          finalReportRows.push({
+            [`Ngành_Cấp_${level}`]: dims.Ngành,
+            "Địa_Bàn_Xã": dims.Xã,
+            "Số_Lượng_Doanh_Nghiệp": rowsObj.length,
+            "Tổng_Doanh_Thu_Tích_Lũy": Math.round(sumDoanhThu * 100) / 100,
+            "Tổng_Lao_Động_Hợp_Lực": Math.round(sumLaoDong)
+          });
         });
+      }
 
-        communeObj["Số_DN_Địa_Phương"] = totalCommuneDN;
-        communeObj["Tổng_Doanh_Thu_Địa_Phương"] = Math.round(totalCommuneDoanhThu * 100) / 100;
-        communeObj["Tổng_Lao_Động_Địa_Phương"] = Math.round(totalCommuneLaoDong);
+      setMainData(finalReportRows);
+      setColumns(Object.keys(finalReportRows[0] || {}));
+      setFileName(`BaoCaoDynamic_NganhCap${level}_Va_Xa_${reportType}.xlsx`);
 
-        finalReportRows.push(communeObj);
-      });
-    } else {
-      // Gom nhóm phẳng truyền thống
-      const groups = new Map<string, any[]>();
-      processedData.forEach(row => {
-        const key = JSON.stringify({ Ngành: row._temNganhCap, Xã: row._tempXa });
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)?.push(row);
-      });
-
-      const keys = Array.from(groups.keys());
-      keys.forEach(keyStr => {
-        const dims = JSON.parse(keyStr);
-        const rowsObj = groups.get(keyStr) || [];
-
-        let sumDoanhThu = 0;
-        let sumLaoDong = 0;
-
-        rowsObj.forEach(r => {
-          if (targetDoanhThu) {
-            const val = parseFloat(String(r[targetDoanhThu]).replace(/[^0-9.\-]/g, ""));
-            if (!isNaN(val)) sumDoanhThu += val;
-          }
-          if (targetLaoDong) {
-            const val = parseFloat(String(r[targetLaoDong]).replace(/[^0-9.\-]/g, ""));
-            if (!isNaN(val)) sumLaoDong += val;
-          }
-        });
-
-        finalReportRows.push({
-          [`Ngành_Cấp_${level}`]: dims.Ngành,
-          "Địa_Bàn_Xã": dims.Xã,
-          "Số_Lượng_Doanh_Nghiệp": rowsObj.length,
-          "Tổng_Doanh_Thu_Tích_Lũy": Math.round(sumDoanhThu * 100) / 100,
-          "Tổng_Lao_Động_Hợp_Lực": Math.round(sumLaoDong)
-        });
-      });
+      setProgress(100);
+      setStatusMessage(`Tạo báo cáo nhanh ${reportType === "pivot" ? "xoay cột Pivot" : "dạng phẳng"} Ngành Cấp ${level} thành công!`);
+      await sleep(350);
+      setLoading(false);
+      
+      alert("Tạo báo cáo nhanh hoàn tất! Dữ liệu đã được cập nhật thành bản báo cáo tổng hợp.");
+    } catch (err: any) {
+      alert("Lỗi quá trình tạo báo cáo nhanh: " + err.message);
+      setLoading(false);
     }
-
-    setMainData(finalReportRows);
-    setColumns(Object.keys(finalReportRows[0] || {}));
-    setFileName(`BaoCaoDynamic_NganhCap${level}_Va_Xa_${reportType}.xlsx`);
-
-    setProgress(100);
-    setStatusMessage(`Tạo báo cáo nhanh ${reportType === "pivot" ? "xoay cột Pivot" : "dạng phẳng"} Ngành Cấp ${level} thành công!`);
-    await sleep(400);
-    setLoading(false);
-    setActiveTab("xemdulieu");
   };
 
   // 6. CHUẨN HÓA & PHÂN TÍCH NGÀNH (KHẮP MÃ THÔNG MINH + GOI Y AI VỚI TIẾN TRÌNH THỰC TẾ)
