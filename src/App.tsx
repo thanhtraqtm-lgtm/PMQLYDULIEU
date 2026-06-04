@@ -145,9 +145,9 @@ import {
   lookupSectorNameWithFallback
 } from "./data/vsic";
 
-import SectorRevenueChart from "./components/SectorRevenueChart";
-import VsicCatalogExplorer from "./components/VsicCatalogExplorer";
-import DescriptorMatchScanner from "./components/DescriptorMatchScanner";
+import SectorRevenueChart from "./components/sectorRevenueChart";
+import VsicCatalogExplorer from "./components/vsicCatalogExplorer";
+import DescriptorMatchScanner from "./components/descriptorMatchScanner";
 
 // Interface define
 interface ColumnMapping {
