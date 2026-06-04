@@ -179,9 +179,17 @@ function evaluateSimilarity(descDTV: string, descStandard: string): {
 interface DescriptorMatchScannerProps {
   mainData: any[];
   columns: string[];
+  mapping?: {
+    mota: string;
+    manganh: string;
+    xa: string;
+    doanhthu: string;
+    laodong: string;
+    idCol: string;
+  };
 }
 
-export default function DescriptorMatchScanner({ mainData, columns }: DescriptorMatchScannerProps) {
+export default function DescriptorMatchScanner({ mainData, columns, mapping }: DescriptorMatchScannerProps) {
   // Trạng thái chọn cột
   const [colDTV, setColDTV] = useState<string>("");
   const [colStandard, setColStandard] = useState<string>("");
@@ -196,28 +204,28 @@ export default function DescriptorMatchScanner({ mainData, columns }: Descriptor
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [hasScanned, setHasScanned] = useState<boolean>(false);
 
-  // Tự động nhận diện cấu trúc cột tối ưu lúc khởi chạy
+  // Không tự đoán dán nhãn gán cứng cột dạo nữa, hoàn toàn tuân thủ theo cột bạn định cấu hình
   useEffect(() => {
     if (columns && columns.length > 0) {
-      // Tìm cột ĐTV mô tả tự động
-      const autoDTV = columns.find(c => {
-         const name = c.toLowerCase();
-         return name.includes("mô tả") || name.includes("mo ta") || name.includes("hoạt động") || name.includes("hoat dong") || name.includes("điều tra viên") || name.includes("dtv");
-      });
-      // Tìm cột ngành chuẩn
-      const autoStd = columns.find(c => {
-         const name = c.toLowerCase();
-         return name.includes("chuẩn") || name.includes("chuan") || name.includes("tên ngành") || name.includes("ten nganh") || name.includes("phân cấp") || name.includes("cấp 5") || name.includes("lộ trình");
-      });
+      if (mapping && mapping.mota) {
+        setColDTV(mapping.mota);
+      } else {
+        setColDTV("");
+      }
 
-      if (autoDTV) setColDTV(autoDTV);
-      else setColDTV(columns[0] || "");
-
-      if (autoStd) setColStandard(autoStd);
-      else if (columns.length > 1) setColStandard(columns[1]);
-      else if (columns.length > 0) setColStandard(columns[0]);
+      // Nếu có cột "Tên Ngành Chuẩn VSIC" được tạo ra bởi quy trình chuẩn hóa thì gán mặc định, ngược lại không đoán bừa bãi
+      const matchedStd = columns.find(c => c === "Tên Ngành Chuẩn VSIC");
+      if (matchedStd) {
+        setColStandard(matchedStd);
+      } else {
+        if (mapping && mapping.manganh && columns.includes(mapping.manganh)) {
+          setColStandard(mapping.manganh);
+        } else {
+          setColStandard("");
+        }
+      }
     }
-  }, [columns]);
+  }, [columns, mapping]);
 
   // Tiến hành chạy thuật toán rà soát đối chiếu thông minh cho 10,000 dòng
   const handleRunMatchScan = () => {

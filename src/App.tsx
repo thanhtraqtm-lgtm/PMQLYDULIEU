@@ -1214,6 +1214,7 @@ export default function App() {
     // 1. CÙNG MÔ TẢ -> KHÁC MÃ LIÊN KẾT
     const descMap = new Map<string, Array<{ code: string; rowIdx: number; row: any }>>();
     mainData.forEach((row, idx) => {
+      if (!row || typeof row !== 'object') return;
       const rawMota = String(row[mapping.mota] || "").trim();
       const cleanMota = rawMota.toLowerCase().replace(/\s+/g, " ");
       if (!cleanMota) return;
@@ -1257,6 +1258,7 @@ export default function App() {
     // 2. CÙNG MÃ -> MÔ TẢ TRÁI QUY LUẬT KINH DOANH (Sản xuất vs Thương mại)
     const codeMap = new Map<string, Array<{ desc: string; rowIdx: number; row: any }>>();
     mainData.forEach((row, idx) => {
+      if (!row || typeof row !== 'object') return;
       const code = normalizeSectorCode(row[mapping.manganh]);
       if (!code) return;
       const rawMota = String(row[mapping.mota] || "").trim();
@@ -1408,12 +1410,31 @@ export default function App() {
       }
     }
 
+    const mergedCols = Object.keys(mergedResults[0] || {});
     setMainData(mergedResults);
-    setColumns(Object.keys(mergedResults[0] || {}));
+    setRawImportedData(mergedResults);
+    setColumns(mergedCols);
     setFileName(`GhepNoi_${leftFileName}_vs_${rightFileName}.xlsx`);
     
     // Auto map idCol
-    setMapping(prev => ({ ...prev, idCol: leftKey }));
+    setMapping({
+      mota: "",
+      manganh: "",
+      xa: "",
+      doanhthu: "",
+      laodong: "",
+      idCol: leftKey
+    });
+
+    const initMergedConfigs = mergedCols.map(c => {
+      return {
+        originalName: c,
+        use: true,
+        newName: c,
+        role: "" as any
+      };
+    });
+    setCustomColConfigs(initMergedConfigs);
 
     setProgress(100);
     setStatusMessage(`Ghép nối thành công hoàn tất! Thu được ${mergedResults.length} dòng dữ liệu.`);
@@ -1516,10 +1537,29 @@ export default function App() {
       }
     }
 
+    const compareCols = Object.keys(resultRows[0] || {});
     setMainData(resultRows);
-    setColumns(Object.keys(resultRows[0] || {}));
+    setRawImportedData(resultRows);
+    setColumns(compareCols);
     setFileName(`SoSanhDiff_${oldFileName}_vs_${newFileName}.xlsx`);
-    setMapping(prev => ({ ...prev, idCol: diffKey }));
+    setMapping({
+      mota: "",
+      manganh: "",
+      xa: "",
+      doanhthu: "",
+      laodong: "",
+      idCol: diffKey
+    });
+
+    const initCompareConfigs = compareCols.map(c => {
+      return {
+        originalName: c,
+        use: true,
+        newName: c,
+        role: "" as any
+      };
+    });
+    setCustomColConfigs(initCompareConfigs);
 
     setProgress(100);
     setStatusMessage(`So sánh thành công! Tìm thấy tổng cộng ${resultRows.length} khóa định danh.`);
@@ -2774,7 +2814,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#111827] text-gray-100 font-sans selection:bg-purple-600 selection:text-white">
+    <div className="flex flex-col h-screen bg-[#111827] text-gray-100 font-sans selection:bg-purple-600 selection:text-white overflow-hidden">
       
       {/* Header chính mang phong cách Cosmic Space Station sang trọng */}
       <header className="border-b border-[#374151] bg-[#1f2937]/90 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
@@ -3776,10 +3816,10 @@ export default function App() {
                   </div>
 
                   {/* Bảng dữ liệu bảng tính preview */}
-                  <div className="overflow-x-auto max-h-[500px]">
+                  <div className="overflow-x-auto max-h-[500px] relative">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="bg-[#111827] text-gray-400 border-b border-gray-800 font-mono">
+                        <tr className="bg-[#111827] text-gray-400 border-b border-gray-800 font-mono sticky top-0 z-10 shadow-sm">
                           {columns.map(col => (
                             <th key={col} className="p-3 font-semibold text-center whitespace-nowrap min-w-[120px]">
                               {col === mapping.mota && "📝 "}{col === mapping.manganh && "🏷️ "}{col === mapping.xa && "🗺️ "}{col === mapping.idCol && "🔑 "}{col}
@@ -5337,7 +5377,7 @@ export default function App() {
           {activeTab === "doichieumota" && (
             <div className="space-y-6 animate-fade-in">
               {mainData.length > 0 ? (
-                <DescriptorMatchScanner mainData={mainData} columns={columns} />
+                <DescriptorMatchScanner mainData={mainData} columns={columns} mapping={mapping} />
               ) : (
                 <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 text-center space-y-3">
                   <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-4 rounded-xl inline-block">
