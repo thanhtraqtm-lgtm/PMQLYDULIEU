@@ -319,32 +319,9 @@ export default function App() {
   const [crossCompareAnomalies, setCrossCompareAnomalies] = useState<any[]>([]);
   const [crossCompareStats, setCrossCompareStats] = useState<{ total: number; matchCount: number; mismatchCount: number }>({ total: 0, matchCount: 0, mismatchCount: 0 });
 
-  // Tự động tìm kiếm dự đoán ban đầu cho các bộ chọn báo cáo động độc lập giúp người dùng tiện thao tác
+  // Báo cáo động độc lập khởi tạo trống để người dùng tự chọn, không đoán bừa bãi
   useEffect(() => {
-    if (columns.length > 0) {
-      const findCol = (keywords: string[]) => {
-        return columns.find(c => {
-          const low = c.toLowerCase().trim();
-          return keywords.some(k => low.includes(k));
-        }) || "";
-      };
-
-      if (!quickReportManganhCol) {
-        setQuickReportManganhCol(findCol(["mã ngành", "manganh", "ngành", "nganh", "vsic", "ma_nganh"]));
-      }
-      if (!quickReportXaCol) {
-        setQuickReportXaCol(findCol(["xã", "xa", "địa bàn", "diaban", "phường", "phuong", "địa chỉ", "dia chi"]));
-      }
-      if (!quickReportDoanhThuCol) {
-        setQuickReportDoanhThuCol(findCol(["doanh thu", "doanhthu", "doanh_thu", "thu nhập", "revenue", "doanh_so", "doanh số"]));
-      }
-      if (!quickReportLaoDongCol) {
-        setQuickReportLaoDongCol(findCol(["lao động", "laodong", "lao_dong", "nhân sự", "nhan_su", "employees", "số người", "so nguoi"]));
-      }
-      if (!pivotManganhCol) {
-        setPivotManganhCol(findCol(["mã ngành", "manganh", "ngành", "nganh", "vsic", "ma_nganh"]));
-      }
-    }
+    // Không tự động đoán gán cứng các cột phục vụ báo cáo động nữa.
   }, [columns]);
 
 
@@ -926,15 +903,14 @@ export default function App() {
       });
       setCustomColConfigs(initConfigs);
 
-      // Tự động gán cột ID làm idCol chính
-      const matchIdKey = updatedCols.find(c => c.toLowerCase() === sheetMergeCommonKey.toLowerCase());
+      // Không tự gán cột ID làm idCol chính dể người dùng tự chọn
       const autoMap: ColumnMapping = { 
         mota: "", 
         manganh: "", 
         xa: "", 
         doanhthu: "", 
         laodong: "", 
-        idCol: matchIdKey || sheetMergeCommonKey 
+        idCol: "" 
       };
       setMapping(autoMap);
 
@@ -1416,14 +1392,14 @@ export default function App() {
     setColumns(mergedCols);
     setFileName(`GhepNoi_${leftFileName}_vs_${rightFileName}.xlsx`);
     
-    // Auto map idCol
+    // Let the user select the unique ID column themselves
     setMapping({
       mota: "",
       manganh: "",
       xa: "",
       doanhthu: "",
       laodong: "",
-      idCol: leftKey
+      idCol: ""
     });
 
     const initMergedConfigs = mergedCols.map(c => {
@@ -1548,7 +1524,7 @@ export default function App() {
       xa: "",
       doanhthu: "",
       laodong: "",
-      idCol: diffKey
+      idCol: ""
     });
 
     const initCompareConfigs = compareCols.map(c => {
