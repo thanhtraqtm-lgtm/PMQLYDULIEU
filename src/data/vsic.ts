@@ -224,41 +224,66 @@ export const getParentSectorCode = (level2Code: string): string => {
 };
 
 /**
- * A simplified keyword map for the smart suggestion algorithm.
- * Associates keywords with their most likely Level 5 VSIC code.
- * This is the "brain" of the offline suggestion engine.
+ * Helper to remove Vietnamese diacritics and accents plus punctuations
  */
-const keywordToSectorMap: { [keyword: string]: string } = {};
-
+const removeAccentsAndPunctuation = (str: string): string => {
+  if (!str) return "";
+  let clean = str.toLowerCase();
+  clean = clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  clean = clean.replace(/đ/g, "d");
+  clean = clean.replace(/[^\w\s]/g, " ");
+  clean = clean.replace(/\s+/g, " ");
+  return clean.trim();
+};
 
 /**
- * Suggests a VSIC code based on a textual description.
- * This is a simplified "smart" algorithm that scans for keywords.
+ * Suggests a VSIC code based on a textual description by dynamically calculating
+ * the word overlap against all Level 5 sectors loaded in memory.
  * @param description The activity description string.
  * @returns An object with the suggested code, its name, and a confidence score.
  */
 export const smartSuggestSectorByDescription = (description: string): { ma: string; ten: string; diem: number } | null => {
   if (!description) return null;
-  const lcDesc = description.toLowerCase();
-  
-  let bestMatch = { ma: '', ten: '', diem: 0 };
+  const descClean = removeAccentsAndPunctuation(description);
+  const descWords = descClean.split(" ").filter(w => w.length >= 2);
+  if (descWords.length === 0) return null;
 
-  for (const keyword in keywordToSectorMap) {
-    if (lcDesc.includes(keyword)) {
-      const code = keywordToSectorMap[keyword];
-      // A simple scoring mechanism: longer keywords are more specific.
-      const score = keyword.length / 10; 
+  let bestMatch = { ma: "", ten: "", diem: 0 };
+
+  // Scan all sectors in the loaded VSIC data
+  for (const [code, name] of Object.entries(vsicRawData)) {
+    // We target Level 5 codes (typically 5 digits) for specific mapping suggestions
+    if (code.length !== 5) continue;
+
+    const nameClean = removeAccentsAndPunctuation(name);
+    const nameWords = nameClean.split(" ").filter(w => w.length >= 2);
+    if (nameWords.length === 0) continue;
+
+    // Count overlapping words
+    let matchedWordsCount = 0;
+    const matchedSet = new Set<string>();
+    
+    nameWords.forEach(w => {
+      if (descWords.includes(w) && !matchedSet.has(w)) {
+        matchedWordsCount++;
+        matchedSet.add(w);
+      }
+    });
+
+    if (matchedWordsCount > 0) {
+      // Calculate score based on intersection over union of word tokens
+      const score = (matchedWordsCount / nameWords.length) * (matchedWordsCount / descWords.length);
       if (score > bestMatch.diem) {
         bestMatch = {
           ma: code,
-          ten: vsicRawData[code] || "Không xác định",
+          ten: name,
           diem: score,
         };
       }
     }
   }
 
-  return bestMatch.ma ? bestMatch : null;
+  return bestMatch.ma && bestMatch.diem > 0.02 ? bestMatch : null;
 };
 
 // Tự động khôi phục danh bạ ngành nghề tùy chọn do NSD nạp bổ sung từ localStorage khi tải trang
