@@ -218,6 +218,14 @@ export default function App() {
   const [rawImportedData, setRawImportedData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [fileName, setFileName] = useState<string>("");
+  // --- BỔ SUNG TRẠNG THÁI CHO TÍNH TOÁN CỘT ---
+  const [calcRules, setCalcRules] = useState<{
+    newColName: string; 
+    colA: string; 
+    op: "+" | "-" | "*" | "/"; 
+    colB: string;
+  }[]>([]);
+  // --------------------------------------------
 
   // Setup reporting states
   const [quickReportResultRows, setQuickReportResultRows] = useState<any[]>([]);
@@ -1132,7 +1140,7 @@ export default function App() {
       return newRow;
     });
 
-    // Cập nhật cấu hình mapping bảo toàn theo chỉ định người dùng khi đổi tên cột
+    // 1. Cập nhật cấu hình mapping bảo toàn theo chỉ định người dùng khi đổi tên cột
     const newMapping: ColumnMapping = { ...mapping };
     Object.keys(newMapping).forEach((roleKey) => {
       const currentMappedCol = newMapping[roleKey as keyof ColumnMapping];
@@ -1146,7 +1154,28 @@ export default function App() {
       }
     });
 
+    // 2. Chèn logic tính toán cột vào đây
+    restructuredRows.forEach(row => {
+      calcRules.forEach(rule => {
+        const valA = parseFloat(String(row[rule.colA] || 0).replace(/[^0-9.\-]/g, ""));
+        const valB = parseFloat(String(row[rule.colB] || 0).replace(/[^0-9.\-]/g, ""));
+        let result = 0;
+        
+        if (rule.op === "+") result = (isNaN(valA) ? 0 : valA) + (isNaN(valB) ? 0 : valB);
+        else if (rule.op === "-") result = (isNaN(valA) ? 0 : valA) - (isNaN(valB) ? 0 : valB);
+        else if (rule.op === "*") result = (isNaN(valA) ? 0 : valA) * (isNaN(valB) ? 0 : valB);
+        else if (rule.op === "/") result = (isNaN(valB) || valB === 0) ? 0 : valA / valB;
+        
+        row[rule.newColName] = result;
+      });
+    });
+
+    // 3. Kết thúc bằng việc cập nhật state sau khi đã có cột mới
     const newCols = Object.keys(restructuredRows[0] || {});
+    setMainData(restructuredRows);
+    setColumns(newCols);
+    setMapping(newMapping);
+    setViewPage(1);
 
     setMainData(restructuredRows);
     setColumns(newCols);
@@ -3736,6 +3765,7 @@ export default function App() {
                             onClick={handleApplyColumnRedefinition}
                             className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-purple-950/40 flex items-center gap-2 cursor-pointer border border-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
                           >
+                            
                             <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC GỌN NHẸ TỔ TẠO FILE MỚI
                           </button>
                         </div>
