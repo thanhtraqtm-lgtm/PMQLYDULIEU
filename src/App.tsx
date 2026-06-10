@@ -3745,43 +3745,8 @@ export default function App() {
                           </table>
                         </div>
 
-                        {/* Nút Kích hoạt Tái cấu trúc bảng */}
-                        <div className="flex justify-between items-center pt-2">
-                          <button 
-                            onClick={() => {
-                              // Clear all defined names to let user select only what they want
-                              const cleared = customColConfigs.map(c => ({
-                                ...c,
-                                use: false,
-                                newName: ""
-                              }));
-                              setCustomColConfigs(cleared);
-                            }}
-                            className="bg-red-950/30 hover:bg-red-900/40 text-red-400 border border-red-900/30 font-bold text-[11px] px-3.5 py-2 rounded-xl transition-all cursor-pointer"
-                          >
-                            ❌ Xóa hết định nghĩa (Để trống tất cả)
-                          </button>
-
-                          <button
-                            onClick={handleApplyColumnRedefinition}
-                            className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-purple-950/40 flex items-center gap-2 cursor-pointer border border-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
-                          >
-                            
-                            <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC GỌN NHẸ TỔ TẠO FILE MỚI
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center justify-between text-xs text-gray-400 bg-purple-950/10 p-3 rounded-xl border border-purple-500/10">
-                        <span>💡 Bảng cấu hình định nghĩa tên cột đang được thu gọn để nhường lại không gian biểu diễn danh sách dữ liệu.</span>
-                        <button
-                          onClick={() => setIsConfigExpanded(true)}
-                          className="bg-purple-950/85 hover:bg-purple-900/85 text-purple-300 font-bold text-xs px-3.5 py-1.5 rounded-lg border border-purple-800/30 cursor-pointer transition-all"
-                        >
-                          ⚙️ Hiện bảng cấu hình
-                        </button>
-                      </div>
-                    )}
+                        
+                        
                   </div>
                 )}
               </div>
@@ -4192,7 +4157,7 @@ export default function App() {
                         className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs py-3.5 rounded-xl transition-all shadow-lg hover:shadow-indigo-900/30 flex items-center justify-center gap-2 cursor-pointer font-sans border border-indigo-500/30"
                         title="Đối khớp trực tiếp mã ngành đã chỉ định sang Danh mục đã nạp trong bộ nhớ, sau đó thêm mới các cột Ngành cấp 1 và Cấp 2 vào bảng tính gốc"
                       >
-                        ⚡ BÊ THÔNG TIN NGÀNH CẤP 1 &amp; CẤP 2 SANG CỘT MỚI (TRÊN BẢNG TÍNH GỐC)
+                        ⚡ COP THÔNG TIN NGÀNH CẤP 1 &amp; CẤP 2 SANG CỘT MỚI (TRÊN BẢNG TÍNH GỐC)
                       </button>
                     </div>
 
