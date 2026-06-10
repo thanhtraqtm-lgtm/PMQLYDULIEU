@@ -4045,7 +4045,7 @@ export default function App() {
                     {/* BỘ LỰA CHỌN CỘT THỦ CÔNG */}
                     <div className="bg-[#111827]/80 p-5 rounded-xl border border-gray-850 space-y-4 shadow-lg">
                       <span className="text-xs font-bold text-cyan-400 tracking-wider uppercase font-mono block">
-                        Cấu hình các cột đầu vào (Chỉ định rõ cột, không đoán bừa bãi)
+                        Cấu hình các cột đầu vào chỉ định rõ cột
                       </span>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
