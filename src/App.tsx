@@ -148,6 +148,7 @@ import {
 import SectorRevenueChart from "./components/sectorRevenueChart";
 import VsicCatalogExplorer from "./components/vsicCatalogExplorer";
 import DescriptorMatchScanner from "./components/descriptorMatchScanner";
+import { BeautifulReportTable } from "./components/BeautifulReportTable";
 
 // Interface define
 interface ColumnMapping {
@@ -243,6 +244,7 @@ export default function App() {
   // Trạng thái cho Dual-Pane Mapping và double click, cùng kiểu định dạng báo cáo xoay Pivot
   const [selectedTargetKey, setSelectedTargetKey] = useState<keyof ColumnMapping>("mota");
   const [reportType, setReportType] = useState<"flat" | "pivot">("pivot");
+  const [isConfigExpanded, setIsConfigExpanded] = useState<boolean>(true);
 
   // Setup dữ liệu so sánh (Diff)
   const [oldData, setOldData] = useState<any[]>([]);
@@ -586,11 +588,6 @@ export default function App() {
     return data;
   };
 
-  // Bộ phân giải phỏng đoán vai trò cột thông minh tự động (Auto-mapping) - ĐÃ BỎ THEO YÊU CẦU ĐỂ CHỈ ĐỊNH THỦ CÔNG KHÔNG ĐOÁN MO
-  const guessColumnMapping = (cols: string[]): ColumnMapping => {
-    return { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
-  };
-
   // Đọc file CSV hoặc Excel bằng xlsx hoặc Bộ phân giải CSV tối ưu
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "main" | "old" | "new" | "left" | "right") => {
     const file = e.target.files?.[0];
@@ -627,8 +624,23 @@ export default function App() {
             setColumns(cols);
             setFileName(file.name);
 
-            // Bỏ tự phỏng đoán cột, để trống hoàn toàn để bạn tự lựa chọn
-            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
+            // Giữ mọi cột trống hoàn toàn để người dùng tự do lựa chọn thủ công tại các chức năng tương ứng, không tự động đoán
+            setQuickReportManganhCol("");
+            setStdIndustryCol("");
+            setCrossCompareColA("");
+            setStdDescriptionCol("");
+            setQuickReportXaCol("");
+            setQuickReportDoanhThuCol("");
+            setQuickReportLaoDongCol("");
+
+            const autoMap: ColumnMapping = { 
+              mota: "", 
+              manganh: "", 
+              xa: "", 
+              doanhthu: "", 
+              laodong: "", 
+              idCol: "" 
+            };
             setMapping(autoMap);
 
             // Khởi tạo danh sách cấu hình cột động từ tệp vừa nạp
@@ -646,7 +658,6 @@ export default function App() {
 
             // Lưu vĩnh viễn vào IndexedDB để không bị mất khi F5 hoặc đóng tab
             autoSaveSession(data, data, cols, file.name, autoMap, initConfigs);
-
           } else if (type === "old") {
             setOldData(data);
             setOldFileName(file.name);
@@ -721,8 +732,23 @@ export default function App() {
             setColumns(cols);
             setFileName(file.name);
 
-            // Bỏ tự phỏng đoán cột, để trống hoàn toàn để bạn tự lựa chọn
-            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
+            // Giữ mọi cột trống hoàn toàn để người dùng tự do lựa chọn thủ công tại các chức năng tương ứng, không tự động đoán
+            setQuickReportManganhCol("");
+            setStdIndustryCol("");
+            setCrossCompareColA("");
+            setStdDescriptionCol("");
+            setQuickReportXaCol("");
+            setQuickReportDoanhThuCol("");
+            setQuickReportLaoDongCol("");
+
+            const autoMap: ColumnMapping = { 
+              mota: "", 
+              manganh: "", 
+              xa: "", 
+              doanhthu: "", 
+              laodong: "", 
+              idCol: "" 
+            };
             setMapping(autoMap);
 
             // Khởi tạo danh sách cấu hình cột động từ tệp vừa nạp
@@ -1149,7 +1175,13 @@ export default function App() {
 
   // Phân tích bất nhất mã ngành và mô tả
   const inconAnalysis = useMemo(() => {
-    if (!mainData.length || !mapping.mota || !mapping.manganh) {
+    if (activeTab !== "chuanhoanganh") {
+      return { descToCodes: [], codeToDescs: [] };
+    }
+    const targetMota = stdDescriptionCol || mapping.mota;
+    const targetManganh = stdIndustryCol || mapping.manganh;
+
+    if (!mainData.length || !targetMota || !targetManganh) {
       return { descToCodes: [], codeToDescs: [] };
     }
 
@@ -1157,10 +1189,10 @@ export default function App() {
     const descMap = new Map<string, Array<{ code: string; rowIdx: number; row: any }>>();
     mainData.forEach((row, idx) => {
       if (!row || typeof row !== 'object') return;
-      const rawMota = String(row[mapping.mota] || "").trim();
+      const rawMota = String(row[targetMota] || "").trim();
       const cleanMota = rawMota.toLowerCase().replace(/\s+/g, " ");
       if (!cleanMota) return;
-      const code = normalizeSectorCode(row[mapping.manganh]);
+      const code = normalizeSectorCode(row[targetManganh]);
       
       if (!descMap.has(cleanMota)) {
         descMap.set(cleanMota, []);
@@ -1175,6 +1207,8 @@ export default function App() {
     }> = [];
 
     descMap.forEach((occurrences, cleanMota) => {
+      if (occurrences.length <= 1) return; // TIẾT KIỆM TỐI ĐA BỘ NHỚ: Không thể mâu thuẫn nếu xuất hiện <= 1 lần
+
       const codeCounts = new Map<string, number[]>();
       occurrences.forEach(occ => {
         if (!codeCounts.has(occ.code)) {
@@ -1184,16 +1218,18 @@ export default function App() {
       });
 
       if (codeCounts.size > 1) {
-        const originalText = occurrences[0].row[mapping.mota] || cleanMota;
-        descToCodes.push({
-          motaText: originalText,
-          occurrences: occurrences.length,
-          codes: Array.from(codeCounts.entries()).map(([code, rowIndices]) => ({
-            code,
-            count: rowIndices.length,
-            rows: rowIndices
-          }))
-        });
+        if (descToCodes.length < 2000) {
+          const originalText = occurrences[0].row[targetMota] || cleanMota;
+          descToCodes.push({
+            motaText: originalText,
+            occurrences: occurrences.length,
+            codes: Array.from(codeCounts.entries()).map(([code, rowIndices]) => ({
+              code,
+              count: rowIndices.length,
+              rows: rowIndices
+            }))
+          });
+        }
       }
     });
 
@@ -1201,9 +1237,9 @@ export default function App() {
     const codeMap = new Map<string, Array<{ desc: string; rowIdx: number; row: any }>>();
     mainData.forEach((row, idx) => {
       if (!row || typeof row !== 'object') return;
-      const code = normalizeSectorCode(row[mapping.manganh]);
+      const code = normalizeSectorCode(row[targetManganh]);
       if (!code) return;
-      const rawMota = String(row[mapping.mota] || "").trim();
+      const rawMota = String(row[targetMota] || "").trim();
       if (!rawMota) return;
       
       if (!codeMap.has(code)) {
@@ -1223,9 +1259,11 @@ export default function App() {
       }>;
     }> = [];
 
+    const tradeKeywords = ["bán", "mua", "thương mại", "đại lý", "cửa hàng", "phân phối", "wholesale", "retail", "shop", "siêu thị", "chợ"];
+    const industrialKeywords = ["sản xuất", "gia công", "chế tạo", "làm mộc", "chế biến", "lắp ráp", "chế tác", "luyện kim", "nhà xưởng", "nhà máy"];
+
     codeMap.forEach((items, code) => {
-      const tradeKeywords = ["bán", "mua", "thương mại", "đại lý", "cửa hàng", "phân phối", "wholesale", "retail", "shop", "siêu thị", "chợ"];
-      const industrialKeywords = ["sản xuất", "gia công", "chế tạo", "làm mộc", "chế biến", "lắp ráp", "chế tác", "luyện kim", "nhà xưởng", "nhà máy"];
+      if (codeToDescs.length >= 2000) return; // Giới hạn hiển thị để tránh overload DOM render
       
       const typesSeen = new Set<string>();
       const conflictsList: any[] = [];
@@ -1261,7 +1299,7 @@ export default function App() {
     });
 
     return { descToCodes, codeToDescs };
-  }, [mainData, mapping.mota, mapping.manganh]);
+  }, [mainData, mapping.mota, mapping.manganh, stdDescriptionCol, stdIndustryCol, activeTab]);
 
   // Phân trang dữ liệu hiển thị
   const paginatedData = useMemo(() => {
@@ -2229,6 +2267,91 @@ export default function App() {
     }
   };
 
+  // BÊ NGÀNH CẤP 1 & CẤP 2 SANG CỘT MỚI (Lấy trực tiếp từ Danh mục đã nạp trong bộ nhớ)
+  const handleAppendSectorsToMainData = async () => {
+    if (mainData.length === 0) {
+      alert("Vui lòng nạp dữ liệu chính trước khi thực hiện!");
+      return;
+    }
+    const targetManganh = quickReportManganhCol || mapping.manganh;
+    if (!targetManganh) {
+      alert("Vui lòng chỉ định cột chứa Mã ngành ở bộ chọn!");
+      return;
+    }
+
+    setLoading(true);
+    setProgress(15);
+    setStatusMessage("Đang đối chiếu và nạp thông tin Ngành cấp 1 & 2 trực tiếp từ bộ nhớ...");
+    await sleep(250);
+
+    try {
+      let matchedCount = 0;
+      const updatedRows = mainData.map((row) => {
+        if (!row || typeof row !== "object") return row;
+        const rawCode = row[targetManganh];
+        const mng = normalizeSectorCode(rawCode);
+        
+        // Ngành Cấp 2 (2 chữ số đầu)
+        const sec2Code = mng ? mng.slice(0, 2) : "";
+        const sec2Name = vsicRawData[sec2Code] || "Chưa định nghĩa chuẩn";
+        
+        // Ngành Cấp 1 (Lĩnh vực lớn, chữ cái A-U quy thuộc)
+        let sec1Code = "";
+        if (mng) {
+          if (/^[a-zA-Z]$/.test(mng)) {
+            sec1Code = mng.toUpperCase();
+          } else {
+            sec1Code = getParentSectorCode(sec2Code) || "";
+          }
+        }
+        const sec1Name = vsicRawData[sec1Code] || "Chưa định nghĩa chuẩn";
+
+        if (sec2Code && vsicRawData[sec2Code]) {
+          matchedCount++;
+        }
+
+        // Tạo bản ghi mới, chèn trực tiếp các cột ngành Cấp 1 & Cấp 2 ngay sát bên cạnh cột Mã Ngành để người dùng có thể dễ dàng kiểm soát
+        const flexRow: any = {};
+        Object.keys(row).forEach((key) => {
+          flexRow[key] = row[key];
+          if (key === targetManganh) {
+            flexRow["Mã Ngành Cấp 1"] = sec1Code;
+            flexRow["Ngành Cấp 1"] = sec1Name;
+            flexRow["Mã Ngành Cấp 2"] = sec2Code;
+            flexRow["Ngành Cấp 2"] = sec2Name;
+          }
+        });
+
+        // Đảm bảo không bị thiếu trong trường hợp đặc sản
+        if (flexRow["Mã Ngành Cấp 1"] === undefined) {
+          flexRow["Mã Ngành Cấp 1"] = sec1Code;
+          flexRow["Ngành Cấp 1"] = sec1Name;
+          flexRow["Mã Ngành Cấp 2"] = sec2Code;
+          flexRow["Ngành Cấp 2"] = sec2Name;
+        }
+
+        return flexRow;
+      });
+
+      const newCols = Object.keys(updatedRows[0] || {});
+      setMainData(updatedRows);
+      setColumns(newCols);
+      
+      // Tự sao lưu vĩnh viễn
+      autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
+
+      setProgress(100);
+      setStatusMessage("Nạp và chêm cột phân cấp Ngành cấp 1 & 2 thành công!");
+      await sleep(350);
+      setLoading(false);
+
+      alert(`Hoàn thành bê ngành cấp 1 & 2!\n- Tổng cộng: ${updatedRows.length} dòng dữ liệu\n- Đối khớp danh mục thành công: ${matchedCount} dòng\n- Các cột mới đã được tạo trực tiếp sát bên cạnh cột [${targetManganh}] ở bảng tính gốc của bạn.`);
+    } catch (err: any) {
+      alert("Lỗi quá trình bê cột ngành: " + err.message);
+      setLoading(false);
+    }
+  };
+
   // 5. CHỨC NĂNG BÁO CÁO NHANH THEO PHÂN CẤP NGÀNH & XÃ CHUẨN XÁC
   const handleQuickReport = async (level: number) => {
     if (mainData.length === 0) {
@@ -2680,7 +2803,8 @@ export default function App() {
 
   // 8. XUẤT FILE EXCEL CUỐI CÙNG
   const handleExportExcel = () => {
-    if (mainData.length === 0) {
+    const exportData = searchTerm ? filteredData : mainData;
+    if (exportData.length === 0) {
       alert("Không có dữ liệu để xuất file!");
       return;
     }
@@ -2689,7 +2813,7 @@ export default function App() {
 
     setTimeout(() => {
       try {
-        const ws = XLSX.utils.json_to_sheet(mainData);
+        const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Bao_Cao_Tinh_Toan");
 
@@ -2709,8 +2833,20 @@ export default function App() {
         const wsVsic = XLSX.utils.json_to_sheet(vsicRows);
         XLSX.utils.book_append_sheet(wb, wsVsic, "Danh_Muc_Nganh_VSIC_Chuan");
 
-        XLSX.writeFile(wb, fileName || "Ket_Qua_Bao_Cao.xlsx");
-        setStatusMessage("Đã tải xuống file Excel thành công (gồm Báo cáo & Danh mục ngành)!");
+        // Đổi tên file đầu ra có hậu tố lọc nếu người dùng đang tìm kiếm/lọc
+        let outName = fileName || "Ket_Qua_Bao_Cao.xlsx";
+        if (searchTerm) {
+          const safeSuffix = `_Loc_${searchTerm.trim().slice(0, 15).replace(/[^a-zA-Z0-9À-ỹ]/g, "_")}`;
+          const lastDot = outName.lastIndexOf(".");
+          if (lastDot !== -1) {
+            outName = outName.slice(0, lastDot) + safeSuffix + outName.slice(lastDot);
+          } else {
+            outName = outName + safeSuffix + ".xlsx";
+          }
+        }
+
+        XLSX.writeFile(wb, outName);
+        setStatusMessage(`Đã tải xuống file Excel thành công! (Dữ liệu gồm ${exportData.length} dòng và Danh mục ngành)`);
       } catch (e: any) {
         alert("Lỗi khi kết xuất Excel: " + e.message);
       } finally {
@@ -3416,329 +3552,205 @@ export default function App() {
               {rawImportedData.length > 0 && (
                   <div className="bg-[#111827]/90 rounded-2xl p-5 border border-purple-500/20 space-y-5 animate-slide-up">
                     
-                    {/* BẢN ĐỒ ÁNH XẠ VAI TRÒ CỘT CHỦ ĐỘNG */}
-                    <div className="bg-[#1e1b4b]/20 border border-purple-500/20 rounded-2xl p-5 space-y-4">
-                      <div>
-                        <div className="text-xs font-bold text-amber-400 tracking-wider uppercase font-mono flex items-center gap-1.5">
-                          <Compass className="w-5 h-5 text-amber-400 animate-pulse" /> BẢN ĐỒ ÁNH XẠ VAI TRÒ CỘT CHỦ ĐỘNG (DỌN SẠCH TỰ ĐỘNG)
-                        </div>
-                        <p className="text-xs text-gray-400 mt-1">
-                          Vui lòng tùy chọn (chỉ tay) chính xác các cột từ tệp tin tương ứng với vai trò bên dưới để kích hoạt các phép toán phân tích AI, kiểm tra lỗi, hoặc hạch toán. Không có hoạt động tự động gán mò đè lại lựa chọn của bạn.
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {/* 1. Mã ngành */}
-                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
-                          <label className="text-xs font-bold text-purple-300 block">
-                            🏷️ Mã Ngành VSIC Đăng Ký (*):
-                          </label>
-                          <select
-                            value={mapping.manganh || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setMapping(prev => {
-                                const m = { ...prev, manganh: val };
-                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
-                                return m;
-                              });
-                            }}
-                            className="w-full bg-[#090d16] border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="">-- Chọn Cột --</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-
-                        {/* 2. Mô tả */}
-                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
-                          <label className="text-xs font-bold text-purple-300 block">
-                            📝 Mô tả Hoạt Động Thực Tế (*):
-                          </label>
-                          <select
-                            value={mapping.mota || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setMapping(prev => {
-                                const m = { ...prev, mota: val };
-                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
-                                return m;
-                              });
-                            }}
-                            className="w-full bg-[#090d16] border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="">-- Chọn Cột --</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-
-                        {/* 3. Địa bàn xã */}
-                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
-                          <label className="text-xs font-bold text-purple-300 block">
-                            🗺️ Địa Bàn (Xã, Phường):
-                          </label>
-                          <select
-                            value={mapping.xa || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setMapping(prev => {
-                                const m = { ...prev, xa: val };
-                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
-                                return m;
-                              });
-                            }}
-                            className="w-full bg-[#090d16] border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="">-- Chọn Cột --</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-
-                        {/* 4. Doanh thu */}
-                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
-                          <label className="text-xs font-bold text-gray-300 block">
-                            💰 Doanh Thu / Thu Nhập (Tùy chọn):
-                          </label>
-                          <select
-                            value={mapping.doanhthu || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setMapping(prev => {
-                                const m = { ...prev, doanhthu: val };
-                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
-                                return m;
-                              });
-                            }}
-                            className="w-full bg-[#090d16] border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="">-- Chọn Cột --</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-
-                        {/* 5. Lao động */}
-                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
-                          <label className="text-xs font-bold text-gray-300 block">
-                            👥 Số Lao Động (Tùy chọn):
-                          </label>
-                          <select
-                            value={mapping.laodong || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setMapping(prev => {
-                                const m = { ...prev, laodong: val };
-                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
-                                return m;
-                              });
-                            }}
-                            className="w-full bg-[#090d16] border border-gray-850 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="">-- Chọn Cột --</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-
-                        {/* 6. Định danh MST */}
-                        <div className="space-y-1 bg-[#0f172a]/50 p-3 rounded-xl border border-gray-800">
-                          <label className="text-xs font-bold text-gray-300 block">
-                            🔑 Mã Khóa Định Danh / MST:
-                          </label>
-                          <select
-                            value={mapping.idCol || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setMapping(prev => {
-                                const m = { ...prev, idCol: val };
-                                autoSaveSession(mainData, rawImportedData, columns, fileName, m, customColConfigs);
-                                return m;
-                              });
-                            }}
-                            className="w-full bg-[#090d16] border border-gray-850 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="">-- Chọn Cột --</option>
-                            {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-
-                    <hr className="border-gray-800/60 my-2" />
-
                     <div className="border-b border-gray-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <div className="text-xs font-bold text-purple-400 tracking-wider uppercase font-mono flex items-center gap-1.5">
-                          <Database className="w-5 h-5 text-purple-400 animate-pulse" /> ĐỊNH NGHĨA LẠI TÊN CỘT DỄ NHỚ & LỌC CỘT THỪA
+                        <div className="text-xs font-bold text-purple-400 tracking-wider uppercase font-mono flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setIsConfigExpanded(!isConfigExpanded)}>
+                          <Database className="w-5 h-5 text-purple-400 animate-pulse" /> ĐỊNH NGHĨA LẠI TÊN CỘT DỄ NHỚ & LỌC CỘT THỪA {isConfigExpanded ? "▼" : "▲"}
                         </div>
                         <p className="text-xs text-gray-400 mt-1">
                           Sửa đổi các từ viết tắt khó nhớ thành tiếng Việt rõ ràng. Cột nào chưa chọn sẽ bị loại khỏi bảng để giữ bộ dữ liệu sạch nhất.
                         </p>
                       </div>
                       
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => {
-                            // Reset everything back to original state
-                            const resetConfigs = customColConfigs.map(c => ({
-                              ...c,
-                              use: true,
-                              newName: c.originalName
-                            }));
-                            setCustomColConfigs(resetConfigs);
-                          }}
-                          className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-[11px] px-3 py-1.5 rounded-lg transition-all border border-gray-700 cursor-pointer"
-                          title="Hoàn tác tất cả tên cột về tên gốc"
+                      <div className="flex gap-2 items-center">
+                        <button
+                          onClick={() => setIsConfigExpanded(!isConfigExpanded)}
+                          className="bg-purple-950/60 hover:bg-purple-900/60 text-purple-300 font-bold text-[11px] px-3.5 py-1.5 rounded-lg border border-purple-800/30 cursor-pointer transition-all flex items-center gap-1"
                         >
-                          Khôi Phục Tên Gốc
+                          {isConfigExpanded ? "👁️ Thu gọn bảng" : "⚙️ Mở rộng định nghĩa cột"}
                         </button>
-                        <button 
-                          onClick={() => {
-                            // Quick auto prefill nice names
-                            const prefilled = customColConfigs.map(cfg => {
-                              const c = cfg.originalName;
-                              let newN = c;
-                              if (c === "MoTa") newN = "Mô Tả Hoạt Động";
-                              else if (c === "MaNganhDTV") newN = "Mã Ngành Đăng Ký";
-                              else if (c === "Xa") newN = "Địa bàn (Xã)";
-                              else if (c === "DoanhThu") newN = "Doanh Thu";
-                              else if (c === "LaoDong") newN = "Tổng số Lao Động";
-                              else if (c === "MaST") newN = "Mã Số Thuế";
-                              return { ...cfg, newName: newN };
-                            });
-                            setCustomColConfigs(prefilled);
-                          }}
-                          className="bg-purple-950/40 hover:bg-purple-900/40 text-purple-300 font-bold text-[11px] px-3 py-1.5 rounded-lg transition-all border border-purple-800/30 cursor-pointer"
-                        >
-                          Tự Động Đề Xuất Tên Việt Hóa
-                        </button>
+                        {isConfigExpanded && (
+                          <>
+                            <button 
+                              onClick={() => {
+                                // Reset everything back to original state
+                                const resetConfigs = customColConfigs.map(c => ({
+                                  ...c,
+                                  use: true,
+                                  newName: c.originalName
+                                }));
+                                setCustomColConfigs(resetConfigs);
+                              }}
+                              className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-[11px] px-3 py-1.5 rounded-lg transition-all border border-gray-700 cursor-pointer"
+                              title="Hoàn tác tất cả tên cột về tên gốc"
+                            >
+                              Khôi Phục Tên Gốc
+                            </button>
+                            <button 
+                              onClick={() => {
+                                // Quick auto prefill nice names
+                                const prefilled = customColConfigs.map(cfg => {
+                                  const c = cfg.originalName;
+                                  let newN = c;
+                                  if (c === "MoTa") newN = "Mô Tả Hoạt Động";
+                                  else if (c === "MaNganhDTV") newN = "Mã Ngành Đăng Ký";
+                                  else if (c === "Xa") newN = "Địa bàn (Xã)";
+                                  else if (c === "DoanhThu") newN = "Doanh Thu";
+                                  else if (c === "LaoDong") newN = "Tổng số Lao Động";
+                                  else if (c === "MaST") newN = "Mã Số Thuế";
+                                  return { ...cfg, newName: newN };
+                                });
+                                setCustomColConfigs(prefilled);
+                              }}
+                              className="bg-purple-950/40 hover:bg-purple-900/40 text-purple-300 font-bold text-[11px] px-3 py-1.5 rounded-lg transition-all border border-purple-800/30 cursor-pointer"
+                            >
+                              Tự Động Đề Xuất Tên Việt Hóa
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {/* Hướng dẫn chi tiết */}
-                    <div className="bg-[#1e1b4b]/30 border border-purple-900/30 rounded-xl p-4 text-xs text-gray-300 space-y-1.5 leading-relaxed">
-                      <div className="font-bold text-purple-300 flex items-center gap-1.5">
-                        ⚙️ Cách thức vận hành (Định nghĩa trực quan):
-                      </div>
-                      <ul className="list-disc list-inside space-y-1 text-[11px] text-gray-400 pl-1">
-                        <li><strong>Đặt tên cột dễ nhớ:</strong> Viết trực tiếp vào ô nhập bên dưới để thay đổi tên cột hiển thị theo từ ngữ dễ thuộc của riêng bạn.</li>
-                        <li><strong>Lọc cột thừa:</strong> Bạn có thể bỏ tích ở cột không cần thiết, khi bấm áp dụng hệ thống sẽ sinh ra một <strong>Bảng dữ liệu mới hoàn hảo</strong> chỉ chứa các cột thích hợp.</li>
-                        <li><strong>Gán vai trò (Mục tiêu):</strong> Gán vai trò cho cột giúp các thuật toán (Báo cáo xã, nhóm ngành, xử lý lỗi logic bằng AI) tự động tìm đúng dữ liệu mà không bị đứt gãy.</li>
-                      </ul>
-                    </div>
+                    {isConfigExpanded ? (
+                      <>
+                        {/* Hướng dẫn chi tiết */}
+                        <div className="bg-[#1e1b4b]/30 border border-purple-900/30 rounded-xl p-4 text-xs text-gray-300 space-y-1.5 leading-relaxed">
+                          <div className="font-bold text-purple-300 flex items-center gap-1.5">
+                            ⚙️ Cách thức vận hành (Định nghĩa trực quan):
+                          </div>
+                          <ul className="list-disc list-inside space-y-1 text-[11px] text-gray-400 pl-1">
+                            <li><strong>Đặt tên cột dễ nhớ:</strong> Viết trực tiếp vào ô nhập bên dưới để thay đổi tên cột hiển thị theo từ ngữ dễ thuộc của riêng bạn.</li>
+                            <li><strong>Lọc cột thừa:</strong> Bạn có thể bỏ tích ở cột không cần thiết, khi bấm áp dụng hệ thống sẽ sinh ra một <strong>Bảng dữ liệu mới hoàn hảo</strong> chỉ chứa các cột thích hợp.</li>
+                            <li><strong>Gán vai trò (Mục tiêu):</strong> Gán vai trò cho cột giúp các thuật toán (Báo cáo xã, nhóm ngành, xử lý lỗi logic bằng AI) tự động tìm đúng dữ liệu mà không bị đứt gãy.</li>
+                          </ul>
+                        </div>
 
-                    {/* Bảng Danh sách Cấu hình Cột */}
-                    <div className="overflow-x-auto border border-gray-800 rounded-xl bg-[#0f172a]/40">
-                      <table className="w-full text-left text-xs min-w-[700px]">
-                        <thead>
-                          <tr className="bg-[#1f2937]/50 border-b border-gray-800 text-gray-400 font-mono text-[11px]">
-                            <th className="p-3 text-center w-[70px]">SỬ DỤNG</th>
-                            <th className="p-3 text-center w-[50px]">STT</th>
-                            <th className="p-3">TÊN CỘT GỐC TRONG FILE (NHẤP ĐÚP ĐỂ CHỌN NHANH ⚡)</th>
-                            <th className="p-3">TÊN MỚI ĐỊNH NGHĨA (ĐỂ TRỐNG = LOẠI BỎ KHỎI FILE)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-800/60 font-sans">
-                          {customColConfigs.map((cfg, idx) => {
-                            const isIncluded = cfg.newName.trim() !== "";
-                            return (
-                              <tr 
-                                key={cfg.originalName} 
-                                className={`transition-colors hover:bg-gray-800/15 ${
-                                  isIncluded ? "bg-purple-950/5" : "bg-gray-950/30 opacity-60"
-                                }`}
-                                onDoubleClick={() => {
-                                  // Nháy đúp vào cột gốc để điền nhanh tên mới
-                                  const updated = [...customColConfigs];
-                                  updated[idx].newName = cfg.originalName;
-                                  updated[idx].use = true;
-                                  setCustomColConfigs(updated);
-                                }}
-                                title="Nhấp đúp vào dòng này để tự động điền nhanh Tên cột gốc thành Tên mới!"
-                              >
-                                {/* Cột Checkbox Sử Dụng */}
-                                <td className="p-3 text-center">
-                                  <input 
-                                    type="checkbox"
-                                    checked={cfg.use && isIncluded}
-                                    onChange={(e) => {
-                                      const updated = [...customColConfigs];
-                                      updated[idx].use = e.target.checked;
-                                      if (e.target.checked && updated[idx].newName.trim() === "") {
-                                        updated[idx].newName = cfg.originalName;
-                                      } else if (!e.target.checked) {
-                                        updated[idx].newName = "";
-                                      }
-                                      setCustomColConfigs(updated);
-                                    }}
-                                    className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
-                                  />
-                                </td>
-
-                                {/* STT */}
-                                <td className="p-3 text-center text-gray-500 font-mono text-[11px]">
-                                  {idx + 1}
-                                </td>
-
-                                {/* Tên Gốc */}
-                                <td 
-                                  className="p-3 font-semibold text-gray-300 font-mono cursor-pointer hover:text-purple-400 transition-all"
-                                  title="Nhấn đúp vào đây để chọn nhanh giữ tên cột gốc làm định nghĩa!"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span className="bg-[#1f2937] px-2.5 py-1 rounded text-gray-200 border border-gray-700 max-w-[250px] truncate block">
-                                      {cfg.originalName}
-                                    </span>
-                                    <span className="text-[10px] text-gray-500 hover:text-purple-400 select-none">
-                                      {isIncluded ? "⚡ Đã gán" : "🖱️ Nháy đúp để lấy"}
-                                    </span>
-                                  </div>
-                                </td>
-
-                                {/* Input Tên Mới */}
-                                <td className="p-3">
-                                  <input 
-                                    type="text"
-                                    value={cfg.newName}
-                                    onChange={(e) => {
-                                      const updated = [...customColConfigs];
-                                      updated[idx].newName = e.target.value;
-                                      updated[idx].use = e.target.value.trim() !== "";
-                                      setCustomColConfigs(updated);
-                                    }}
-                                    className="w-full bg-gray-950 border border-purple-950/50 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-medium placeholder-gray-700 font-mono"
-                                    placeholder="Điền tên mới hoặc để trống dể loại bỏ..."
-                                  />
-                                </td>
+                        {/* Bảng Danh sách Cấu hình Cột */}
+                        <div className="overflow-x-auto border border-gray-800 rounded-xl bg-[#0f172a]/40">
+                          <table className="w-full text-left text-xs min-w-[700px]">
+                            <thead>
+                              <tr className="bg-[#1f2937]/50 border-b border-gray-800 text-gray-400 font-mono text-[11px]">
+                                <th className="p-3 text-center w-[70px]">SỬ DỤNG</th>
+                                <th className="p-3 text-center w-[50px]">STT</th>
+                                <th className="p-3">TÊN CỘT GỐC TRONG FILE (NHẤP ĐÚP ĐỂ CHỌN NHANH ⚡)</th>
+                                <th className="p-3">TÊN MỚI ĐỊNH NGHĨA (ĐỂ TRỐNG = LOẠI BỎ KHỎI FILE)</th>
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/60 font-sans">
+                              {customColConfigs.map((cfg, idx) => {
+                                const isIncluded = cfg.newName.trim() !== "";
+                                return (
+                                  <tr 
+                                    key={cfg.originalName} 
+                                    className={`transition-colors hover:bg-gray-800/15 ${
+                                      isIncluded ? "bg-purple-950/5" : "bg-gray-950/30 opacity-60"
+                                    }`}
+                                    onDoubleClick={() => {
+                                      // Nháy đúp vào cột gốc để điền nhanh tên mới
+                                      const updated = [...customColConfigs];
+                                      updated[idx].newName = cfg.originalName;
+                                      updated[idx].use = true;
+                                      setCustomColConfigs(updated);
+                                    }}
+                                    title="Nhấp đúp vào dòng này để tự động điền nhanh Tên cột gốc thành Tên mới!"
+                                  >
+                                    {/* Cột Checkbox Sử Dụng */}
+                                    <td className="p-3 text-center">
+                                      <input 
+                                        type="checkbox"
+                                        checked={cfg.use && isIncluded}
+                                        onChange={(e) => {
+                                          const updated = [...customColConfigs];
+                                          updated[idx].use = e.target.checked;
+                                          if (e.target.checked && updated[idx].newName.trim() === "") {
+                                            updated[idx].newName = cfg.originalName;
+                                          } else if (!e.target.checked) {
+                                            updated[idx].newName = "";
+                                          }
+                                          setCustomColConfigs(updated);
+                                        }}
+                                        className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                                      />
+                                    </td>
 
-                    {/* Nút Kích hoạt Tái cấu trúc bảng */}
-                    <div className="flex justify-between items-center pt-2">
-                      <button 
-                        onClick={() => {
-                          // Clear all defined names to let user select only what they want
-                          const cleared = customColConfigs.map(c => ({
-                            ...c,
-                            use: false,
-                            newName: ""
-                          }));
-                          setCustomColConfigs(cleared);
-                        }}
-                        className="bg-red-950/30 hover:bg-red-900/40 text-red-400 border border-red-900/30 font-bold text-[11px] px-3.5 py-2 rounded-xl transition-all cursor-pointer"
-                      >
-                        ❌ Xóa hết định nghĩa (Để trống tất cả)
-                      </button>
+                                    {/* STT */}
+                                    <td className="p-3 text-center text-gray-500 font-mono text-[11px]">
+                                      {idx + 1}
+                                    </td>
 
-                      <button
-                        onClick={handleApplyColumnRedefinition}
-                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-purple-950/40 flex items-center gap-2 cursor-pointer border border-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
-                      >
-                        <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC GỌN NHẸ TỔ TẠO FILE MỚI
-                      </button>
-                    </div>
+                                    {/* Tên Gốc */}
+                                    <td 
+                                      className="p-3 font-semibold text-gray-300 font-mono cursor-pointer hover:text-purple-400 transition-all"
+                                      title="Nhấn đúp vào đây để chọn nhanh giữ tên cột gốc làm định nghĩa!"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="bg-[#1f2937] px-2.5 py-1 rounded text-gray-200 border border-gray-700 max-w-[250px] truncate block">
+                                          {cfg.originalName}
+                                        </span>
+                                        <span className="text-[10px] text-gray-500 hover:text-purple-400 select-none">
+                                          {isIncluded ? "⚡ Đã gán" : "🖱️ Nháy đúp để lấy"}
+                                        </span>
+                                      </div>
+                                    </td>
+
+                                    {/* Input Tên Mới */}
+                                    <td className="p-3">
+                                      <input 
+                                        type="text"
+                                        value={cfg.newName}
+                                        onChange={(e) => {
+                                          const updated = [...customColConfigs];
+                                          updated[idx].newName = e.target.value;
+                                          updated[idx].use = e.target.value.trim() !== "";
+                                          setCustomColConfigs(updated);
+                                        }}
+                                        className="w-full bg-gray-950 border border-purple-950/50 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-medium placeholder-gray-700 font-mono"
+                                        placeholder="Điền tên mới hoặc để trống dể loại bỏ..."
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Nút Kích hoạt Tái cấu trúc bảng */}
+                        <div className="flex justify-between items-center pt-2">
+                          <button 
+                            onClick={() => {
+                              // Clear all defined names to let user select only what they want
+                              const cleared = customColConfigs.map(c => ({
+                                ...c,
+                                use: false,
+                                newName: ""
+                              }));
+                              setCustomColConfigs(cleared);
+                            }}
+                            className="bg-red-950/30 hover:bg-red-900/40 text-red-400 border border-red-900/30 font-bold text-[11px] px-3.5 py-2 rounded-xl transition-all cursor-pointer"
+                          >
+                            ❌ Xóa hết định nghĩa (Để trống tất cả)
+                          </button>
+
+                          <button
+                            onClick={handleApplyColumnRedefinition}
+                            className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-purple-950/40 flex items-center gap-2 cursor-pointer border border-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC GỌN NHẸ TỔ TẠO FILE MỚI
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-between text-xs text-gray-400 bg-purple-950/10 p-3 rounded-xl border border-purple-500/10">
+                        <span>💡 Bảng cấu hình định nghĩa tên cột đang được thu gọn để nhường lại không gian biểu diễn danh sách dữ liệu.</span>
+                        <button
+                          onClick={() => setIsConfigExpanded(true)}
+                          className="bg-purple-950/85 hover:bg-purple-900/85 text-purple-300 font-bold text-xs px-3.5 py-1.5 rounded-lg border border-purple-800/30 cursor-pointer transition-all"
+                        >
+                          ⚙️ Hiện bảng cấu hình
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -4007,7 +4019,7 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950">
+                  <div className="bg-[#111827]/50 rounded-xl p-6 text-center text-xs text-amber-400 border border-amber-950 font-sans">
                     ⚠️ Yêu cầu nạp dữ liệu nguồn chính trước ở Tab "Xem & Định Nghĩa Cột"!
                   </div>
                 )}
@@ -4023,8 +4035,8 @@ export default function App() {
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
                     <BarChart3 className="w-5 h-5 text-amber-400" /> TỔNG HỢP BÁO CÁO THEO NGÀNH CẤP 1 & CẤP 2 (KẾT HỢP ĐỊA BÀN XÃ)
                   </h3>
-                  <p className="text-xs text-gray-400">
-                    Phân hệ hạch toán tổng hợp chuyên sâu cho phép quy thuộc ngành từ mã ngành bất kỳ lên cấp 1 (lĩnh vực lớn A-U) hoặc tách thành ngành cấp 2 (2 số đầu), sau đó cộng gom doanh thu, quy mô lao động theo từng xã địa phương.
+                  <p className="text-xs text-gray-400 font-sans">
+                    Phân hệ hạch toán tổng hợp chuyên sâu cho phép quy thuộc ngành từ mã ngành bất kỳ lên cấp 1 (lĩnh vực lớn A-U) hoặc tách thành ngành cấp 2 (2 số đầu), sau đó cộng gom doanh thu, quy mô lao động theo từng xã địa phương dựa trên danh mục nạp vào.
                   </p>
                 </div>
 
@@ -4126,71 +4138,42 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* NÚT THỰC THI CHẠY TỔNG HỢP */}
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <button 
-                        onClick={() => handleQuickReport(1)}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 font-sans"
-                      >
-                        Chạy Tổng Hợp Ngành Cấp 1 &amp; Xã
-                      </button>
+                    {/* NÚT THỰC THI CHẠY TỔNG HỢP & BÊ CỘT */}
+                    <div className="space-y-3">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button 
+                          onClick={() => handleQuickReport(1)}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md hover:shadow-emerald-900/30 cursor-pointer flex items-center justify-center gap-2 font-sans"
+                        >
+                          📈 Chạy Tổng Hợp Ngành Cấp 1 &amp; Xã
+                        </button>
 
-                      <button 
-                        onClick={() => handleQuickReport(2)}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 font-sans"
+                        <button 
+                          onClick={() => handleQuickReport(2)}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md hover:shadow-emerald-900/30 cursor-pointer flex items-center justify-center gap-2 font-sans"
+                        >
+                          📈 Chạy Tổng Hợp Ngành Cấp 2 &amp; Xã
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={handleAppendSectorsToMainData}
+                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs py-3.5 rounded-xl transition-all shadow-lg hover:shadow-indigo-900/30 flex items-center justify-center gap-2 cursor-pointer font-sans border border-indigo-500/30"
+                        title="Đối khớp trực tiếp mã ngành đã chỉ định sang Danh mục đã nạp trong bộ nhớ, sau đó thêm mới các cột Ngành cấp 1 và Cấp 2 vào bảng tính gốc"
                       >
-                        Chạy Tổng Hợp Ngành Cấp 2 &amp; Xã
+                        ⚡ BÊ THÔNG TIN NGÀNH CẤP 1 &amp; CẤP 2 SANG CỘT MỚI (TRÊN BẢNG TÍNH GỐC)
                       </button>
                     </div>
 
                     {/* BẢNG HIỂN THỊ KẾT QUẢ TRỰC TIẾP */}
                     {quickReportResultRows.length > 0 && (
-                      <div className="bg-[#111827]/60 p-5 rounded-xl border border-gray-850 space-y-4 animate-fade-in">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#1e293b]/50 p-3.5 rounded-lg border border-gray-805">
-                          <div>
-                            <span className="text-xs font-bold text-emerald-400 font-mono uppercase tracking-wider block">
-                              📊 KẾT QUẢ BÁO CÁO TỔNG HỢP: NGÀNH CẤP {quickReportLevel} × XÃ ĐỊA BÀN
-                            </span>
-                            <span className="text-[11px] text-gray-400 font-sans">
-                              Đã tổng hợp tổng cộng {quickReportResultRows.length} dòng dữ liệu doanh thu, lao động thành công.
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={handleExportQuickReport}
-                            className="bg-[#1f2937] hover:bg-[#374151] text-emerald-300 border border-emerald-950 font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-md font-sans"
-                          >
-                            📥 Tải xuống File Excel (.xlsx)
-                          </button>
-                        </div>
-
-                        <div className="overflow-x-auto border border-gray-850 rounded-xl bg-gray-950/45 max-h-[400px]">
-                          <table className="w-full text-left text-xs">
-                            <thead>
-                              <tr className="bg-[#1f2937] border-b border-gray-850 text-gray-300 font-mono text-[11px] sticky top-0 z-10">
-                                {quickReportResultCols.map(col => (
-                                  <th key={col} className="p-3 font-semibold whitespace-nowrap">{col}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-850/40 text-gray-200 font-sans text-[11.5px]">
-                              {quickReportResultRows.map((row, rIdx) => (
-                                <tr key={rIdx} className="hover:bg-gray-850/20 transition-colors">
-                                  {quickReportResultCols.map(col => {
-                                    const val = row[col];
-                                    const isNumeric = typeof val === "number";
-                                    return (
-                                      <td key={col} className={`p-3 whitespace-nowrap ${isNumeric ? "font-mono text-emerald-400 text-right font-semibold" : ""}`}>
-                                        {isNumeric ? val.toLocaleString("en-US") : String(val ?? "")}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                      <BeautifulReportTable
+                        rows={quickReportResultRows}
+                        cols={quickReportResultCols}
+                        level={quickReportLevel}
+                        reportType={reportType}
+                        onExport={handleExportQuickReport}
+                      />
                     )}
                   </div>
                 ) : (
@@ -4199,10 +4182,9 @@ export default function App() {
                   </div>
                 )}
               </div>
-
-
             </div>
           )}
+
 
           {/* 7. TAB CHUẨN HÓA & PHÂN TÍCH NGÀNH TRẬT TỰ AI */}
           {activeTab === "chuanhoanganh" && (
@@ -4565,6 +4547,7 @@ export default function App() {
                                       onClick={() => {
                                         setSearchTerm(item.motaText);
                                         setViewPage(1);
+                                        setIsConfigExpanded(false);
                                         setActiveTab("xemdulieu");
                                       }}
                                       className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold self-start md:self-center cursor-pointer transition-all flex items-center gap-1 active:scale-95 whitespace-nowrap"
@@ -4602,6 +4585,7 @@ export default function App() {
                                         onClick={() => {
                                           setSearchTerm(item.code);
                                           setViewPage(1);
+                                          setIsConfigExpanded(false);
                                           setActiveTab("xemdulieu");
                                         }}
                                         className="bg-pink-600 hover:bg-pink-700 text-white px-2.5 py-1 rounded-[6px] text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 self-start whitespace-nowrap"

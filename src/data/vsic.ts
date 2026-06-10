@@ -299,7 +299,7 @@ export const loadSectorsIntoVSIC = (catalog: { [key: string]: string }) => {
 
 try {
   if (typeof window !== "undefined" && window.localStorage) {
-    const isPure = window.localStorage.getItem("custom_vsic_is_pure") === "true";
+    const isPure = window.localStorage.getItem("custom_vsic_is_pure") !== "false";
     if (isPure) {
       clearAllSectorsInVSIC();
     }

@@ -34,9 +34,10 @@ export default function VsicCatalogExplorer() {
   // Chế độ thuần khiết (Chỉ dùng danh mục nạp vào, xóa sạch danh mục mặc định của app)
   const [pureMode, setPureMode] = useState<boolean>(() => {
     try {
-      return localStorage.getItem("custom_vsic_is_pure") === "true";
+      const stored = localStorage.getItem("custom_vsic_is_pure");
+      return stored !== "false";
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -335,14 +336,15 @@ export default function VsicCatalogExplorer() {
     }
   };
 
-  // 4. XÓA DANH MỤC TÙY CHỈNH, QUAY VỀ MẶC ĐỊNH
+  // 4. XÓA DANH MỤC TRONG BỘ NHỚ ĐỂ NẠP LẠI
   const handleResetCatalog = () => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa tất cả danh mục ngành tự nạp và khôi phục về danh mục gốc định dạng mặc định của hệ thống không?")) {
+    if (window.confirm("Bạn có chắc chắn muốn xóa sạch toàn bộ danh mục mã ngành hiện tại trong bộ nhớ để nạp lại tệp Excel mới cho chuẩn và đồng nhất không?")) {
       localStorage.removeItem("custom_vsic_data");
-      localStorage.removeItem("custom_vsic_is_pure");
+      localStorage.setItem("custom_vsic_is_pure", "true");
       setCustomCatalog({});
-      setPureMode(false);
-      alert("Đã hoàn tất khôi phục danh mục chuẩn của hệ thống!");
+      setPureMode(true);
+      clearAllSectorsInVSIC();
+      alert("Đã xóa sạch danh mục cũ trong bộ nhớ! Hệ thống đang ở chế độ chờ, xin mời bạn tải lên tệp Excel danh mục của bạn.");
       window.location.reload();
     }
   };
@@ -354,9 +356,10 @@ export default function VsicCatalogExplorer() {
     localStorage.setItem("custom_vsic_is_pure", isChecked ? "true" : "false");
     
     if (isChecked) {
-      alert("Đã chuyển sang chế độ Danh mục Thuần! Danh mục chuẩn của hệ thống đã được ẩn đi, chỉ sử dụng mã ngành do bạn tải lên.");
+      alert("Đã kích hoạt Chế độ Thuần khiết! Hệ thống sẽ chỉ sử dụng duy nhất tệp danh mục Excel do quý khách tự nạp.");
+      window.location.reload();
     } else {
-      alert("Đã tắt chế độ Danh mục Thuần! Danh mục chuẩn của hệ thống đã được sáp nhập trở lại.");
+      alert("Đã tắt Chế độ Thuần khiết! Hệ thống sẽ phối hợp danh mục của quý khách cùng bộ khung mặc định.");
       window.location.reload();
     }
   };
@@ -472,7 +475,7 @@ export default function VsicCatalogExplorer() {
                 onClick={handleResetCatalog}
                 className="w-full flex items-center justify-center gap-1.5 bg-red-950/25 hover:bg-red-950/40 border border-red-500/20 text-red-400 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Khôi phục về danh mục gốc
+                <Trash2 className="w-3.5 h-3.5" /> Xóa sạch bộ nhớ &amp; Nạp tệp mới
               </button>
             )}
           </div>
