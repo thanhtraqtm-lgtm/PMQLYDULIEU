@@ -3195,10 +3195,10 @@ export default function App() {
                     Phát hành chuẩn mực V38.5
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    Hệ Thống Phân Tích & Chuẩn Hóa Dữ Liệu Ngành Quốc Gia
+                    HỆ THỐNG XỬ LÝ DỮ LIỆU TỔNG HỢP SO SÁNH 
                   </h2>
                   <p className="text-gray-300 text-sm leading-relaxed">
-                    Công cụ chuyên sâu hỗ trợ thống kê dữ liệu doanh nghiệp, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa cao cấp.
+                    Công cụ chuyên sâu hỗ trợ các cuộc điều tra có thể đọc và xử lý tất cá các loại bảng biểu không phân biệt ví trí cột hay tên cột có chức năng ghép, tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu, tổng hợp và xử lý liên kết ngành kinh tế VISC2025.
                   </p>
                   <div className="pt-2 flex items-center gap-4">
                     <button 
@@ -3222,10 +3222,10 @@ export default function App() {
               <div className="space-y-6">
                 <div className="border-b border-[#374151] pb-4">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> BẢN ĐỒ CẨM NANG & KÍCH HOẠT CHỨC NĂNG NHANH
+                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> NỘI DUNG & KÍCH HOẠT CHỨC NĂNG NHANH
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
-                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Quý khách có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
+                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Bạn có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
                   </p>
                 </div>
 
@@ -3360,7 +3360,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* CHỨC NĂNG 6: Chuẩn hóa VSIC & AI */}
+                  {/* CHỨC NĂNG 6: Chuẩn hóa khớp ngành VSIC & so sánh tra lỗi*/}
                   <div className="bg-[#1f2937]/50 border border-indigo-500/20 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-indigo-500/40 transition-all group">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -3368,11 +3368,11 @@ export default function App() {
                           <Brain className="w-5 h-5" />
                         </div>
                         <span className="bg-indigo-900/40 text-indigo-300 border border-indigo-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          TRÍ TUỆ NHÂN TẠO
+                          TRA CỨU MÃ NGÀNH VÀ MÔ TẢ NGÀNH
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-indigo-300 transition-colors">
-                        🧠 Chuẩn Hóa VSIC &amp; AI
+                        🧠 Khớp ngành VSIC & so sánh mô tả với mã để phát hiện sai lệch
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Tự động rã tách mã ngành 1-5 cấp đầy đủ không đứt gãy phả hệ liên kết. Sử dụng thuật toán NLP tinh lọc so sánh ngữ nghĩa văn bản của "Mô tả hoạt động thực tế" so với "Mã ngành" đăng ký để phát hiện và chỉnh lỗi mã sai lệch.
@@ -3382,11 +3382,11 @@ export default function App() {
                       onClick={() => setActiveTab("chuanhoanganh")}
                       className="w-full bg-[#111827] hover:bg-indigo-900/30 text-indigo-400 hover:text-white font-bold text-xs py-2 rounded-xl transition-all border border-[#374151] hover:border-indigo-500/30 cursor-pointer flex items-center justify-center gap-1"
                     >
-                      Mở Chuẩn Hóa & AI <ArrowRight className="w-3.5 h-3.5" />
+                      Tra cứu mô tả& mã  <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  {/* CHỨC NĂNG 7: Cỗ máy kiểm tra logic */}
+                  {/* CHỨC NĂNG 7: Công cụ kiểm tra logic */}
                   <div className="bg-[#1f2937]/50 border border-emerald-500/20 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-emerald-500/40 transition-all col-span-1 md:col-span-2 lg:col-span-3 group">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -3398,7 +3398,7 @@ export default function App() {
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
-                        Control Panel 🛂 Cỗ Máy Kiểm Tra Logic
+                        Control Panel 🛂 Công cụ Kiểm Tra Logic
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Thiết lập các quy định ràng buộc điều kiện thông minh dạng <code>NẾU (điều kiện) THÌ PHẢI (điều kiện kia)</code> tùy ý. Bộ máy sẽ lập tức rà soát toàn bộ tệp Excel thu về danh sách hồ sơ bất tuần tự (ví dụ: mô tả có chứa xi-măng nhưng mã ngành lại đăng ký nông nghiệp, hoặc lao động siêu lớn nhưng doanh thu rỗng).
@@ -3408,7 +3408,7 @@ export default function App() {
                       onClick={() => setActiveTab("kiemtralogic")}
                       className="w-full bg-[#111827] hover:bg-emerald-900/30 text-emerald-400 hover:text-white font-bold text-xs py-2 rounded-xl transition-all border border-[#374151] hover:border-emerald-500/30 cursor-pointer flex items-center justify-center gap-1"
                     >
-                      Mở Cỗ Máy Rà Quét Logic <ArrowRight className="w-3.5 h-3.5" />
+                      Mở Công cụ Rà Quét Logic <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -3423,17 +3423,17 @@ export default function App() {
                   <div className="space-y-1">
                     <span className="font-bold text-white block">01. Nạp & Tiền xử lý dữ liệu</span>
                     <p className="text-gray-400">
-                      Truy cập bảng <strong>📂 Xem & Định nghĩa cột</strong>. Tải tệp Excel gốc lên, thực hiện đổi tên Việt hóa dễ thương cho các cột và dán nhãn vai trò tương thích giúp hệ thống dễ chỉ huy dữ liệu chuẩn xác.
+                      Truy cập bảng <strong>📂 Xem & Định nghĩa cột</strong>. Tải tệp Excel gốc lên, thực hiện đổi tên Việt hóa cho các cột và lọc bỏ những cột không sửi dụng đến.
                     </p>
                   </div>
                   <div className="space-y-1">
                     <span className="font-bold text-white block">02. Chuẩn hóa & Rà rà logic</span>
                     <p className="text-gray-400">
-                      Sử dụng <strong>🧠 Chuẩn Hóa VSIC & AI</strong> để hoàn thiện liên kết 5 cấp ngành nghề; tiếp theo sử dụng <strong>🛂 Cỗ Máy Logic</strong> thiết lập các quy chuẩn kiểm tra để lọc sạch các bản ghi lỗi hoặc dị thường.
+                      Sử dụng <strong>🧠 Khớp ngành VSIC & so sánh mô tả với mã </strong> để hoàn thiện liên kết 5 cấp ngành nghề; tiếp theo sử dụng <strong>🛂 Công cụ Logic</strong> thiết lập các quy chuẩn kiểm tra để lọc sạch các bản ghi lỗi hoặc dị thường.
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <span className="font-bold text-white block">03. Tổng hợp báo cáo & Chuyển giao</span>
+                    <span className="font-bold text-white block">03. Tổng hợp báo cáo & xuất file </span>
                     <p className="text-gray-400">
                       Qua trang <strong>📊 Tổng Hợp Báo Cáo</strong> để quy nập các chỉ thị hoặc chọn <strong>✂️ Tách File</strong> tạo tệp zip con của các xã gửi cho từng địa bàn. Bấm tải tệp Excel thành phẩm là xong!
                     </p>
