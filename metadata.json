@@ -1,6 +1,6 @@
 {
-  "name": "Trạm Phân Tích Dữ Liệu Ngành VSIC",
-  "description": "Hệ thống phân tích, chuẩn hóa dữ liệu doanh nghiệp và tra cứu mã ngành kinh tế Việt Nam (VSIC) đa cấp độ thế hệ mới",
+  "name": "PM SO SÁNH XỬ LÝ TỔNG HỢP DỮ LIỆU",
+  "description": "Hệ thống xử lý dữ liệu và tra cứu mã ngành kinh tế Việt Nam (VSIC)",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
