@@ -3195,7 +3195,7 @@ export default function App() {
                     Hệ Thống DM ngành kinh tế VISC2025 
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    HỆ THỐNG XỬ LÝ DỮ LIỆU TỔNG HỢP SO SÁNH 
+                    HỆ THỐNG XỬ LÝ TỔNG HỢP DỮ LIỆU.
                   </h2>
                   <p className="text-gray-300 text-sm leading-relaxed">
                     Công cụ chuyên sâu hỗ trợ các cuộc điều tra có thể đọc và xử lý tất cá các loại bảng biểu không phân biệt ví trí cột hay tên cột có chức năng ghép, tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu, tổng hợp và xử lý liên kết ngành kinh tế VISC2025.
