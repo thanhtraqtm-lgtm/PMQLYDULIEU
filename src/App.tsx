@@ -1154,23 +1154,24 @@ export default function App() {
       }
     });
 
-    // 2. Chèn logic tính toán cột vào đây
+    // Logic tính toán mới của bạn
     restructuredRows.forEach(row => {
-      calcRules.forEach(rule => {
+      const rule = calcRules[0];
+      if (rule && rule.colA && rule.colB && rule.op) {
         const valA = parseFloat(String(row[rule.colA] || 0).replace(/[^0-9.\-]/g, ""));
         const valB = parseFloat(String(row[rule.colB] || 0).replace(/[^0-9.\-]/g, ""));
         let result = 0;
+        if (rule.op === "+") result = valA + valB;
+        else if (rule.op === "-") result = valA - valB;
+        else if (rule.op === "*") result = valA * valB;
+        else if (rule.op === "/") result = valB !== 0 ? valA / valB : 0;
         
-        if (rule.op === "+") result = (isNaN(valA) ? 0 : valA) + (isNaN(valB) ? 0 : valB);
-        else if (rule.op === "-") result = (isNaN(valA) ? 0 : valA) - (isNaN(valB) ? 0 : valB);
-        else if (rule.op === "*") result = (isNaN(valA) ? 0 : valA) * (isNaN(valB) ? 0 : valB);
-        else if (rule.op === "/") result = (isNaN(valB) || valB === 0) ? 0 : valA / valB;
-        
-        row[rule.newColName] = result;
-      });
+        const colName = rule.newColName || `${rule.colA}_${rule.op}_${rule.colB}`;
+        row[colName] = result;
+      }
     });
 
-    // 3. Kết thúc bằng việc cập nhật state sau khi đã có cột mới
+    // Cập nhật state (Điểm kết thúc)
     const newCols = Object.keys(restructuredRows[0] || {});
     setMainData(restructuredRows);
     setColumns(newCols);
