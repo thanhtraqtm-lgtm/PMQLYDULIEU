@@ -3264,7 +3264,7 @@ export default function App() {
                           <GitMerge className="w-5 h-5" />
                         </div>
                         <span className="bg-blue-900/40 text-blue-300 border border-blue-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          TÍCH HỢP FILE
+                          GHEP DỮ LIỆU
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors">
