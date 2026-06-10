@@ -40,16 +40,100 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-async function saveAppState(state: AppState): Promise<void> {
-  try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
+const CHUNK_SIZE = 5000;
+
+async function clearOldChunks(db: IDBDatabase): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.openKeyCursor();
+    request.onsuccess = (event: any) => {
+      const cursor = event.target.result;
+      if (cursor) {
+        const key = String(cursor.key);
+        if (key.startsWith("mainData_chunk_") || key.startsWith("rawImportedData_chunk_")) {
+          store.delete(key);
+        }
+        cursor.continue();
+      } else {
+        resolve();
+      }
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveArrayInChunks(db: IDBDatabase, prefix: string, array: any[]): Promise<void> {
+  const numChunks = Math.ceil(array.length / CHUNK_SIZE);
+  for (let i = 0; i < numChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const chunk = array.slice(start, start + CHUNK_SIZE);
+    
+    // Yield to the main thread to remain fully responsive
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    
+    await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readwrite");
       const store = transaction.objectStore(STORE_NAME);
-      // IndexedDB lưu trữ đối tượng dạng bản sao cấu trúc thô trực tiếp cực mạnh mẽ và chuẩn xác
-      const request = store.put(state, "currentSession");
+      const request = store.put(chunk, `${prefix}_chunk_${i}`);
       request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error("Lỗi khi lưu dữ liệu vào IndexedDB"));
+      request.onerror = () => reject(request.error || new Error(`Lỗi lưu mảnh ${prefix} ${i}`));
+    });
+  }
+}
+
+async function loadArrayInChunks(db: IDBDatabase, prefix: string, totalLength: number): Promise<any[]> {
+  const numChunks = Math.ceil(totalLength / CHUNK_SIZE);
+  const result: any[] = [];
+  for (let i = 0; i < numChunks; i++) {
+    // Tránh giữ luồng thao tác liên tục
+    await new Promise<void>((resolve) => setTimeout(resolve, 2));
+    
+    const chunk: any[] = await new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(`${prefix}_chunk_${i}`);
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error || new Error(`Lỗi tải mảnh ${prefix} ${i}`));
+    });
+    result.push(...chunk);
+  }
+  return result;
+}
+
+async function saveAppState(state: AppState, forceSaveData: boolean = false): Promise<void> {
+  try {
+    const db = await openDB();
+    const { mainData, rawImportedData, ...meta } = state;
+    
+    // 1. Luôn ghi nhận Metadata (rất nhẹ, < 1ms)
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const metaData = {
+        ...meta,
+        mainDataLength: mainData.length,
+        rawImportedDataLength: rawImportedData.length,
+        isChunked: true
+      };
+      const request = store.put(metaData, "sessionMeta");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error || new Error("Lỗi lưu metadata"));
+    });
+
+    // 2. Chỉ thực hiện lưu chuỗi khối dữ liệu khổng lồ nếu được bật cờ bắt buộc (nhập file mới, tính toán lại, gộp sheet)
+    if (forceSaveData) {
+      await clearOldChunks(db);
+      await saveArrayInChunks(db, "mainData", mainData);
+      await saveArrayInChunks(db, "rawImportedData", rawImportedData);
+    }
+
+    // Xóa định dạng session cũ nếu có
+    await new Promise<void>((resolve) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      store.delete("currentSession");
+      resolve();
     });
   } catch (error) {
     console.error("IndexedDB Save Error:", error);
@@ -59,6 +143,31 @@ async function saveAppState(state: AppState): Promise<void> {
 async function loadAppState(): Promise<AppState | null> {
   try {
     const db = await openDB();
+    
+    // 1. Tải Metadata trước
+    const meta: any = await new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get("sessionMeta");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("Lỗi đọc sessionMeta"));
+    });
+
+    if (meta && meta.isChunked) {
+      const mainDataLength = meta.mainDataLength || 0;
+      const rawImportedDataLength = meta.rawImportedDataLength || 0;
+      
+      const mainData = await loadArrayInChunks(db, "mainData", mainDataLength);
+      const rawImportedData = await loadArrayInChunks(db, "rawImportedData", rawImportedDataLength);
+      
+      return {
+        ...meta,
+        mainData,
+        rawImportedData
+      };
+    }
+
+    // Tương thích ngược: Đọc session thô cũ
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readonly");
       const store = transaction.objectStore(STORE_NAME);
@@ -76,12 +185,10 @@ async function loadAppState(): Promise<AppState | null> {
             reject(new Error("Dữ liệu phiên làm việc bị hỏng, đang khởi tạo lại..."));
           }
         } else {
-          resolve(val); // Tương thích ngược dạng Object cũ
+          resolve(val);
         }
       };
-      request.onerror = () => {
-        reject(new Error("Lỗi khi đọc dữ liệu từ IndexedDB"));
-      };
+      request.onerror = () => reject(request.error || new Error("Lỗi đọc currentSession"));
     });
   } catch (error) {
     console.error("IndexedDB Load Error:", error);
@@ -92,12 +199,13 @@ async function loadAppState(): Promise<AppState | null> {
 async function clearAppState(): Promise<void> {
   try {
     const db = await openDB();
+    await clearOldChunks(db);
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readwrite");
       const store = transaction.objectStore(STORE_NAME);
-      const request = store.delete("currentSession");
+      const request = store.delete("sessionMeta");
       request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error("Lỗi khi xóa dữ liệu IndexedDB"));
+      request.onerror = () => reject(request.error || new Error("Lỗi xóa sessionMeta"));
     });
   } catch (error) {
     console.error("IndexedDB Clear Error:", error);
@@ -171,8 +279,6 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>("");
-  / Dán dòng này vào đây:
-  const [calcRules, setCalcRules] = useState([{ colA: "", op: "+", colB: "", newColName: "KetQua" }]);
 
   // Trạng thái mật khẩu bảo vệ ứng dụng độc lập tránh bắt đăng nhập email phiền hà
   const [appPassword, setAppPassword] = useState<string>(() => {
@@ -220,14 +326,6 @@ export default function App() {
   const [rawImportedData, setRawImportedData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [fileName, setFileName] = useState<string>("");
-  // --- BỔ SUNG TRẠNG THÁI CHO TÍNH TOÁN CỘT ---
-  const [calcRules, setCalcRules] = useState<{
-    newColName: string; 
-    colA: string; 
-    op: "+" | "-" | "*" | "/"; 
-    colB: string;
-  }[]>([]);
-  // --------------------------------------------
 
   // Setup reporting states
   const [quickReportResultRows, setQuickReportResultRows] = useState<any[]>([]);
@@ -250,6 +348,15 @@ export default function App() {
     newName: string;
     role: "mota" | "manganh" | "xa" | "doanhthu" | "laodong" | "idCol" | "";
   }[]>([]);
+
+  // Trạng thái cho Cột tính toán mới (Calculated Columns)
+  const [calcColName, setCalcColName] = useState<string>("");
+  const [calcCol1, setCalcCol1] = useState<string>("");
+  const [calcCol2, setCalcCol2] = useState<string>("");
+  const [calcOperator, setCalcOperator] = useState<"+" | "-" | "*" | "/" | "concat">("+");
+  const [calcType, setCalcType] = useState<"column" | "constant">("column");
+  const [calcConstant, setCalcConstant] = useState<string>("");
+  const [calcRounding, setCalcRounding] = useState<"none" | "int" | "1dec" | "2dec">("none");
 
   // Trạng thái cho Dual-Pane Mapping và double click, cùng kiểu định dạng báo cáo xoay Pivot
   const [selectedTargetKey, setSelectedTargetKey] = useState<keyof ColumnMapping>("mota");
@@ -390,7 +497,7 @@ export default function App() {
         fileName: customFileName !== undefined ? customFileName : fileName,
         mapping: customMapping !== undefined ? customMapping : mapping,
         customColConfigs: customConfigs !== undefined ? customConfigs : customColConfigs
-      });
+      }, true); // Bắt buộc lưu toàn bộ chuỗi khối dữ liệu thô
     } catch (err) {
       console.error("Không thể lưu trạng thái phiên:", err);
     }
@@ -408,7 +515,7 @@ export default function App() {
         fileName,
         mapping,
         customColConfigs
-      }).catch(err => console.error("Lỗi tự động lưu phiên làm việc:", err));
+      }, false).catch(err => console.error("Lỗi tự động lưu phiên làm việc:", err)); // Chỉ lưu metadata siêu nhanh
     }, 1500);
 
     return () => clearTimeout(timer);
@@ -479,6 +586,31 @@ export default function App() {
     });
 
     return ws;
+  };
+
+  // Helper xử lý mảng lớn theo từng cụm (chunks) để tránh treo luồng chính (Main Thread)
+  const chunkProcess = async <T, R>(
+    array: T[],
+    size: number,
+    processFn: (item: T, index: number) => R,
+    onProgress?: (percent: number) => void
+  ): Promise<R[]> => {
+    const result: R[] = [];
+    const len = array.length;
+    if (len === 0) return [];
+    
+    for (let i = 0; i < len; i += size) {
+      const chunk = array.slice(i, i + size);
+      for (let j = 0; j < chunk.length; j++) {
+        result.push(processFn(chunk[j], i + j));
+      }
+      if (onProgress) {
+        onProgress(Math.min(100, Math.round((i / len) * 100)));
+      }
+      // Trả lại quyền hoạt động cho trình duyệt vẽ giao diện & xử lý sự kiện
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+    }
+    return result;
   };
 
   // Bộ phân giải CSV tối ưu hóa cao cho các tệp lớn (như 50MB+), loại bỏ lỗi "Too many properties to enumerate"
@@ -1131,32 +1263,26 @@ export default function App() {
     setProgress(10);
     setStatusMessage("Đang tiến hành lọc bỏ cột thừa và đổi tên cột theo định nghĩa của bạn...");
     await sleep(200);
-    // 2. TÍNH TOÁN CỘT (Cộng/Trừ/Nhân/Chia)
-    restructuredRows.forEach(row => {
-      const rule = calcRules[0];
-      if (rule.colA && rule.colB) {
-        const valA = parseFloat(String(row[rule.colA] || 0).replace(/[^0-9.\-]/g, ""));
-        const valB = parseFloat(String(row[rule.colB] || 0).replace(/[^0-9.\-]/g, ""));
-        let res = 0;
-        if (rule.op === "+") res = valA + valB;
-        else if (rule.op === "-") res = valA - valB;
-        else if (rule.op === "*") res = valA * valB;
-        else if (rule.op === "/") res = valB !== 0 ? valA / valB : 0;
-        row[rule.newColName] = res;
+
+    // Tạo bảng chứa dữ liệu mới gồm các cột được chọn và tên cột mới bằng chu trình chunkProcess an toàn
+    const restructuredRows = await chunkProcess(
+      rawImportedData,
+      10000,
+      row => {
+        const newRow: any = {};
+        activeConfigs.forEach(cfg => {
+          const val = row[cfg.originalName];
+          newRow[cfg.newName.trim()] = val !== undefined && val !== null ? val : "";
+        });
+        return newRow;
+      },
+      pct => {
+        setProgress(10 + Math.round(pct * 0.8));
+        setStatusMessage(`Đang tái cấu trúc bảng: đã hoàn thành ${pct}%...`);
       }
-    });
+    );
 
-    // Tạo bảng chứa dữ liệu mới gồm các cột được chọn và tên cột mới
-    const restructuredRows = rawImportedData.map(row => {
-      const newRow: any = {};
-      activeConfigs.forEach(cfg => {
-        const val = row[cfg.originalName];
-        newRow[cfg.newName.trim()] = val !== undefined && val !== null ? val : "";
-      });
-      return newRow;
-    });
-
-    // 1. Cập nhật cấu hình mapping bảo toàn theo chỉ định người dùng khi đổi tên cột
+    // Cập nhật cấu hình mapping bảo toàn theo chỉ định người dùng khi đổi tên cột
     const newMapping: ColumnMapping = { ...mapping };
     Object.keys(newMapping).forEach((roleKey) => {
       const currentMappedCol = newMapping[roleKey as keyof ColumnMapping];
@@ -1170,29 +1296,7 @@ export default function App() {
       }
     });
 
-    // Logic tính toán mới của bạn
-    restructuredRows.forEach(row => {
-      const rule = calcRules[0];
-      if (rule && rule.colA && rule.colB && rule.op) {
-        const valA = parseFloat(String(row[rule.colA] || 0).replace(/[^0-9.\-]/g, ""));
-        const valB = parseFloat(String(row[rule.colB] || 0).replace(/[^0-9.\-]/g, ""));
-        let result = 0;
-        if (rule.op === "+") result = valA + valB;
-        else if (rule.op === "-") result = valA - valB;
-        else if (rule.op === "*") result = valA * valB;
-        else if (rule.op === "/") result = valB !== 0 ? valA / valB : 0;
-        
-        const colName = rule.newColName || `${rule.colA}_${rule.op}_${rule.colB}`;
-        row[colName] = result;
-      }
-    });
-
-    // Cập nhật state (Điểm kết thúc)
     const newCols = Object.keys(restructuredRows[0] || {});
-    setMainData(restructuredRows);
-    setColumns(newCols);
-    setMapping(newMapping);
-    setViewPage(1);
 
     setMainData(restructuredRows);
     setColumns(newCols);
@@ -1208,6 +1312,140 @@ export default function App() {
     await sleep(400);
     setLoading(false);
     setActiveTab("xemdulieu"); // Di chuyển tới tab hiển thị bảng dữ liệu mới
+  };
+
+  // Thực hiện phép tính toán học hoặc ghép chữ giữa các cột (Column to Column calculations)
+  const handleCalculateColumn = async () => {
+    if (rawImportedData.length === 0) {
+      alert("Chưa có dữ liệu nguồn chính! Hãy tải tệp Excel lên trước.");
+      return;
+    }
+    const safeNewName = calcColName.trim();
+    if (!safeNewName) {
+      alert("Vui lòng nhập tên cho cột kết quả mới!");
+      return;
+    }
+    if (!calcCol1) {
+      alert("Vui lòng chọn cột thành phần thứ nhất!");
+      return;
+    }
+    if (calcType === "column" && !calcCol2) {
+      alert("Vui lòng chọn cột thành phần thứ hai!");
+      return;
+    }
+    if (calcType === "constant" && calcConstant.trim() === "") {
+      alert("Vui lòng nhập giá trị hằng số để thực hiện phép tính!");
+      return;
+    }
+
+    setLoading(true);
+    setProgress(20);
+    setStatusMessage(`Đang tính toán tạo cột mới [${safeNewName}]...`);
+    await sleep(200);
+
+    try {
+      const computeRowValue = (row: any) => {
+        const val1 = row[calcCol1];
+        let val2: any;
+        if (calcType === "column") {
+          val2 = row[calcCol2];
+        } else {
+          const rawConst = calcConstant.trim();
+          val2 = isNaN(Number(rawConst)) ? rawConst : Number(rawConst);
+        }
+
+        if (calcOperator === "concat") {
+          const str1 = val1 !== undefined && val1 !== null ? String(val1) : "";
+          const str2 = val2 !== undefined && val2 !== null ? String(val2) : "";
+          return `${str1} ${str2}`.trim();
+        } else {
+          const num1 = parseFloat(String(val1).replace(/,/g, "")) || 0;
+          const num2 = typeof val2 === "number" ? val2 : (parseFloat(String(val2).replace(/,/g, "")) || 0);
+          
+          let resultNum = 0;
+          if (calcOperator === "+") resultNum = num1 + num2;
+          else if (calcOperator === "-") resultNum = num1 - num2;
+          else if (calcOperator === "*") resultNum = num1 * num2;
+          else if (calcOperator === "/") {
+            resultNum = num2 !== 0 ? num1 / num2 : 0;
+          }
+
+          if (calcRounding === "int") {
+            return Math.round(resultNum);
+          } else if (calcRounding === "1dec") {
+            return Math.round(resultNum * 10) / 10;
+          } else if (calcRounding === "2dec") {
+            return Math.round(resultNum * 100) / 100;
+          }
+          return resultNum;
+        }
+      };
+
+      const computedRaw = await chunkProcess<any, any>(
+        rawImportedData,
+        10000,
+        (row: any) => ({
+          ...row,
+          [safeNewName]: computeRowValue(row)
+        }),
+        pct => {
+          setProgress(20 + Math.round(pct * 0.4));
+          setStatusMessage(`Đang tính định mức cột gốc: ${pct}%...`);
+        }
+      );
+
+      const computedMain = await chunkProcess<any, any>(
+        mainData,
+        10000,
+        (row: any) => ({
+          ...row,
+          [safeNewName]: computeRowValue(row)
+        }),
+        pct => {
+          setProgress(60 + Math.round(pct * 0.4));
+          setStatusMessage(`Đang tính định mức cột hiển thị: ${pct}%...`);
+        }
+      );
+
+      const newCols = [...columns];
+      if (!newCols.includes(safeNewName)) {
+        newCols.push(safeNewName);
+      }
+
+      let updatedColConfigs = [...customColConfigs];
+      const configExists = updatedColConfigs.some(cfg => cfg.originalName === safeNewName);
+      if (!configExists) {
+        updatedColConfigs.push({
+          originalName: safeNewName,
+          use: true,
+          newName: safeNewName,
+          role: ""
+        });
+      } else {
+        updatedColConfigs = updatedColConfigs.map(cfg => {
+          if (cfg.originalName === safeNewName) {
+            return { ...cfg, use: true, newName: safeNewName };
+          }
+          return cfg;
+        });
+      }
+
+      setRawImportedData(computedRaw);
+      setMainData(computedMain);
+      setColumns(newCols);
+      setCustomColConfigs(updatedColConfigs);
+      
+      setCalcColName("");
+      setProgress(100);
+      setStatusMessage(`Đã tính toán thành công và bổ sung cột [${safeNewName}]!`);
+      
+      autoSaveSession(computedMain, computedRaw, newCols, fileName, mapping, updatedColConfigs);
+    } catch (err: any) {
+      alert("Lỗi tính toán cột: " + err.message);
+    } finally {
+      await sleep(300);
+      setLoading(false);
+    }
   };
 
   // Bộ lọc dữ liệu viewer
@@ -2032,109 +2270,117 @@ export default function App() {
       let conflictCount = 0;
       const anomalies: any[] = [];
 
-      // Tạo mảng bản ghi mới bổ sung cột của "Tên Ngành Chuẩn VSIC" và "Trạng Thái Đối Chiếu VSIC" sát cạnh cột gốc
-      const updatedRows = mainData.map((row, idx) => {
-        if (!row || typeof row !== 'object') return row;
-        const rawCode = row[stdIndustryCol];
-        const rawDesc = stdDescriptionCol ? String(row[stdDescriptionCol] || "") : "";
-        
-        const cleanCode = normalizeSectorCode(rawCode);
-        const lookupResult = lookupSectorNameWithFallback(cleanCode);
-        const isExistInVSIC = lookupResult.level > 0;
-        const stdName = lookupResult.name;
-
-        if (isExistInVSIC) {
-          validCount++;
-        } else {
-          invalidCount++;
-        }
-
-        // Đối chiếu quy luật logic hoạt động mô tả & mã ngành để phát hiện mâu thuẫn lệch vai trò
-        let auditStatus = lookupResult.exactMatched ? "✅ Đạt chuẩn VSIC quốc gia" : "✅ Khớp quy nạp cấp học";
-        let anomalyReason = "";
-
-        if (!isExistInVSIC) {
-          auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
-          anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục hệ thống phân cấp VSIC quốc gia`;
-        } else if (rawDesc.trim() !== "") {
-          const descLow = rawDesc.toLowerCase();
-          const stdLow = stdName.toLowerCase();
-
-          // 1. Lệch hạch toán: Nông nghiệp vs Phục vụ thương mại
-          const hasFeederWords = descLow.includes("trồng") || descLow.includes("nuôi") || descLow.includes("bắt") || descLow.includes("thu hoạch") || descLow.includes("đánh bắt");
-          const hasTradeWords = descLow.includes("bán buôn") || descLow.includes("bán lẻ") || descLow.includes("môi giới") || descLow.includes("đại lý") || descLow.includes("thương mại");
+      // Tạo mảng bản ghi mới bổ sung cột của "Tên Ngành Chuẩn VSIC" và "Trạng Thái Đối Chiếu VSIC" bằng chunkProcess
+      const updatedRows = await chunkProcess(
+        mainData,
+        5000,
+        (row, idx) => {
+          if (!row || typeof row !== 'object') return row;
+          const rawCode = row[stdIndustryCol];
+          const rawDesc = stdDescriptionCol ? String(row[stdDescriptionCol] || "") : "";
           
-          const stdIsFeeder = stdLow.includes("nông nghiệp") || stdLow.includes("lâm nghiệp") || stdIsFeederWord(stdLow);
-          const stdIsTrade = stdLow.includes("bán buôn") || stdLow.includes("bán lẻ") || stdLow.includes("thương mại");
+          const cleanCode = normalizeSectorCode(rawCode);
+          const lookupResult = lookupSectorNameWithFallback(cleanCode);
+          const isExistInVSIC = lookupResult.level > 0;
+          const stdName = lookupResult.name;
 
-          if (hasTradeWords && stdIsFeeder) {
-            auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Phân phối thương mại và sản xuất nông nghiệp)";
-            anomalyReason = `Mô tả ghi thương mại (${rawDesc}) nhưng lại gán mã thuộc ngành trồng trọt/chăn nuôi sản xuất trực tiếp (${cleanCode} - ${stdName})`;
-            conflictCount++;
-          } else if (hasFeederWords && stdIsTrade) {
-            auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Tự sản tự tiêu nông nghiệp và phân phối đại lý)";
-            anomalyReason = `Mô tả ghi trồng trọt, khai mỏ (${rawDesc}) nhưng mã ngành lại gán đại lý bán buôn, dịch vụ phân phối (${cleanCode} - ${stdName})`;
-            conflictCount++;
+          if (isExistInVSIC) {
+            validCount++;
+          } else {
+            invalidCount++;
           }
 
-          // 2. Chế biến sản xuất vs Dịch vụ ăn uống, xây dựng
-          const hasManufacture = descLow.includes("sản xuất") || descLow.includes("chế tạo") || descLow.includes("gia công") || descLow.includes("lắp đặt");
-          const hasService = descLow.includes("ăn uống") || descLow.includes("nhà hàng") || descLow.includes("quán") || descLow.includes("giáo dục") || descLow.includes("dịch vụ");
+          // Đối chiếu quy luật logic hoạt động mô tả & mã ngành để phát hiện mâu thuẫn lệch vai trò
+          let auditStatus = lookupResult.exactMatched ? "✅ Đạt chuẩn VSIC quốc gia" : "✅ Khớp quy nạp cấp học";
+          let anomalyReason = "";
 
-          const stdIsManufacture = stdLow.includes("sản xuất") || stdLow.includes("chế biến") || stdLow.includes("chế tạo");
-          const stdIsService = stdLow.includes("ăn uống") || stdLow.includes("nhà hàng") || stdLow.includes("giáo dục") || stdLow.includes("dịch vụ");
+          if (!isExistInVSIC) {
+            auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
+            anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục hệ thống phân cấp VSIC quốc gia`;
+          } else if (rawDesc.trim() !== "") {
+            const descLow = rawDesc.toLowerCase();
+            const stdLow = stdName.toLowerCase();
 
-          if (hasManufacture && stdIsService) {
-            auditStatus = "⚠️ Nghi ngờ lệch mã (Sản xuất gia công vs Dịch vụ ăn uống hoặc đào tạo)";
-            anomalyReason = `Mô tả ghi chế tạo gia công (${rawDesc}) nhưng mã ngành lại thuộc về cung ứng ăn uống hoặc dịch vụ dân sinh (${cleanCode} - ${stdName})`;
-            conflictCount++;
-          } else if (hasService && stdIsManufacture) {
-            auditStatus = "⚠️ Nghi ngờ lệch mã (Cung ứng dịch vụ vs Chế biến sản xuất công nghiệp)";
-            anomalyReason = `Mô tả ghi phục vụ ẩm thực, giáo dục (${rawDesc}) nhưng mã ngành lại hạch toán vào sản xuất công nghiệp nặng/nhẹ (${cleanCode} - ${stdName})`;
-            conflictCount++;
+            // 1. Lệch hạch toán: Nông nghiệp vs Phục vụ thương mại
+            const hasFeederWords = descLow.includes("trồng") || descLow.includes("nuôi") || descLow.includes("bắt") || descLow.includes("thu hoạch") || descLow.includes("đánh bắt");
+            const hasTradeWords = descLow.includes("bán buôn") || descLow.includes("bán lẻ") || descLow.includes("môi giới") || descLow.includes("đại lý") || descLow.includes("thương mại");
+            
+            const stdIsFeeder = stdLow.includes("nông nghiệp") || stdLow.includes("lâm nghiệp") || stdIsFeederWord(stdLow);
+            const stdIsTrade = stdLow.includes("bán buôn") || stdLow.includes("bán lẻ") || stdLow.includes("thương mại");
+
+            if (hasTradeWords && stdIsFeeder) {
+              auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Phân phối thương mại và sản xuất nông nghiệp)";
+              anomalyReason = `Mô tả ghi thương mại (${rawDesc}) nhưng lại gán mã thuộc ngành trồng trọt/chăn nuôi sản xuất trực tiếp (${cleanCode} - ${stdName})`;
+              conflictCount++;
+            } else if (hasFeederWords && stdIsTrade) {
+              auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Tự sản tự tiêu nông nghiệp và phân phối đại lý)";
+              anomalyReason = `Mô tả ghi trồng trọt, khai mỏ (${rawDesc}) nhưng mã ngành lại gán đại lý bán buôn, dịch vụ phân phối (${cleanCode} - ${stdName})`;
+              conflictCount++;
+            }
+
+            // 2. Chế biến sản xuất vs Dịch vụ ăn uống, xây dựng
+            const hasManufacture = descLow.includes("sản xuất") || descLow.includes("chế tạo") || descLow.includes("gia công") || descLow.includes("lắp đặt");
+            const hasService = descLow.includes("ăn uống") || descLow.includes("nhà hàng") || descLow.includes("quán") || descLow.includes("giáo dục") || descLow.includes("dịch vụ");
+
+            const stdIsManufacture = stdLow.includes("sản xuất") || stdLow.includes("chế biến") || stdLow.includes("chế tạo");
+            const stdIsService = stdLow.includes("ăn uống") || stdLow.includes("nhà hàng") || stdLow.includes("giáo dục") || stdLow.includes("dịch vụ");
+
+            if (hasManufacture && stdIsService) {
+              auditStatus = "⚠️ Nghi ngờ lệch mã (Sản xuất gia công vs Dịch vụ ăn uống hoặc đào tạo)";
+              anomalyReason = `Mô tả ghi chế tạo gia công (${rawDesc}) nhưng mã ngành lại thuộc về cung ứng ăn uống hoặc dịch vụ dân sinh (${cleanCode} - ${stdName})`;
+              conflictCount++;
+            } else if (hasService && stdIsManufacture) {
+              auditStatus = "⚠️ Nghi ngờ lệch mã (Cung ứng dịch vụ vs Chế biến sản xuất công nghiệp)";
+              anomalyReason = `Mô tả ghi phục vụ ẩm thực, giáo dục (${rawDesc}) nhưng mã ngành lại hạch toán vào sản xuất công nghiệp nặng/nhẹ (${cleanCode} - ${stdName})`;
+              conflictCount++;
+            }
           }
-        }
 
-        if (anomalyReason) {
-          anomalies.push({
-            dongSTT: idx + 1,
-            maDN: row["Mã Số Thuế"] || row["MaST"] || `Bản ghi số ${idx + 1}`,
-            maGoc: rawCode,
-            motaGoc: rawDesc,
-            nganhChuan: stdName || "(Thất bại khi tra cứu)",
-            phanTichloi: anomalyReason
-          });
-        }
-
-        // Xây dựng Bản ghi mới co cụm, bơm cột Tên Ngành Chuẩn VSIC và Trạng Thái Đối Chiếu VSIC nằm ngay bên cạnh cột Mô Tả Hoạt Động / Mã Ngành để dễ đối chiếu
-        const flexRow: any = {};
-        Object.keys(row).forEach(key => {
-          flexRow[key] = row[key];
-          if (key === stdDescriptionCol) {
-            flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
-            flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
+          if (anomalyReason && anomalies.length < 5000) {
+            anomalies.push({
+              dongSTT: idx + 1,
+              maDN: row["Mã Số Thuế"] || row["MaST"] || `Bản ghi số ${idx + 1}`,
+              maGoc: rawCode,
+              motaGoc: rawDesc,
+              nganhChuan: stdName || "(Thất bại khi tra cứu)",
+              phanTichloi: anomalyReason
+            });
           }
-        });
 
-        // Nếu không khớp được vị trí cột mô tả thì tự chêm cột mới vào kế cột Mã ngành
-        if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
+          // Xây dựng Bản ghi mới co cụm, bơm cột Tên Ngành Chuẩn VSIC và Trạng Thái Đối Chiếu VSIC nằm ngay bên cạnh cột Mô Tả Hoạt Động / Mã Ngành để dễ đối chiếu
+          const flexRow: any = {};
           Object.keys(row).forEach(key => {
             flexRow[key] = row[key];
-            if (key === stdIndustryCol) {
+            if (key === stdDescriptionCol) {
               flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
               flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
             }
           });
-        }
 
-        // Nếu vẫn thiếu do trùng cấu hình dặc biệt
-        if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
-          flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
-          flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
-        }
+          // Nếu không khớp được vị trí cột mô tả thì tự chêm cột mới vào kế cột Mã ngành
+          if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
+            Object.keys(row).forEach(key => {
+              flexRow[key] = row[key];
+              if (key === stdIndustryCol) {
+                flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+                flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
+              }
+            });
+          }
 
-        return flexRow;
-      });
+          // Nếu vẫn thiếu do trùng cấu hình dặc biệt
+          if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
+            flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+            flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
+          }
+
+          return flexRow;
+        },
+        pct => {
+          setProgress(5 + Math.round(pct * 0.9));
+          setStatusMessage(`Đang chuẩn hóa & phân tích mã ngành VSIC: ${pct}%...`);
+        }
+      );
 
       const newCols = Object.keys(updatedRows[0] || {});
       setMainData(updatedRows);
@@ -2191,87 +2437,97 @@ export default function App() {
       let mismatchCount = 0;
       const anomalies: any[] = [];
 
-      const updatedRows = mainData.map((row, idx) => {
-        if (!row || typeof row !== 'object') return row;
-        const valA = row[crossCompareColA] !== undefined && row[crossCompareColA] !== null ? String(row[crossCompareColA]).trim() : "";
-        const valB = row[crossCompareColB] !== undefined && row[crossCompareColB] !== null ? String(row[crossCompareColB]).trim() : "";
+      const updatedRows = await chunkProcess(
+        mainData,
+        5000,
+        (row, idx) => {
+          if (!row || typeof row !== 'object') return row;
+          const valA = row[crossCompareColA] !== undefined && row[crossCompareColA] !== null ? String(row[crossCompareColA]).trim() : "";
+          const valB = row[crossCompareColB] !== undefined && row[crossCompareColB] !== null ? String(row[crossCompareColB]).trim() : "";
 
-        let isMatch = false;
-        let explanation = "";
+          let isMatch = false;
+          let explanation = "";
 
-        if (crossCompareRule === "exact") {
-          isMatch = valA === valB;
-          if (!isMatch) {
-            explanation = `Ký tự khác hoàn toàn (so sánh chuẩn xác cả chữ hoa/thường, dấu cách)`;
-          }
-        } else if (crossCompareRule === "normalize") {
-          const cleanA = valA.toLowerCase().replace(/\s+/g, " ");
-          const cleanB = valB.toLowerCase().replace(/\s+/g, " ");
-          isMatch = cleanA === cleanB;
-          if (!isMatch) {
-            explanation = `Chuỗi văn bản gốc không trùng nhau (sau khi đã chuẩn hóa khoảng trắng & bỏ viết hoa)`;
-          }
-        } else if (crossCompareRule === "sector_code") {
-          const codeA = valA.replace(/\D/g, "");
-          const codeB = valB.replace(/\D/g, "");
-          if (codeA === codeB && codeA !== "") {
-            isMatch = true;
-          } else if (codeA !== "" && codeB !== "") {
-            isMatch = codeA.startsWith(codeB) || codeB.startsWith(codeA);
-            if (isMatch) {
-              explanation = `Khấu chuẩn quy nạp phân cấp theo logic cha-con (VD: ${valA} so với ${valB})`;
-            } else {
-              explanation = `Mã ngành hoàn toàn khác biệt nhóm phân cấp (VD: ${valA} so với ${valB})`;
-            }
-          } else {
+          if (crossCompareRule === "exact") {
             isMatch = valA === valB;
             if (!isMatch) {
-              explanation = `Mã bị trống hoặc không thể phân giải số ngành hơp chuẩn`;
+              explanation = `Ký tự khác hoàn toàn (so sánh chuẩn xác cả chữ hoa/thường, dấu cách)`;
+            }
+          } else if (crossCompareRule === "normalize") {
+            const cleanA = valA.toLowerCase().replace(/\s+/g, " ");
+            const cleanB = valB.toLowerCase().replace(/\s+/g, " ");
+            isMatch = cleanA === cleanB;
+            if (!isMatch) {
+              explanation = `Chuỗi văn bản gốc không trùng nhau (sau khi đã chuẩn hóa khoảng trắng & bỏ viết hoa)`;
+            }
+          } else if (crossCompareRule === "sector_code") {
+            const codeA = valA.replace(/\D/g, "");
+            const codeB = valB.replace(/\D/g, "");
+            if (codeA === codeB && codeA !== "") {
+              isMatch = true;
+            } else if (codeA !== "" && codeB !== "") {
+              isMatch = codeA.startsWith(codeB) || codeB.startsWith(codeA);
+              if (isMatch) {
+                explanation = `Khấu chuẩn quy nạp phân cấp theo logic cha-con (VD: ${valA} so với ${valB})`;
+              } else {
+                explanation = `Mã ngành hoàn toàn khác biệt nhóm phân cấp (VD: ${valA} so với ${valB})`;
+              }
+            } else {
+              isMatch = valA === valB;
+              if (!isMatch) {
+                explanation = `Mã bị trống hoặc không thể phân giải số ngành hơp chuẩn`;
+              }
+            }
+          } else if (crossCompareRule === "substring") {
+            const descLowA = valA.toLowerCase();
+            const descLowB = valB.toLowerCase();
+            isMatch = descLowA.includes(descLowB) || descLowB.includes(descLowA);
+            if (isMatch) {
+              explanation = `Thỏa mãn: Một giá trị chứa phụ đề / từ khóa của giá trị còn lại`;
+            } else {
+              explanation = `Không có bất kỳ cụm từ khóa liên đới chéo nhau`;
             }
           }
-        } else if (crossCompareRule === "substring") {
-          const descLowA = valA.toLowerCase();
-          const descLowB = valB.toLowerCase();
-          isMatch = descLowA.includes(descLowB) || descLowB.includes(descLowA);
+
           if (isMatch) {
-            explanation = `Thỏa mãn: Một giá trị chứa phụ đề / từ khóa của giá trị còn lại`;
+            matchCount++;
           } else {
-            explanation = `Không có bất kỳ cụm từ khóa liên đới chéo nhau`;
+            mismatchCount++;
+            if (anomalies.length < 5000) {
+              anomalies.push({
+                dongSTT: idx + 1,
+                maDN: row["Mã Số Thuế"] || row["MaST"] || row["Số GPKD"] || `Bản ghi số ${idx + 1}`,
+                valA: valA || "(Không có dữ liệu)",
+                valB: valB || "(Không có dữ liệu)",
+                reason: explanation
+              });
+            }
           }
-        }
 
-        if (isMatch) {
-          matchCount++;
-        } else {
-          mismatchCount++;
-          anomalies.push({
-            dongSTT: idx + 1,
-            maDN: row["Mã Số Thuế"] || row["MaST"] || row["Số GPKD"] || `Bản ghi số ${idx + 1}`,
-            valA: valA || "(Không có dữ liệu)",
-            valB: valB || "(Không có dữ liệu)",
-            reason: explanation
+          const flexRow: any = {};
+          const colCompareResult = `Đối Chiếu [${crossCompareColA}] vs [${crossCompareColB}]`;
+          const colCompareFlag = `Đánh Dấu Lệch [${crossCompareColA}] vs [${crossCompareColB}]`;
+
+          Object.keys(row).forEach(key => {
+            flexRow[key] = row[key];
+            if (key === crossCompareColB) {
+              flexRow[colCompareResult] = isMatch ? "✅ TRÙNG KHỚP" : "❌ LỆCH BẤT NHẤT";
+              flexRow[colCompareFlag] = isMatch ? "" : "⚠️ SAI LỆCH CẦN SỬA";
+            }
           });
-        }
 
-        const flexRow: any = {};
-        const colCompareResult = `Đối Chiếu [${crossCompareColA}] vs [${crossCompareColB}]`;
-        const colCompareFlag = `Đánh Dấu Lệch [${crossCompareColA}] vs [${crossCompareColB}]`;
-
-        Object.keys(row).forEach(key => {
-          flexRow[key] = row[key];
-          if (key === crossCompareColB) {
+          if (flexRow[colCompareResult] === undefined) {
             flexRow[colCompareResult] = isMatch ? "✅ TRÙNG KHỚP" : "❌ LỆCH BẤT NHẤT";
             flexRow[colCompareFlag] = isMatch ? "" : "⚠️ SAI LỆCH CẦN SỬA";
           }
-        });
 
-        if (flexRow[colCompareResult] === undefined) {
-          flexRow[colCompareResult] = isMatch ? "✅ TRÙNG KHỚP" : "❌ LỆCH BẤT NHẤT";
-          flexRow[colCompareFlag] = isMatch ? "" : "⚠️ SAI LỆCH CẦN SỬA";
+          return flexRow;
+        },
+        pct => {
+          setProgress(15 + Math.round(pct * 0.8));
+          setStatusMessage(`Đang tiến hành đối chiếu song song hai cột: ${pct}%...`);
         }
-
-        return flexRow;
-      });
+      );
 
       const newCols = Object.keys(updatedRows[0] || {});
       setMainData(updatedRows);
@@ -2332,52 +2588,60 @@ export default function App() {
 
     try {
       let matchedCount = 0;
-      const updatedRows = mainData.map((row) => {
-        if (!row || typeof row !== "object") return row;
-        const rawCode = row[targetManganh];
-        const mng = normalizeSectorCode(rawCode);
-        
-        // Ngành Cấp 2 (2 chữ số đầu)
-        const sec2Code = mng ? mng.slice(0, 2) : "";
-        const sec2Name = vsicRawData[sec2Code] || "Chưa định nghĩa chuẩn";
-        
-        // Ngành Cấp 1 (Lĩnh vực lớn, chữ cái A-U quy thuộc)
-        let sec1Code = "";
-        if (mng) {
-          if (/^[a-zA-Z]$/.test(mng)) {
-            sec1Code = mng.toUpperCase();
-          } else {
-            sec1Code = getParentSectorCode(sec2Code) || "";
+      const updatedRows = await chunkProcess(
+        mainData,
+        5000,
+        (row) => {
+          if (!row || typeof row !== "object") return row;
+          const rawCode = row[targetManganh];
+          const mng = normalizeSectorCode(rawCode);
+          
+          // Ngành Cấp 2 (2 chữ số đầu)
+          const sec2Code = mng ? mng.slice(0, 2) : "";
+          const sec2Name = vsicRawData[sec2Code] || "Chưa định nghĩa chuẩn";
+          
+          // Ngành Cấp 1 (Lĩnh vực lớn, chữ cái A-U quy thuộc)
+          let sec1Code = "";
+          if (mng) {
+            if (/^[a-zA-Z]$/.test(mng)) {
+              sec1Code = mng.toUpperCase();
+            } else {
+              sec1Code = getParentSectorCode(sec2Code) || "";
+            }
           }
-        }
-        const sec1Name = vsicRawData[sec1Code] || "Chưa định nghĩa chuẩn";
+          const sec1Name = vsicRawData[sec1Code] || "Chưa định nghĩa chuẩn";
 
-        if (sec2Code && vsicRawData[sec2Code]) {
-          matchedCount++;
-        }
+          if (sec2Code && vsicRawData[sec2Code]) {
+            matchedCount++;
+          }
 
-        // Tạo bản ghi mới, chèn trực tiếp các cột ngành Cấp 1 & Cấp 2 ngay sát bên cạnh cột Mã Ngành để người dùng có thể dễ dàng kiểm soát
-        const flexRow: any = {};
-        Object.keys(row).forEach((key) => {
-          flexRow[key] = row[key];
-          if (key === targetManganh) {
+          // Tạo bản ghi mới, chèn trực tiếp các cột ngành Cấp 1 & Cấp 2 ngay sát bên cạnh cột Mã Ngành để người dùng có thể dễ dàng kiểm soát
+          const flexRow: any = {};
+          Object.keys(row).forEach((key) => {
+            flexRow[key] = row[key];
+            if (key === targetManganh) {
+              flexRow["Mã Ngành Cấp 1"] = sec1Code;
+              flexRow["Ngành Cấp 1"] = sec1Name;
+              flexRow["Mã Ngành Cấp 2"] = sec2Code;
+              flexRow["Ngành Cấp 2"] = sec2Name;
+            }
+          });
+
+          // Đảm bảo không bị thiếu trong trường hợp đặc sản
+          if (flexRow["Mã Ngành Cấp 1"] === undefined) {
             flexRow["Mã Ngành Cấp 1"] = sec1Code;
             flexRow["Ngành Cấp 1"] = sec1Name;
             flexRow["Mã Ngành Cấp 2"] = sec2Code;
             flexRow["Ngành Cấp 2"] = sec2Name;
           }
-        });
 
-        // Đảm bảo không bị thiếu trong trường hợp đặc sản
-        if (flexRow["Mã Ngành Cấp 1"] === undefined) {
-          flexRow["Mã Ngành Cấp 1"] = sec1Code;
-          flexRow["Ngành Cấp 1"] = sec1Name;
-          flexRow["Mã Ngành Cấp 2"] = sec2Code;
-          flexRow["Ngành Cấp 2"] = sec2Name;
+          return flexRow;
+        },
+        pct => {
+          setProgress(15 + Math.round(pct * 0.8));
+          setStatusMessage(`Đang nạp thông tin Ngành cấp 1 & 2: ${pct}%...`);
         }
-
-        return flexRow;
-      });
+      );
 
       const newCols = Object.keys(updatedRows[0] || {});
       setMainData(updatedRows);
@@ -2424,44 +2688,52 @@ export default function App() {
     await sleep(200);
 
     try {
-      // Gom dữ liệu mỏng và phân tách bằng bộ nhớ mã ngành chuẩn
-      const processedData = mainData.map(row => {
-        if (!row || typeof row !== 'object') {
-          return {
-            _temNganhCap: "Chưa xác định",
-            _tempXa: "Khác"
-          };
-        }
-        const mng = normalizeSectorCode(row[targetManganh]);
-        
-        let tenNganhLabel = "";
-        if (level === 2) {
-          // Tách 2 chữ số đầu của cột mã ngành do người dùng chỉ định
-          const sec2Code = mng ? mng.slice(0, 2) : "";
-          // Tra cứu trong bộ nhớ tên của mã ngành cấp 2
-          const sec2Name = vsicRawData[sec2Code] || "Ngành cấp 2 chưa định nghĩa";
-          tenNganhLabel = sec2Code ? `${sec2Code} - ${sec2Name}` : "Chưa xác định - Ngành cấp 2 chưa định nghĩa";
-        } else {
-          // level === 1 (Quá trình quy nạp cấp 1)
-          let sec1Code = "";
-          if (mng) {
-            if (/^[a-zA-Z]$/.test(mng)) {
-              sec1Code = mng.toUpperCase();
-            } else {
-              const sec2Code = mng.slice(0, 2);
-              sec1Code = getParentSectorCode(sec2Code) || "";
-            }
+      // Gom dữ liệu mỏng và phân tách bằng bộ nhớ mã ngành chuẩn bằng chunkProcess
+      const processedData = await chunkProcess(
+        mainData,
+        10000,
+        row => {
+          if (!row || typeof row !== 'object') {
+            return {
+              _temNganhCap: "Chưa xác định",
+              _tempXa: "Khác"
+            };
           }
-          const sec1Name = vsicRawData[sec1Code] || "Ngành cấp 1 chưa định nghĩa";
-          tenNganhLabel = sec1Code ? `${sec1Code} - ${sec1Name}` : "Chưa xác định - Ngành cấp 1 chưa định nghĩa";
-        }
+          const mng = normalizeSectorCode(row[targetManganh]);
+          
+          let tenNganhLabel = "";
+          if (level === 2) {
+            // Tách 2 chữ số đầu của cột mã ngành do người dùng chỉ định
+            const sec2Code = mng ? mng.slice(0, 2) : "";
+            // Tra cứu trong bộ nhớ tên của mã ngành cấp 2
+            const sec2Name = vsicRawData[sec2Code] || "Ngành cấp 2 chưa định nghĩa";
+            tenNganhLabel = sec2Code ? `${sec2Code} - ${sec2Name}` : "Chưa xác định - Ngành cấp 2 chưa định nghĩa";
+          } else {
+            // level === 1 (Quá trình quy nạp cấp 1)
+            let sec1Code = "";
+            if (mng) {
+              if (/^[a-zA-Z]$/.test(mng)) {
+                sec1Code = mng.toUpperCase();
+              } else {
+                const sec2Code = mng.slice(0, 2);
+                sec1Code = getParentSectorCode(sec2Code) || "";
+              }
+            }
+            const sec1Name = vsicRawData[sec1Code] || "Ngành cấp 1 chưa định nghĩa";
+            tenNganhLabel = sec1Code ? `${sec1Code} - ${sec1Name}` : "Chưa xác định - Ngành cấp 1 chưa định nghĩa";
+          }
 
-        return {
-          ...row,
-          _temNganhCap: tenNganhLabel,
-          _tempXa: String(row[targetXa] || "Khác").trim()
-        };
-      });
+          return {
+            ...row,
+            _temNganhCap: tenNganhLabel,
+            _tempXa: String(row[targetXa] || "Khác").trim()
+          };
+        },
+        pct => {
+          setProgress(Math.round(pct * 0.4));
+          setStatusMessage(`Đang chuẩn bị phân tích dữ liệu ngành/địa bàn: ${pct}%...`);
+        }
+      );
 
       let finalReportRows: any[] = [];
 
@@ -2801,40 +3073,48 @@ export default function App() {
       return false;
     };
 
-    const results = mainData.map((row, index) => {
-      if (!row || typeof row !== 'object') return row;
-      // 1. Phép toán NẾU
-      const ifMatches = ifRules.map(r => checkValue(row[r.col], r.op, r.val));
-      const satisfiesIf = ifCombine === "AND" 
-        ? ifMatches.every(v => v === true) 
-        : ifMatches.some(v => v === true);
+    const results = await chunkProcess(
+      mainData,
+      10000,
+      (row, index) => {
+        if (!row || typeof row !== 'object') return row;
+        // 1. Phép toán NẾU
+        const ifMatches = ifRules.map(r => checkValue(row[r.col], r.op, r.val));
+        const satisfiesIf = ifCombine === "AND" 
+          ? ifMatches.every(v => v === true) 
+          : ifMatches.some(v => v === true);
 
-      // 2. Phép toán THÌ PHẢI
-      const thenMatches = thenRules.map(r => checkValue(row[r.col], r.op, r.val));
-      const satisfiesThen = thenCombine === "AND"
-        ? thenMatches.every(v => v === true)
-        : thenMatches.some(v => v === true);
+        // 2. Phép toán THÌ PHẢI
+        const thenMatches = thenRules.map(r => checkValue(row[r.col], r.op, r.val));
+        const satisfiesThen = thenCombine === "AND"
+          ? thenMatches.every(v => v === true)
+          : thenMatches.some(v => v === true);
 
-      let biViPham = false;
-      let noteLoi = "";
+        let biViPham = false;
+        let noteLoi = "";
 
-      // Nếu dòng thỏa mãn điều kiện NẾU, thì bắt buộc PHẢI thỏa mãn điều kiện THÌ
-      if (satisfiesIf && !satisfiesThen) {
-        biViPham = true;
-        const descriptIf = ifRules.map(r => `(${r.col} ${r.op} '${r.val}')`).join(` ${ifCombine} `);
-        const descriptThen = thenRules.map(r => `(${r.col} ${r.op} '${r.val}')`).join(` ${thenCombine} `);
-        noteLoi = `[VI PHẠM LOGIC] NẾU thỏa mãn: { ${descriptIf} } THÌ PHẢI: { ${descriptThen} }; `;
+        // Nếu dòng thỏa mãn điều kiện NẾU, thì bắt buộc PHẢI thỏa mãn điều kiện THÌ
+        if (satisfiesIf && !satisfiesThen) {
+          biViPham = true;
+          const descriptIf = ifRules.map(r => `(${r.col} ${r.op} '${r.val}')`).join(` ${ifCombine} `);
+          const descriptThen = thenRules.map(r => `(${r.col} ${r.op} '${r.val}')`).join(` ${thenCombine} `);
+          noteLoi = `[VI PHẠM LOGIC] NẾU thỏa mãn: { ${descriptIf} } THÌ PHẢI: { ${descriptThen} }; `;
+        }
+
+        const existingLoi = String(row["Loi_Logic"] || "");
+
+        return {
+          ...row,
+          "Loi_Logic": biViPham 
+            ? (existingLoi ? existingLoi + noteLoi : noteLoi) 
+            : (existingLoi || "✅ Đạt")
+        };
+      },
+      pct => {
+        setProgress(pct);
+        setStatusMessage(`Đang chạy kiểm tra logic đa điều kiện: ${pct}%...`);
       }
-
-      const existingLoi = String(row["Loi_Logic"] || "");
-
-      return {
-        ...row,
-        "Loi_Logic": biViPham 
-          ? (existingLoi ? existingLoi + noteLoi : noteLoi) 
-          : (existingLoi || "✅ Đạt")
-      };
-    });
+    );
 
     setMainData(results);
     setColumns(Object.keys(results[0] || {}));
@@ -2964,7 +3244,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              HỆ THỐNG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC 2025</span>
+              HỆ THỐNG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-widest">VSIC V38.5</span>
             </h1>
             <p className="text-xs text-gray-400 font-mono">CÔNG CỤ HỖ TRỢ SO SÁNH TỔNG HỢP DỮ LIỆU</p>
           </div>
@@ -3238,13 +3518,13 @@ export default function App() {
               <div className="bg-gradient-to-r from-purple-900/40 via-[#1f2937] to-[#1f2937] border border-purple-500/20 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 justify-between">
                 <div className="space-y-3 max-w-2xl">
                   <span className="bg-purple-900/50 border border-purple-500/30 text-purple-400 text-xs font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    Hệ Thống DM ngành kinh tế VISC2025 
+                    Phát hành chuẩn mực V38.5
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    HỆ THỐNG XỬ LÝ TỔNG HỢP DỮ LIỆU.
+                    Hệ Thống Phân Tích & Chuẩn Hóa Dữ Liệu Ngành Quốc Gia
                   </h2>
                   <p className="text-gray-300 text-sm leading-relaxed">
-                    Công cụ chuyên sâu hỗ trợ các cuộc điều tra có thể đọc và xử lý tất cá các loại bảng biểu không phân biệt ví trí cột hay tên cột có chức năng ghép, tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu, tổng hợp và xử lý liên kết ngành kinh tế VISC2025.
+                    Công cụ chuyên sâu hỗ trợ thống kê dữ liệu doanh nghiệp, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa cao cấp.
                   </p>
                   <div className="pt-2 flex items-center gap-4">
                     <button 
@@ -3268,10 +3548,10 @@ export default function App() {
               <div className="space-y-6">
                 <div className="border-b border-[#374151] pb-4">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> NỘI DUNG & KÍCH HOẠT CHỨC NĂNG NHANH
+                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> BẢN ĐỒ CẨM NANG & KÍCH HOẠT CHỨC NĂNG NHANH
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
-                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Bạn có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
+                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Quý khách có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
                   </p>
                 </div>
 
@@ -3310,7 +3590,7 @@ export default function App() {
                           <GitMerge className="w-5 h-5" />
                         </div>
                         <span className="bg-blue-900/40 text-blue-300 border border-blue-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          GHEP DỮ LIỆU
+                          TÍCH HỢP FILE
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors">
@@ -3406,7 +3686,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* CHỨC NĂNG 6: Chuẩn hóa khớp ngành VSIC & so sánh tra lỗi*/}
+                  {/* CHỨC NĂNG 6: Chuẩn hóa VSIC & AI */}
                   <div className="bg-[#1f2937]/50 border border-indigo-500/20 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-indigo-500/40 transition-all group">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -3414,11 +3694,11 @@ export default function App() {
                           <Brain className="w-5 h-5" />
                         </div>
                         <span className="bg-indigo-900/40 text-indigo-300 border border-indigo-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          TRA CỨU MÃ NGÀNH VÀ MÔ TẢ NGÀNH
+                          TRÍ TUỆ NHÂN TẠO
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-indigo-300 transition-colors">
-                        🧠 Khớp ngành VSIC & so sánh mô tả với mã để phát hiện sai lệch
+                        🧠 Chuẩn Hóa VSIC &amp; AI
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Tự động rã tách mã ngành 1-5 cấp đầy đủ không đứt gãy phả hệ liên kết. Sử dụng thuật toán NLP tinh lọc so sánh ngữ nghĩa văn bản của "Mô tả hoạt động thực tế" so với "Mã ngành" đăng ký để phát hiện và chỉnh lỗi mã sai lệch.
@@ -3428,11 +3708,11 @@ export default function App() {
                       onClick={() => setActiveTab("chuanhoanganh")}
                       className="w-full bg-[#111827] hover:bg-indigo-900/30 text-indigo-400 hover:text-white font-bold text-xs py-2 rounded-xl transition-all border border-[#374151] hover:border-indigo-500/30 cursor-pointer flex items-center justify-center gap-1"
                     >
-                      Tra cứu mô tả& mã  <ArrowRight className="w-3.5 h-3.5" />
+                      Mở Chuẩn Hóa & AI <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  {/* CHỨC NĂNG 7: Công cụ kiểm tra logic */}
+                  {/* CHỨC NĂNG 7: Cỗ máy kiểm tra logic */}
                   <div className="bg-[#1f2937]/50 border border-emerald-500/20 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-emerald-500/40 transition-all col-span-1 md:col-span-2 lg:col-span-3 group">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -3444,7 +3724,7 @@ export default function App() {
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
-                        Control Panel 🛂 Công cụ Kiểm Tra Logic
+                        Control Panel 🛂 Cỗ Máy Kiểm Tra Logic
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Thiết lập các quy định ràng buộc điều kiện thông minh dạng <code>NẾU (điều kiện) THÌ PHẢI (điều kiện kia)</code> tùy ý. Bộ máy sẽ lập tức rà soát toàn bộ tệp Excel thu về danh sách hồ sơ bất tuần tự (ví dụ: mô tả có chứa xi-măng nhưng mã ngành lại đăng ký nông nghiệp, hoặc lao động siêu lớn nhưng doanh thu rỗng).
@@ -3454,7 +3734,7 @@ export default function App() {
                       onClick={() => setActiveTab("kiemtralogic")}
                       className="w-full bg-[#111827] hover:bg-emerald-900/30 text-emerald-400 hover:text-white font-bold text-xs py-2 rounded-xl transition-all border border-[#374151] hover:border-emerald-500/30 cursor-pointer flex items-center justify-center gap-1"
                     >
-                      Mở Công cụ Rà Quét Logic <ArrowRight className="w-3.5 h-3.5" />
+                      Mở Cỗ Máy Rà Quét Logic <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -3469,17 +3749,17 @@ export default function App() {
                   <div className="space-y-1">
                     <span className="font-bold text-white block">01. Nạp & Tiền xử lý dữ liệu</span>
                     <p className="text-gray-400">
-                      Truy cập bảng <strong>📂 Xem & Định nghĩa cột</strong>. Tải tệp Excel gốc lên, thực hiện đổi tên Việt hóa cho các cột và lọc bỏ những cột không sửi dụng đến.
+                      Truy cập bảng <strong>📂 Xem & Định nghĩa cột</strong>. Tải tệp Excel gốc lên, thực hiện đổi tên Việt hóa dễ thương cho các cột và dán nhãn vai trò tương thích giúp hệ thống dễ chỉ huy dữ liệu chuẩn xác.
                     </p>
                   </div>
                   <div className="space-y-1">
                     <span className="font-bold text-white block">02. Chuẩn hóa & Rà rà logic</span>
                     <p className="text-gray-400">
-                      Sử dụng <strong>🧠 Khớp ngành VSIC & so sánh mô tả với mã </strong> để hoàn thiện liên kết 5 cấp ngành nghề; tiếp theo sử dụng <strong>🛂 Công cụ Logic</strong> thiết lập các quy chuẩn kiểm tra để lọc sạch các bản ghi lỗi hoặc dị thường.
+                      Sử dụng <strong>🧠 Chuẩn Hóa VSIC & AI</strong> để hoàn thiện liên kết 5 cấp ngành nghề; tiếp theo sử dụng <strong>🛂 Cỗ Máy Logic</strong> thiết lập các quy chuẩn kiểm tra để lọc sạch các bản ghi lỗi hoặc dị thường.
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <span className="font-bold text-white block">03. Tổng hợp báo cáo & xuất file </span>
+                    <span className="font-bold text-white block">03. Tổng hợp báo cáo & Chuyển giao</span>
                     <p className="text-gray-400">
                       Qua trang <strong>📊 Tổng Hợp Báo Cáo</strong> để quy nập các chỉ thị hoặc chọn <strong>✂️ Tách File</strong> tạo tệp zip con của các xã gửi cho từng địa bàn. Bấm tải tệp Excel thành phẩm là xong!
                     </p>
@@ -3761,10 +4041,213 @@ export default function App() {
                           </table>
                         </div>
 
-                        
-                        
+                        {/* Nút Kích hoạt Tái cấu trúc bảng */}
+                        <div className="flex justify-between items-center pt-2">
+                          <button 
+                            onClick={() => {
+                              // Clear all defined names to let user select only what they want
+                              const cleared = customColConfigs.map(c => ({
+                                ...c,
+                                use: false,
+                                newName: ""
+                              }));
+                              setCustomColConfigs(cleared);
+                            }}
+                            className="bg-red-950/30 hover:bg-red-900/40 text-red-400 border border-red-900/30 font-bold text-[11px] px-3.5 py-2 rounded-xl transition-all cursor-pointer"
+                          >
+                            ❌ Xóa hết định nghĩa (Để trống tất cả)
+                          </button>
+
+                          <button
+                            onClick={handleApplyColumnRedefinition}
+                            className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-purple-950/40 flex items-center gap-2 cursor-pointer border border-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC GỌN NHẸ TỔ TẠO FILE MỚI
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-between text-xs text-gray-400 bg-purple-950/10 p-3 rounded-xl border border-purple-500/10">
+                        <span>💡 Bảng cấu hình định nghĩa tên cột đang được thu gọn để nhường lại không gian biểu diễn danh sách dữ liệu.</span>
+                        <button
+                          onClick={() => setIsConfigExpanded(true)}
+                          className="bg-purple-950/85 hover:bg-purple-900/85 text-purple-300 font-bold text-xs px-3.5 py-1.5 rounded-lg border border-purple-800/30 cursor-pointer transition-all"
+                        >
+                          ⚙️ Hiện bảng cấu hình
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
+
+              {/* PHÉP TÍNH CỘT VỚI CỘT (COLUMN FORMULA CALCULATOR) */}
+              {rawImportedData.length > 0 && (
+                <div className="bg-[#111827]/95 rounded-2xl p-5 border border-purple-500/20 space-y-4 animate-slide-up">
+                  <div className="border-b border-gray-800 pb-3">
+                    <div className="text-xs font-bold text-indigo-400 tracking-wider uppercase font-mono flex items-center gap-1.5 font-medium">
+                      <Database className="w-5 h-5 text-indigo-400 animate-pulse" /> 🧮 CÔNG CỤ TÌNH PHÉP TÍNH CỘT VỚI CỘT & TẠO CỘT MỚI
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Tính toán số liệu nâng cao trực tiếp trên bảng tính của bạn. Bạn có thể cộng, trừ, nhân, chia 2 cột với nhau hoặc tính toán với một hằng số cố định, hoặc ghép nội dung cột văn bản.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-[#0f172a]/50 p-4 rounded-xl border border-gray-800">
+                    
+                    {/* Tên cột kết quả */}
+                    <div className="md:col-span-3 space-y-1.5">
+                      <label className="text-[11px] font-bold text-gray-300 block font-mono">
+                        ✍️ 1. TÊN CỘT KẾT QUẢ MỚI:
+                      </label>
+                      <input
+                        type="text"
+                        value={calcColName}
+                        onChange={(e) => setCalcColName(e.target.value)}
+                        placeholder="VD: DoanhThuBinhQuan, Cong_X_Y"
+                        className="w-full bg-[#111827] border border-gray-700 hover:border-purple-500/50 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono font-medium"
+                      />
+                    </div>
+
+                    {/* Cột 1 */}
+                    <div className="md:col-span-3 space-y-1.5">
+                      <label className="text-[11px] font-bold text-gray-300 block font-mono">
+                        📂 2. CỘT THỨ NHẤT (A):
+                      </label>
+                      <select
+                        value={calcCol1}
+                        onChange={(e) => setCalcCol1(e.target.value)}
+                        className="w-full bg-[#111827] border border-gray-700 hover:border-purple-500/50 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
+                      >
+                        <option value="">-- Chọn Cột A --</option>
+                        {columns.map(c => (
+                          <option key={c} value={c}>📊 {c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Phép toán */}
+                    <div className="md:col-span-1.5 space-y-1.5">
+                      <label className="text-[11px] font-bold text-gray-300 block font-mono text-center">
+                        ➕ PHÉP TOÁN:
+                      </label>
+                      <select
+                        value={calcOperator}
+                        onChange={(e) => setCalcOperator(e.target.value as any)}
+                        className="w-full bg-[#111827] border border-gray-700 hover:border-purple-500/50 rounded-lg px-2.5 py-2 text-xs text-white text-center focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono font-bold"
+                      >
+                        <option value="+">➕ Cộng (+)</option>
+                        <option value="-">➖ Trừ (-)</option>
+                        <option value="*">✖️ Nhân (*)</option>
+                        <option value="/">➗ Chia (/)</option>
+                        <option value="concat">🔗 Ghép chữ</option>
+                      </select>
+                    </div>
+
+                    {/* Loại cột 2: Cột hay Hằng số */}
+                    <div className="md:col-span-1.5 space-y-1.5">
+                      <label className="text-[11px] font-bold text-gray-300 block font-mono text-center">
+                        🎯 ĐỐI TƯỢNG B:
+                      </label>
+                      <select
+                        value={calcType}
+                        onChange={(e) => setCalcType(e.target.value as any)}
+                        className="w-full bg-[#111827] border border-gray-700 hover:border-purple-500/50 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
+                      >
+                        <option value="column">Cột khác</option>
+                        <option value="constant">Hằng số</option>
+                      </select>
+                    </div>
+
+                    {/* Cột 2 hoặc Hằng số */}
+                    <div className="md:col-span-3 space-y-1.5">
+                      {calcType === "column" ? (
+                        <>
+                          <label className="text-[11px] font-bold text-gray-300 block font-mono">
+                            📂 3. CỘT THỨ HAI (B):
+                          </label>
+                          <select
+                            value={calcCol2}
+                            onChange={(e) => setCalcCol2(e.target.value)}
+                            className="w-full bg-[#111827] border border-gray-700 hover:border-purple-500/50 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
+                          >
+                            <option value="">-- Chọn Cột B --</option>
+                            {columns.map(c => (
+                              <option key={c} value={c}>📊 {c}</option>
+                            ))}
+                          </select>
+                        </>
+                      ) : (
+                        <>
+                          <label className="text-[11px] font-bold text-gray-300 block font-mono">
+                            🔢 3. NHẬP GIÁ TRỊ HẰNG SỐ (B):
+                          </label>
+                          <input
+                            type="text"
+                            value={calcConstant}
+                            onChange={(e) => setCalcConstant(e.target.value)}
+                            placeholder="VD: 1000000, 1.2, Chuỗi chữ"
+                            className="w-full bg-[#111827] border border-gray-700 hover:border-purple-500/50 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Lựa chọn làm tròn & nút xử lý */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-1">
+                    <div className="flex flex-wrap items-center gap-4 text-xs">
+                      <span className="font-bold text-gray-400 font-mono">🎯 CHẾ ĐỘ LÀM TRÒN:</span>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-gray-300 hover:text-white">
+                        <input
+                          type="radio"
+                          name="calc_rounding"
+                          checked={calcRounding === "none"}
+                          onChange={() => setCalcRounding("none")}
+                          className="text-indigo-600 focus:ring-indigo-500 border-gray-700 bg-gray-900"
+                        />
+                        Không làm tròn
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-gray-300 hover:text-white">
+                        <input
+                          type="radio"
+                          name="calc_rounding"
+                          checked={calcRounding === "int"}
+                          onChange={() => setCalcRounding("int")}
+                          className="text-indigo-600 focus:ring-indigo-500 border-gray-700 bg-gray-900"
+                        />
+                        Số nguyên
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-gray-300 hover:text-white">
+                        <input
+                          type="radio"
+                          name="calc_rounding"
+                          checked={calcRounding === "1dec"}
+                          onChange={() => setCalcRounding("1dec")}
+                          className="text-indigo-600 focus:ring-indigo-500 border-gray-700 bg-gray-900"
+                        />
+                        1 chữ số thập phân
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-gray-300 hover:text-white">
+                        <input
+                          type="radio"
+                          name="calc_rounding"
+                          checked={calcRounding === "2dec"}
+                          onChange={() => setCalcRounding("2dec")}
+                          className="text-indigo-600 focus:ring-indigo-500 border-gray-700 bg-gray-900"
+                        />
+                        2 chữ số thập phân
+                      </label>
+                    </div>
+
+                    <button
+                      onClick={handleCalculateColumn}
+                      className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-950/40 flex items-center gap-2 cursor-pointer border border-indigo-500/20"
+                    >
+                      ⚡ THỰC HIỆN PHÉP TÍNH & THÊM CỘT
+                    </button>
+                  </div>
+                </div>
+              )}
               </div>
 
               {/* Danh sách dữ liệu chính */}
@@ -4057,7 +4540,7 @@ export default function App() {
                     {/* BỘ LỰA CHỌN CỘT THỦ CÔNG */}
                     <div className="bg-[#111827]/80 p-5 rounded-xl border border-gray-850 space-y-4 shadow-lg">
                       <span className="text-xs font-bold text-cyan-400 tracking-wider uppercase font-mono block">
-                        Cấu hình các cột đầu vào chỉ định rõ cột
+                        Cấu hình các cột đầu vào (Chỉ định rõ cột, không đoán bừa bãi)
                       </span>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -4173,7 +4656,7 @@ export default function App() {
                         className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs py-3.5 rounded-xl transition-all shadow-lg hover:shadow-indigo-900/30 flex items-center justify-center gap-2 cursor-pointer font-sans border border-indigo-500/30"
                         title="Đối khớp trực tiếp mã ngành đã chỉ định sang Danh mục đã nạp trong bộ nhớ, sau đó thêm mới các cột Ngành cấp 1 và Cấp 2 vào bảng tính gốc"
                       >
-                        ⚡ COP THÔNG TIN NGÀNH CẤP 1 &amp; CẤP 2 SANG CỘT MỚI (TRÊN BẢNG TÍNH GỐC)
+                        ⚡ BÊ THÔNG TIN NGÀNH CẤP 1 &amp; CẤP 2 SANG CỘT MỚI (TRÊN BẢNG TÍNH GỐC)
                       </button>
                     </div>
 
@@ -4665,7 +5148,7 @@ export default function App() {
               <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <CheckSquare className="w-5 h-5 text-emerald-400" /> KIỂM TRA LOGIC ĐA CHỈ TIÊU (RULE ENGINE)
+                    <CheckSquare className="w-5 h-5 text-emerald-400" /> CỖ MÁY KIỂM TRA LOGIC ĐA CHỈ TIÊU (RULE ENGINE)
                   </h3>
                   <p className="text-xs text-gray-400">Tạo ra các quy tắc ràng buộc rà quét dữ liệu dạng: NẾU thỏa mãn (Điều kiện bước 1) THÌ PHẢI bắt buộc thỏa mãn (Điều kiện bước 2). Hệ thống tự rà rà soát và ghi chú dòng sai phạm vào cột "Loi_Logic".</p>
                 </div>
