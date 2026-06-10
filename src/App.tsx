@@ -171,6 +171,8 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  / Dán dòng này vào đây:
+  const [calcRules, setCalcRules] = useState([{ colA: "", op: "+", colB: "", newColName: "KetQua" }]);
 
   // Trạng thái mật khẩu bảo vệ ứng dụng độc lập tránh bắt đăng nhập email phiền hà
   const [appPassword, setAppPassword] = useState<string>(() => {
@@ -1129,6 +1131,20 @@ export default function App() {
     setProgress(10);
     setStatusMessage("Đang tiến hành lọc bỏ cột thừa và đổi tên cột theo định nghĩa của bạn...");
     await sleep(200);
+    // 2. TÍNH TOÁN CỘT (Cộng/Trừ/Nhân/Chia)
+    restructuredRows.forEach(row => {
+      const rule = calcRules[0];
+      if (rule.colA && rule.colB) {
+        const valA = parseFloat(String(row[rule.colA] || 0).replace(/[^0-9.\-]/g, ""));
+        const valB = parseFloat(String(row[rule.colB] || 0).replace(/[^0-9.\-]/g, ""));
+        let res = 0;
+        if (rule.op === "+") res = valA + valB;
+        else if (rule.op === "-") res = valA - valB;
+        else if (rule.op === "*") res = valA * valB;
+        else if (rule.op === "/") res = valB !== 0 ? valA / valB : 0;
+        row[rule.newColName] = res;
+      }
+    });
 
     // Tạo bảng chứa dữ liệu mới gồm các cột được chọn và tên cột mới
     const restructuredRows = rawImportedData.map(row => {
