@@ -2364,7 +2364,7 @@ export default function App() {
             });
           }
 
-          // Xây dựng Bản ghi mới co cụm, bơm cột Tên Ngành Chuẩn VSIC và Trạng Thái Đối Chiếu VSIC nằm ngay bên cạnh cột Mô Tả Hoạt Động / Mã Ngành để dễ đối chiếu
+          // Xây dựng Bản ghi mới co cụm, bơm cột Tên Ngành Chuẩn VSIC và Trạng Thái Đối Chiếu VSIC nằm ngay n cạnh cột Mô Tả Hoạt Động / Mã Ngành để dễ đối chiếu
           const flexRow: any = {};
           Object.keys(row).forEach(key => {
             flexRow[key] = row[key];
@@ -4681,7 +4681,7 @@ export default function App() {
                         className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs py-3.5 rounded-xl transition-all shadow-lg hover:shadow-indigo-900/30 flex items-center justify-center gap-2 cursor-pointer font-sans border border-indigo-500/30"
                         title="Đối khớp trực tiếp mã ngành đã chỉ định sang Danh mục đã nạp trong bộ nhớ, sau đó thêm mới các cột Ngành cấp 1 và Cấp 2 vào bảng tính gốc"
                       >
-                        ⚡ BÊ THÔNG TIN NGÀNH CẤP 1 &amp; CẤP 2 SANG CỘT MỚI (TRÊN BẢNG TÍNH GỐC)
+                        ⚡ SAO CHÉP THÔNG TIN NGÀNH CẤP 1 &amp; CẤP 2 SANG CỘT MỚI (TRÊN BẢNG TÍNH GỐC)
                       </button>
                     </div>
 
@@ -4992,7 +4992,7 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* CÔNG CỤ TỰ ĐỘNG PHÂN TÍCH BẤT NHẤT QUÁN ĐA CHIỀU (MÃ ⇄ MÔ TẢ) */}
+                    {/* CÔNG CỤ TỰ ĐỘNG PHÂN TÍCH SO SÁNH VÀ ĐẾM TẤN SỐ XUẤT HIỆN MÔ TẢ   (MÃ ⇄ MÔ TẢ) */}
                     <div className="bg-[#111827]/80 rounded-2xl p-6 border border-purple-500/20 space-y-6">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800/40 pb-4">
                         <div>
@@ -5003,8 +5003,7 @@ export default function App() {
                             </h3>
                           </div>
                           <p className="text-xs text-gray-400 mt-1">
-                            Tính năng tự động dò quét và tính phân nhám chéo đối xử tức thì để định danh 2 lỗi mâu thuẫn khét tiếng nhất khi gõ ngành nghề cho nhân viên thống kê.
-                          </p>
+                            Tính năng tự động dò quét và tính phân nhám chéo đối xử tức thì để định danh 2 lỗi mâu thuẫn khét tiếng nhất khi gõ ngành nghề cho nhân viên.
                         </div>
                       </div>
 
