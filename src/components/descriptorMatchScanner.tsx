@@ -99,38 +99,40 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
     setIsScanning(true);
     setHasScanned(false);
 
-    // --- BỘ NHỚ TỰ HỌC (Đặt ở đây để nó nhớ dữ liệu trong suốt quá trình quét 1 lần) ---
-    const registryDescToCodes = new Map<string, Set<string>>(); 
-    const registryCodeToDescs = new Map<string, Set<string>>();
-
+    // Run within a brief timeout so that React updates UI smoothly first
     setTimeout(() => {
       try {
         const analyzed = mainData.map((row, index) => {
           if (!row || typeof row !== "object") {
-            return { index: index + 1, originalRow: {}, codeVal: "", descDtv: "", standardName: "Dòng trống", isMatch: false, compareResult: "Trống", status: "CRITICAL" };
+            return {
+              index: index + 1,
+              originalRow: {},
+              codeVal: "",
+              descDtv: "",
+              standardName: "Dòng trống",
+              isMatch: false,
+              compareResult: "Trống",
+              status: "CRITICAL"
+            };
           }
 
           const codeVal = String(row[colManganh] || "").trim();
           const descDtv = String(row[colMotaDtv] || "").trim();
+
+          // Prepare normalized lookup key
           const normalizedCode = normalizeSectorCode(codeVal);
-          const descKey = normalizeTextToCompare(descDtv);
-
-          // 1. HỌC DỮ LIỆU
-          if (!registryDescToCodes.has(descKey)) registryDescToCodes.set(descKey, new Set());
-          registryDescToCodes.get(descKey)!.add(normalizedCode);
-
-          if (!registryCodeToDescs.has(normalizedCode)) registryCodeToDescs.set(normalizedCode, new Set());
-          registryCodeToDescs.get(normalizedCode)!.add(descKey);
-
-          // 2. SO SÁNH VỚI VSIC
+          
+          // Look up in the standard catalog that was uploaded
           const standardName = vsicRawData[normalizedCode] || "";
+
           let status: "SAFE" | "CRITICAL" = "SAFE";
           let compareResult = "";
           let isMatch = false;
 
           if (!standardName) {
             status = "CRITICAL";
-            compareResult = `Không tìm thấy mã '${normalizedCode}' trong VSIC!`;
+            compareResult = `Không tìm thấy mã ngành '${normalizedCode}' trong danh mục đã nạp!`;
+            isMatch = false;
           } else {
             const dtvNorm = normalizeTextToCompare(descDtv);
             const stdNorm = normalizeTextToCompare(standardName);
@@ -140,20 +142,16 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
               compareResult = "Trùng khớp hoàn toàn ngữ nghĩa";
               isMatch = true;
             } else {
+              // Detailed visual breakdown of the difference
               status = "CRITICAL";
-              compareResult = !dtvNorm ? "Mô tả ĐTV để trống" : "Khác biệt câu chữ so với tên ngành chuẩn";
-            }
-          }
+              isMatch = false;
 
-          // 3. KIỂM TRA BẤT NHẤT QUÁN (Mục 3)
-          if (registryDescToCodes.get(descKey)!.size > 1) {
-            status = "CRITICAL";
-            compareResult = `[Bất nhất] Mô tả này đang gán cho nhiều mã: [${Array.from(registryDescToCodes.get(descKey)!).join(", ")}]`;
-            isMatch = false;
-          } else if (registryCodeToDescs.get(normalizedCode)!.size > 1) {
-            status = "CRITICAL";
-            compareResult = `[Bất nhất] Mã này đang gán cho nhiều mô tả khác nhau!`;
-            isMatch = false;
+              if (!dtvNorm) {
+                compareResult = "Tên ngành thực tế ĐTV mô tả bị để trống hoàn toàn";
+              } else {
+                compareResult = "Có sự khác khác biệt về mặt câu chữ giữa mô tả ĐTV và tên ngành chuẩn";
+              }
+            }
           }
 
           return {
@@ -170,7 +168,7 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
 
         setScanResults(analyzed);
         setHasScanned(true);
-        setUiSuccess(`Đã quét xong ${analyzed.length} dòng.`);
+        setUiSuccess(`Đã so sánh đối chiếu khớp danh mục thành công ${analyzed.length} dòng dữ liệu!`);
       } catch (err: any) {
         setUiError("Lỗi trong quá trình so sánh: " + err.message);
       } finally {
@@ -178,6 +176,7 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
       }
     }, 100);
   };
+
   // Compute live metrics
   const stats = useMemo(() => {
     if (!hasScanned) return { total: 0, safe: 0, critical: 0 };
@@ -470,7 +469,7 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
                     displayedScanItems.map((item) => {
                       const trBg = item.status === "SAFE" ? "" : "bg-rose-950/5 hover:bg-rose-950/10";
                       return (
-                        <tr key={`row-${idx}-${item.codeVal}-${item.index}`} className={`${trBg} transition-colors hover:bg-gray-850/30`}>
+                        <tr key={item.index} className={`${trBg} transition-colors hover:bg-gray-850/30`}>
                           <td className="p-3.5 text-center font-mono font-bold text-gray-500">
                             {item.index}
                           </td>
