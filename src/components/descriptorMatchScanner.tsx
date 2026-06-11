@@ -470,7 +470,7 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
                     displayedScanItems.map((item) => {
                       const trBg = item.status === "SAFE" ? "" : "bg-rose-950/5 hover:bg-rose-950/10";
                       return (
-                        <tr key={`${item.index}-${item.codeVal}`} className={`${trBg} transition-colors hover:bg-gray-850/30`}>
+                        <tr key={`row-${idx}-${item.codeVal}-${item.index}`} className={`${trBg} transition-colors hover:bg-gray-850/30`}>
                           <td className="p-3.5 text-center font-mono font-bold text-gray-500">
                             {item.index}
                           </td>
