@@ -81,9 +81,8 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
         if (/^[a-zA-Z]$/.test(mng)) {
           l1Code = mng.toUpperCase();
         } else {
-          // Standard Level 2 and down
-          const l2Code = mng.slice(0, 2);
-          l1Code = getParentSectorCode(l2Code) || "";
+          // Standard Level 2 and down - pass full normalized code so custom hierarchy maps correctly
+          l1Code = getParentSectorCode(mng) || "";
         }
       }
 
@@ -116,7 +115,31 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
 
     // Form summary structure
     const results: Level1Summary[] = Object.keys(map).map(code => {
-      const name = vsicRawData[code] || (code === "KHAC" ? "Mã ngành chưa khớp VSIC / Khác" : `Ngành cấp 1 chưa định nghĩa (${code})`);
+      const defaultL1Names: { [key: string]: string } = {
+        'A': 'Nông nghiệp, lâm nghiệp và thủy sản',
+        'B': 'Khai khoáng',
+        'C': 'Công nghiệp chế biến, chế tạo',
+        'D': 'Sản xuất và phân phối điện, khí đốt, nước nóng...',
+        'E': 'Cung cấp nước; quản lý và xử lý rác thải...',
+        'F': 'Xây dựng',
+        'G': 'Bán buôn và bán lẻ; sửa chữa ô tô, xe máy...',
+        'H': 'Vận tải kho bãi',
+        'I': 'Dịch vụ lưu trú và ăn uống',
+        'J': 'Thông tin và truyền thông',
+        'K': 'Hoạt động tài chính, ngân hàng và bảo hiểm',
+        'L': 'Hoạt động kinh doanh bất động sản',
+        'M': 'Hoạt động chuyên môn, khoa học và công nghệ',
+        'N': 'Hoạt động hành chính và dịch vụ hỗ trợ',
+        'O': 'Quản lý nhà nước, an ninh quốc phòng; bảo đảm xã hội bắt buộc',
+        'P': 'Giáo dục và đào tạo',
+        'Q': 'Y tế và hoạt động trợ giúp xã hội',
+        'R': 'Nghệ thuật, vui chơi và giải trí',
+        'S': 'Hoạt động dịch vụ khác',
+        'T': 'Hoạt động của hộ gia đình sản xuất tự tiêu dùng',
+        'U': 'Hoạt động của các tổ chức quốc tế'
+      };
+
+      const name = vsicRawData[code] || defaultL1Names[code.toUpperCase()] || (code === "KHAC" ? "Mã ngành chưa khớp VSIC / Khác" : `Ngành cấp 1 chưa định nghĩa (${code})`);
       return {
         code,
         name,

@@ -30,22 +30,58 @@ export const normalizeSectorCode = (code: any): string => {
     return clean.toUpperCase();
   }
 
-  // Extract the first contiguous sequence of digits (up to 5 characters)
-  // This satisfies: "chỉ lấy 5 số đầu và so sánh"
-  const digitMatch = clean.match(/\d+/);
-  if (digitMatch) {
-    let digits = digitMatch[0];
-    // If it has more than 5 digits, truncate to first 5 digits
+  // Handle scientific notation if any (e.g. 1.11e+07 or 1.11E7) by converting to a flat string
+  if (clean.toLowerCase().includes("e")) {
+    const num = Number(clean);
+    if (!isNaN(num)) {
+      clean = num.toLocaleString("en-US", { useGrouping: false });
+    }
+  }
+
+  // Remove any trailing float suffix (like .0 or .00)
+  clean = clean.replace(/\.0+$/, "");
+
+  // Now, extract all digit characters, bypassing layout formatting like dots, spaces, or dashes
+  // (e.g. "01.11.00.10" -> "01110010")
+  let digits = clean.replace(/[^\d]/g, "");
+
+  if (digits.length > 0) {
+    // Heuristic: If it has exactly 7 digits, it is highly likely an 8-digit product code (mã sản phẩm cấp 8) with a stripped leading zero.
+    if (digits.length === 7) {
+      digits = "0" + digits;
+    }
+
+    // Truncate to first 5 digits for standard level 5 industry comparison
     if (digits.length > 5) {
       digits = digits.substring(0, 5);
     }
     
-    // Direct check in dictionary
+    // 1. Direct check in dictionary
     if (vsicRawData[digits]) {
       return digits;
     }
     
-    // Try padding with leading zeroes if the length is between 1 and 4
+    // 2. Try padding directly based on length first
+    if (digits.length > 0 && digits.length < 5) {
+      const paddedOneZero = "0" + digits;
+      if (vsicRawData[paddedOneZero] || vsicParentMap[paddedOneZero]) {
+        return paddedOneZero;
+      }
+    }
+
+    // 3. Robust Prefix Matching: If "0" + digits matches the start of any custom/local key (e.g. "01110" starts with "0111"), return "0" + digits!
+    if (digits.length > 0 && digits.length < 5) {
+      const tryPrefix = "0" + digits;
+      const dictKeys = Object.keys(vsicRawData);
+      const parentKeys = Object.keys(vsicParentMap);
+      const matchesDict = dictKeys.some(k => k.startsWith(tryPrefix));
+      const matchesParents = parentKeys.some(k => k.startsWith(tryPrefix));
+      if (matchesDict || matchesParents) {
+        return tryPrefix;
+      }
+    }
+    
+    // Fallback: loop-check padding up to 5 digits for general cases
     if (digits.length > 0 && digits.length < 5) {
       for (let len = digits.length + 1; len <= 5; len++) {
         const padded = digits.padStart(len, "0");
@@ -69,6 +105,31 @@ export const normalizeSectorCode = (code: any): string => {
 export const lookupSectorNameWithFallback = (code: string): { name: string; exactMatched: boolean; level: number } => {
   if (!code) return { name: "", exactMatched: false, level: 0 };
   
+  // Danh bạ 21 Ngành Cấp 1 tiêu chuẩn theo VSIC 2018 (Đề phòng file tải lên bị khuyết thiếu cấp 1)
+  const defaultL1Names: { [key: string]: string } = {
+    'A': 'Nông nghiệp, lâm nghiệp và thủy sản',
+    'B': 'Khai khoáng',
+    'C': 'Công nghiệp chế biến, chế tạo',
+    'D': 'Sản xuất và phân phối điện, khí đốt, nước nóng, hơi nước và điều hòa không khí',
+    'E': 'Cung cấp nước; hoạt động quản lý và xử lý rác thải, nước thải',
+    'F': 'Xây dựng',
+    'G': 'Bán buôn và bán lẻ; sửa chữa ô tô, mô tô, xe máy và xe có động cơ khác',
+    'H': 'Vận tải kho bãi',
+    'I': 'Dịch vụ lưu trú và ăn uống',
+    'J': 'Thông tin và truyền thông',
+    'K': 'Hoạt động tài chính, ngân hàng và bảo hiểm',
+    'L': 'Hoạt động kinh doanh bất động sản',
+    'M': 'Hoạt động chuyên môn, khoa học và công nghệ',
+    'N': 'Hoạt động hành chính và dịch vụ hỗ trợ',
+    'O': 'Hoạt động của Đảng, quản lý nhà nước, an ninh quốc phòng; bảo đảm xã hội bắt buộc',
+    'P': 'Giáo dục và đào tạo',
+    'Q': 'Y tế và hoạt động trợ giúp xã hội',
+    'R': 'Nghệ thuật, vui chơi và giải trí',
+    'S': 'Hoạt động dịch vụ khác',
+    'T': 'Hoạt động làm thuê trong hộ gia đình và sản xuất tự tiêu dùng',
+    'U': 'Hoạt động của các tổ chức và cơ quan quốc tế'
+  };
+
   // Try exact match first
   if (vsicRawData[code]) {
     let level = 5;
@@ -77,6 +138,14 @@ export const lookupSectorNameWithFallback = (code: string): { name: string; exac
     else if (code.length === 4) level = 4;
     else if (/^[A-U]$/.test(code)) level = 1;
     return { name: vsicRawData[code], exactMatched: true, level };
+  }
+
+  // Khớp nhanh cấp 1 mặc định nếu chưa nạp trong vsicRawData
+  if (/^[A-U]$/i.test(code)) {
+    const uc = code.toUpperCase();
+    if (defaultL1Names[uc]) {
+      return { name: defaultL1Names[uc], exactMatched: true, level: 1 };
+    }
   }
 
   // If code is numeric, try falling back to parent level codes
@@ -115,14 +184,16 @@ export const lookupSectorNameWithFallback = (code: string): { name: string; exac
       }
     }
     // Try Level 1 Letter
-    const l2Code = code.substring(0, 2);
-    const l1Code = getParentSectorCode(l2Code);
-    if (l1Code && vsicRawData[l1Code]) {
-      return { 
-        name: `${vsicRawData[l1Code]} (Quy nạp từ mã: ${code})`, 
-        exactMatched: false, 
-        level: 1 
-      };
+    const l1Code = getParentSectorCode(code);
+    if (l1Code) {
+      const l1Name = vsicRawData[l1Code] || defaultL1Names[l1Code];
+      if (l1Name) {
+        return { 
+          name: `${l1Name} (Quy nạp từ mã: ${code})`, 
+          exactMatched: false, 
+          level: 1 
+        };
+      }
     }
   }
 
@@ -139,7 +210,7 @@ export const getSectorHierarchy = (code: string): { [level: string]: { ma: strin
   const hierarchy: { [level: string]: { ma: string, ten: string } } = {};
   if (!code || typeof code !== 'string') return hierarchy;
 
-  const level1Code = getParentSectorCode(code.substring(0, 2)) || "";
+  const level1Code = getParentSectorCode(code) || "";
   const level2Code = code.substring(0, 2);
   const level3Code = code.substring(0, 3);
   const level4Code = code.substring(0, 4);
@@ -189,13 +260,37 @@ export const vsicHierarchyMap: { [key: string]: string[] } = {};
 
 /**
  * getParentSectorCode
- * Dynamically finds the parent (Level 1) code for any given Level 2 code.
- * @param level2Code A two-digit VSIC code.
+ * Dynamically finds the parent (Level 1) code for any given VSIC code of any length.
+ * @param code A normalized VSIC code (of any length from 1 to 5).
  * @returns The corresponding Level 1 letter code ('A' through 'U') or an empty string.
  */
-export const getParentSectorCode = (level2Code: string): string => {
-    if (!level2Code || level2Code.length !== 2) return "";
-    const numCode = parseInt(level2Code, 10);
+export const getParentSectorCode = (code: string): string => {
+    if (!code) return "";
+    
+    // 1. Kiểm tra ánh xạ cha con tùy chỉnh trực tiếp tuyệt đối (vd: "01", "011", "01110" v.v.)
+    const cleanKey = code.trim().toUpperCase();
+    if (vsicParentMap[cleanKey]) {
+      return vsicParentMap[cleanKey];
+    }
+
+    // 2. Kiểm tra nếu mã cha có chiều dài lớn và có thể cắt nhỏ dần để tìm
+    if (cleanKey.length > 2) {
+      for (let len = cleanKey.length - 1; len >= 2; len--) {
+        const sub = cleanKey.substring(0, len);
+        if (vsicParentMap[sub]) {
+          return vsicParentMap[sub];
+        }
+      }
+    }
+
+    // 3. Quy nạp trường hợp chuẩn mã 2 số
+    const l2 = cleanKey.substring(0, 2);
+    if (vsicParentMap[l2]) {
+      return vsicParentMap[l2];
+    }
+
+    if (l2.length !== 2) return "";
+    const numCode = parseInt(l2, 10);
     if (isNaN(numCode)) return "";
   
     if (numCode >= 1 && numCode <= 3) return 'A';
@@ -287,9 +382,17 @@ export const smartSuggestSectorByDescription = (description: string): { ma: stri
 };
 
 // Tự động khôi phục danh bạ ngành nghề tùy chọn do NSD nạp bổ sung từ localStorage khi tải trang
+export const vsicParentMap: { [key: string]: string } = {};
+
 export const clearAllSectorsInVSIC = () => {
   for (const key in vsicRawData) {
     delete vsicRawData[key];
+  }
+};
+
+export const clearAllParentsInVSIC = () => {
+  for (const key in vsicParentMap) {
+    delete vsicParentMap[key];
   }
 };
 
@@ -297,17 +400,28 @@ export const loadSectorsIntoVSIC = (catalog: { [key: string]: string }) => {
   Object.assign(vsicRawData, catalog);
 };
 
+export const loadParentsIntoVSIC = (parents: { [key: string]: string }) => {
+  Object.assign(vsicParentMap, parents);
+};
+
 try {
   if (typeof window !== "undefined" && window.localStorage) {
     const isPure = window.localStorage.getItem("custom_vsic_is_pure") !== "false";
     if (isPure) {
       clearAllSectorsInVSIC();
+      clearAllParentsInVSIC();
     }
     
     const customDataString = window.localStorage.getItem("custom_vsic_data");
     if (customDataString) {
       const customDict = JSON.parse(customDataString);
       Object.assign(vsicRawData, customDict);
+    }
+
+    const customParentsString = window.localStorage.getItem("custom_vsic_parents");
+    if (customParentsString) {
+      const customParents = JSON.parse(customParentsString);
+      Object.assign(vsicParentMap, customParents);
     }
   }
 } catch (e) {

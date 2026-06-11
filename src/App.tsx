@@ -445,6 +445,22 @@ export default function App() {
     // Không tự động đoán gán cứng các cột phục vụ báo cáo động nữa.
   }, [columns]);
 
+  // Tự động gán lựa chọn cột báo cáo nhanh dựa theo cấu hình gán cột có sẵn của dữ liệu nguồn
+  useEffect(() => {
+    if (mapping.manganh && !quickReportManganhCol) {
+      setQuickReportManganhCol(mapping.manganh);
+    }
+    if (mapping.xa && !quickReportXaCol) {
+      setQuickReportXaCol(mapping.xa);
+    }
+    if (mapping.doanhthu && !quickReportDoanhThuCol) {
+      setQuickReportDoanhThuCol(mapping.doanhthu);
+    }
+    if (mapping.laodong && !quickReportLaoDongCol) {
+      setQuickReportLaoDongCol(mapping.laodong);
+    }
+  }, [mapping]);
+
 
 
   // Phân trang cho viewer
@@ -1108,8 +1124,7 @@ export default function App() {
             if (/^[a-zA-Z]$/.test(mngNormalized)) {
               s1Code = mngNormalized.toUpperCase();
             } else {
-              const sec2Code = mngNormalized.slice(0, 2);
-              s1Code = getParentSectorCode(sec2Code) || "";
+              s1Code = getParentSectorCode(mngNormalized) || "";
             }
           }
           nganhCode = s1Code || "CHUA_PHAN_LOAI";
@@ -1998,8 +2013,7 @@ export default function App() {
             if (/^[a-zA-Z]$/.test(mng)) {
               sec1Code = mng.toUpperCase();
             } else {
-              const sec2Code = mng.slice(0, 2);
-              sec1Code = getParentSectorCode(sec2Code) || "";
+              sec1Code = getParentSectorCode(mng) || "";
             }
           }
           const sec1Name = vsicRawData[sec1Code] || "Ngành cấp 1 chưa định nghĩa";
@@ -2133,8 +2147,7 @@ export default function App() {
           if (/^[a-zA-Z]$/.test(normalized)) {
             finalCode = normalized.toUpperCase();
           } else {
-            const sec2Code = normalized.slice(0, 2);
-            finalCode = getParentSectorCode(sec2Code) || "";
+            finalCode = getParentSectorCode(normalized) || "";
           }
         }
       }
@@ -2606,7 +2619,7 @@ export default function App() {
             if (/^[a-zA-Z]$/.test(mng)) {
               sec1Code = mng.toUpperCase();
             } else {
-              sec1Code = getParentSectorCode(sec2Code) || "";
+              sec1Code = getParentSectorCode(mng) || "";
             }
           }
           const sec1Name = vsicRawData[sec1Code] || "Chưa định nghĩa chuẩn";
@@ -2715,8 +2728,7 @@ export default function App() {
               if (/^[a-zA-Z]$/.test(mng)) {
                 sec1Code = mng.toUpperCase();
               } else {
-                const sec2Code = mng.slice(0, 2);
-                sec1Code = getParentSectorCode(sec2Code) || "";
+                sec1Code = getParentSectorCode(mng) || "";
               }
             }
             const sec1Name = vsicRawData[sec1Code] || "Ngành cấp 1 chưa định nghĩa";
@@ -2825,6 +2837,15 @@ export default function App() {
       setQuickReportResultRows(finalReportRows);
       setQuickReportResultCols(Object.keys(finalReportRows[0] || {}));
       setQuickReportLevel(level);
+
+      // Cập nhật mapping toàn cục để đồng bộ trực tiếp với thành phần biểu đồ lập tức
+      setMapping(prev => ({
+        ...prev,
+        manganh: targetManganh,
+        xa: targetXa,
+        doanhthu: targetDoanhThu || prev.doanhthu,
+        laodong: targetLaoDong || prev.laodong
+      }));
 
       setProgress(100);
       setStatusMessage(`Tạo báo cáo nhanh ${reportType === "pivot" ? "xoay cột Pivot" : "dạng phẳng"} Ngành Cấp ${level} thành công!`);
@@ -4660,15 +4681,36 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* BẢNG HIỂN THỊ KẾT QUẢ TRỰC TIẾP */}
+                    {/* BẢNG HIỂN THỊ KẾT QUẢ TRỰC TIẾP KHỐI KÈM BIỂU ĐỒ TỰ ĐỘNG XUẤT HIỆN */}
                     {quickReportResultRows.length > 0 && (
-                      <BeautifulReportTable
-                        rows={quickReportResultRows}
-                        cols={quickReportResultCols}
-                        level={quickReportLevel}
-                        reportType={reportType}
-                        onExport={handleExportQuickReport}
-                      />
+                      <div className="space-y-8 pt-4 animate-fade-in">
+                        <BeautifulReportTable
+                          rows={quickReportResultRows}
+                          cols={quickReportResultCols}
+                          level={quickReportLevel}
+                          reportType={reportType}
+                          onExport={handleExportQuickReport}
+                        />
+
+                        {/* ĐỒ THỊ TRỰC QUAN MỚI NHẤT MỌI PHIÊN BẢN CHẠY BÁO CÁO */}
+                        <div className="border-t border-gray-800 pt-8 mt-6">
+                          <div className="bg-[#111827]/40 p-5 rounded-2xl border border-gray-800">
+                            <div className="mb-5">
+                              <h4 className="text-sm font-bold text-amber-400 flex items-center gap-2 font-mono">
+                                📊 BIỂU ĐỒ TRỰC QUAN DOANH THU THEO NGÀNH CẤP 1 (LIÊN KẾT TỔNG HỢP)
+                              </h4>
+                              <p className="text-[11px] text-gray-400 leading-relaxed font-sans">
+                                Biểu đồ này tự động đồng bộ theo các cột mã ngành, xã/địa bàn và doanh thu mà bạn đã chọn hạch toán ở phía trên. Không cần chuyển tab, biểu đồ sẽ được cập nhật trực tiếp tại đây ngay sau khi chạy báo cáo.
+                              </p>
+                            </div>
+                            <SectorRevenueChart 
+                              mainData={mainData} 
+                              columns={columns} 
+                              mapping={mapping} 
+                            />
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 ) : (

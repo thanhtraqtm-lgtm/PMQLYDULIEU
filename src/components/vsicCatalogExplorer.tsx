@@ -15,7 +15,7 @@ import {
   HelpCircle,
   ToggleLeft
 } from "lucide-react";
-import { vsicRawData, clearAllSectorsInVSIC, loadSectorsIntoVSIC } from "../data/vsic";
+import { vsicRawData, clearAllSectorsInVSIC, loadSectorsIntoVSIC, vsicParentMap, clearAllParentsInVSIC, loadParentsIntoVSIC } from "../data/vsic";
 import * as XLSX from "xlsx";
 
 export default function VsicCatalogExplorer() {
@@ -203,6 +203,7 @@ export default function VsicCatalogExplorer() {
         const is5LevelStructure = (cap1Idx !== -1 || cap2Idx !== -1 || cap3Idx !== -1 || cap4Idx !== -1 || cap5Idx !== -1) && tenNganhIdx !== -1;
 
         const newCustomDict: { [key: string]: string } = {};
+        const newParents: { [key: string]: string } = {};
         let added = 0;
 
         if (is5LevelStructure) {
@@ -220,21 +221,34 @@ export default function VsicCatalogExplorer() {
 
             if (!nameVal) continue;
 
-            // Lựa chọn mã chuẩn từ sâu nhất đến khái quát nhất (Cấp 5 -> Cấp 1)
-            let rawCode = "";
-            if (val5) rawCode = val5;
-            else if (val4) rawCode = val4;
-            else if (val3) rawCode = val3;
-            else if (val2) rawCode = val2;
-            else if (val1) rawCode = val1;
+            // Normalize các mã cấp
+            let c1 = val1.trim().toUpperCase();
+            let c2 = val2.replace(/\D/g, "");
+            let c3 = val3.replace(/\D/g, "");
+            let c4 = val4.replace(/\D/g, "");
+            let c5 = val5.replace(/\D/g, "");
 
-            if (!rawCode) continue;
+            // Khôi phục số 0 đầu bị Excel cắt đi
+            if (c2) c2 = c2.padStart(2, "0");
+            if (c3) c3 = c3.padStart(3, "0");
+            if (c4) c4 = c4.padStart(4, "0");
+            if (c5) c5 = c5.padStart(5, "0");
 
-            // Chuẩn hóa
-            let cleanCode = rawCode.replace(/\D/g, "");
-            if (!cleanCode && /^[A-Ua-u]$/.test(rawCode)) {
-              cleanCode = rawCode.toUpperCase();
+            // Lưu sơ đồ ánh xạ về mã Cấp 1 (c1)
+            if (c1 && /^[A-U]$/i.test(c1)) {
+              if (c2) newParents[c2] = c1;
+              if (c3) newParents[c3] = c1;
+              if (c4) newParents[c4] = c1;
+              if (c5) newParents[c5] = c1;
             }
+
+            // Lựa chọn mã chuẩn từ sâu nhất đến khái quát nhất (Cấp 5 -> Cấp 1) làm đại diện cho dòng này để lấy tên ngành
+            let cleanCode = "";
+            if (c5) cleanCode = c5;
+            else if (c4) cleanCode = c4;
+            else if (c3) cleanCode = c3;
+            else if (c2) cleanCode = c2;
+            else if (c1) cleanCode = c1;
 
             if (cleanCode) {
               newCustomDict[cleanCode] = nameVal;
@@ -264,6 +278,22 @@ export default function VsicCatalogExplorer() {
               }
             }
 
+            // Tự động suy luận cấp để khôi phục số 0 đầu bị mất trong định dạng 2 cột đơn giản
+            if (cleanCode && /^\d+$/.test(cleanCode)) {
+              const valNum = parseInt(cleanCode, 10);
+              if (cleanCode.length === 1) {
+                // ví dụ "1" -> cấp 2 "01"
+                cleanCode = cleanCode.padStart(2, "0");
+              } else if (cleanCode.length === 2 && valNum < 10) {
+                // ví dụ "11" -> cấp 3 "011"
+                cleanCode = cleanCode.padStart(3, "0");
+              } else if (cleanCode.length === 3 && valNum < 100) {
+                cleanCode = cleanCode.padStart(4, "0");
+              } else if (cleanCode.length === 4 && valNum < 1000) {
+                cleanCode = cleanCode.padStart(5, "0");
+              }
+            }
+
             let cleanName = rawName ? String(rawName).trim() : "";
             if (cleanCode && cleanName) {
               newCustomDict[cleanCode] = cleanName;
@@ -275,29 +305,43 @@ export default function VsicCatalogExplorer() {
         if (added === 0) {
           setUploadStatus({
             success: false,
-            message: "Hệ thống không tìm thấy hàng dữ liệu ngành hợp lệ nào từ file của bạn. Hãy đảm bảo file đúng mẫu cấu trúc 5 cấp."
+            message: "Hệ thống không tìm thấy hàng dữ liệu ngành hợp lệ nào từ file của bạn. Hãy đảm bảo file đúng mẫu cấu trúc 5 cấp hoặc 2 cột."
           });
           return;
         }
 
         // Lưu trữ
         let merged = {};
+        let mergedParents = {};
+
+        let existingParents = {};
+        try {
+          const stored = localStorage.getItem("custom_vsic_parents");
+          if (stored) existingParents = JSON.parse(stored);
+        } catch (e) {}
+
         if (pureMode) {
           // Xóa hết cũ, chỉ sử dụng tệp nạp vào làm danh mục
           merged = newCustomDict;
+          mergedParents = newParents;
           clearAllSectorsInVSIC();
+          clearAllParentsInVSIC();
         } else {
           // Sáp nhập đồng thời
           merged = { ...customCatalog, ...newCustomDict };
+          mergedParents = { ...existingParents, ...newParents };
         }
 
         setCustomCatalog(merged);
         localStorage.setItem("custom_vsic_data", JSON.stringify(merged));
+        localStorage.setItem("custom_vsic_parents", JSON.stringify(mergedParents));
+        
         Object.assign(vsicRawData, merged);
+        Object.assign(vsicParentMap, mergedParents);
 
         setUploadStatus({
           success: true,
-          message: `Nạp thành công ${added} danh mục cấp nhóm thành công! Hệ thống đã tự động liên kiết dữ liệu.`,
+          message: `Nạp thành công ${added} danh mục cấp nhóm thành công! Hệ thống đã tự động liên kết dữ liệu theo phân cấp.`,
           addedCount: added
         });
 
@@ -340,10 +384,12 @@ export default function VsicCatalogExplorer() {
   const handleResetCatalog = () => {
     if (window.confirm("Bạn có chắc chắn muốn xóa sạch toàn bộ danh mục mã ngành hiện tại trong bộ nhớ để nạp lại tệp Excel mới cho chuẩn và đồng nhất không?")) {
       localStorage.removeItem("custom_vsic_data");
+      localStorage.removeItem("custom_vsic_parents");
       localStorage.setItem("custom_vsic_is_pure", "true");
       setCustomCatalog({});
       setPureMode(true);
       clearAllSectorsInVSIC();
+      clearAllParentsInVSIC();
       alert("Đã xóa sạch danh mục cũ trong bộ nhớ! Hệ thống đang ở chế độ chờ, xin mời bạn tải lên tệp Excel danh mục của bạn.");
       window.location.reload();
     }
