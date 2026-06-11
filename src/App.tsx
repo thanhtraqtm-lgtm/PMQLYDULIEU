@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 // --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) INTEGRATED DIRECTLY FOR RELIABLE PORTABILITY ---
-const DB_NAME = "PMQLDL";
+const DB_NAME = "VTongDatabase";
 const DB_VERSION = 1;
 const STORE_NAME = "appState";
 
@@ -250,7 +250,8 @@ import {
   smartSuggestSectorByDescription,
   getSectorLevel,
   getParentSectorCode,
-  lookupSectorNameWithFallback
+  lookupSectorNameWithFallback,
+  isSummaryRow
 } from "./data/vsic";
 
 import SectorRevenueChart from "./components/sectorRevenueChart";
@@ -1110,6 +1111,7 @@ export default function App() {
       }>();
 
       mainData.forEach(row => {
+        if (isSummaryRow(row)) return;
         const xaVal = String(row[crossReportXaCol] || "Khác").trim();
         const rawMng = String(row[crossReportManganhCol] || "").trim();
         const mngNormalized = normalizeSectorCode(rawMng);
@@ -1998,6 +2000,7 @@ export default function App() {
     // Group dữ liệu dựa trên value tổ hợp của groupByCols, tự bẻ cấp 1, cấp 2 nếu chọn cột ảo
     const groups = new Map<string, any[]>();
     mainData.forEach(row => {
+      if (isSummaryRow(row)) return;
       const compositeKeyObj: any = {};
       groupByCols.forEach(col => {
         const selectedManganhCol = pivotManganhCol || mapping.manganh;
@@ -2134,6 +2137,7 @@ export default function App() {
     // Grouping map
     const groups = new Map<string, any[]>();
     mainData.forEach(row => {
+      if (isSummaryRow(row)) return;
       const rawVal = row[t2IndustryCol];
       const normalized = normalizeSectorCode(rawVal);
       
@@ -3542,10 +3546,10 @@ export default function App() {
                     Phát hành chuẩn mực V38.5
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    HỆ THỐNG XỬ LÝ SO SÁNH TỔNG HỢP DATA VÀ KIỂM TRA LOGIC
+                    Hệ Thống Phân Tích & Chuẩn Hóa Dữ Liệu Ngành Quốc Gia
                   </h2>
                   <p className="text-gray-300 text-sm leading-relaxed">
-                    Công cụ chuyên sâu hỗ trợ người dùng, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC2025).
+                    Công cụ chuyên sâu hỗ trợ thống kê dữ liệu doanh nghiệp, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu và xử lý liên kết ngành kinh tế Việt Nam (VSIC) tự động áp dụng giải pháp tối ưu hóa cao cấp.
                   </p>
                   <div className="pt-2 flex items-center gap-4">
                     <button 
@@ -3569,15 +3573,15 @@ export default function App() {
               <div className="space-y-6">
                 <div className="border-b border-[#374151] pb-4">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> NỘI DUNG & KÍCH HOẠT CHỨC NĂNG NHANH
+                    <Layers className="w-5 h-5 text-purple-400 animate-pulse" /> BẢN ĐỒ CẨM NANG & KÍCH HOẠT CHỨC NĂNG NHANH
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
-                    Hệ thống tích hợp đầy đủ các công cụ chuyên sâu. bạn có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
+                    Hệ thống tích hợp đầy đủ 7 phân hệ cốt lõi chuyên sâu. Quý khách có thể xem nhanh hướng dẫn và nhấp trực tiếp vào bất kỳ thẻ nào dưới đây để bắt đầu ngay:
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* CHỨC NĂNG 1: NẠP FILE & ĐỊNH NGHĨA CỘT */}
+                  {/* CHỨC NĂNG 1: Xem & Định nghĩa cột */}
                   <div className="bg-[#1f2937]/50 border border-purple-500/20 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-purple-500/40 transition-all group">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -3589,7 +3593,7 @@ export default function App() {
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-purple-300 transition-colors">
-                        📂 NẠP FILE & ĐỊNH NGHĨA CỘT
+                        📂 Xem &amp; Định Nghĩa Cột
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Nơi tải lên file Excel/CSV gốc. Hỗ trợ <strong>Việt hóa / đặt tên lại</strong> cho các cột viết tắt khó nhớ, lọc bỏ cột thừa và gán vai trò kinh doanh (Mô tả ngành, Mã ngành, Xã, Doanh thu, Lao động,...) để toàn bộ hệ thống nhận diện tự động.
