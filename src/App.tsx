@@ -3749,7 +3749,7 @@ export default function App() {
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
-                        Control Panel 🛂 Cỗ Máy Kiểm Tra Logic
+                         🛂 Kiểm Tra Logic
                       </h4>
                       <p className="text-xs text-gray-300 leading-relaxed">
                         Thiết lập các quy định ràng buộc điều kiện thông minh dạng <code>NẾU (điều kiện) THÌ PHẢI (điều kiện kia)</code> tùy ý. Bộ máy sẽ lập tức rà soát toàn bộ tệp Excel thu về danh sách hồ sơ bất tuần tự (ví dụ: mô tả có chứa xi-măng nhưng mã ngành lại đăng ký nông nghiệp, hoặc lao động siêu lớn nhưng doanh thu rỗng).
@@ -3780,11 +3780,11 @@ export default function App() {
                   <div className="space-y-1">
                     <span className="font-bold text-white block">02. Chuẩn hóa & Rà rà logic</span>
                     <p className="text-gray-400">
-                      Sử dụng <strong>🧠 Chuẩn Hóa VSIC & AI</strong> để hoàn thiện liên kết 5 cấp ngành nghề; tiếp theo sử dụng <strong>🛂 Cỗ Máy Logic</strong> thiết lập các quy chuẩn kiểm tra để lọc sạch các bản ghi lỗi hoặc dị thường.
+                      Sử dụng <strong>🧠 Chuẩn Hóa VSIC & AI</strong> để hoàn thiện liên kết 5 cấp ngành nghề; tiếp theo sử dụng <strong>🛂 kiểm tra Logic</strong> thiết lập các quy chuẩn kiểm tra để lọc sạch các bản ghi lỗi hoặc dị thường.
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <span className="font-bold text-white block">03. Tổng hợp báo cáo & Chuyển giao</span>
+                    <span className="font-bold text-white block">03. Tổng hợp báo cáo & và xuất excel giao</span>
                     <p className="text-gray-400">
                       Qua trang <strong>📊 Tổng Hợp Báo Cáo</strong> để quy nập các chỉ thị hoặc chọn <strong>✂️ Tách File</strong> tạo tệp zip con của các xã gửi cho từng địa bàn. Bấm tải tệp Excel thành phẩm là xong!
                     </p>
