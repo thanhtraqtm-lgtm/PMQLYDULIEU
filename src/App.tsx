@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 // --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) INTEGRATED DIRECTLY FOR RELIABLE PORTABILITY ---
-const DB_NAME = "VTongDatabase";
+const DB_NAME = "HÊ THỐNG XỬ LÝ SO SÁNH TỔNG HỢP DATA";
 const DB_VERSION = 1;
 const STORE_NAME = "appState";
 
