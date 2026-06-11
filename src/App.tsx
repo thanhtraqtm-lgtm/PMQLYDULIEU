@@ -5194,7 +5194,7 @@ export default function App() {
               <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <CheckSquare className="w-5 h-5 text-emerald-400" /> CỖ MÁY KIỂM TRA LOGIC ĐA CHỈ TIÊU (RULE ENGINE)
+                    <CheckSquare className="w-5 h-5 text-emerald-400" /> KIỂM TRA LOGIC ĐA CHỈ TIÊU
                   </h3>
                   <p className="text-xs text-gray-400">Tạo ra các quy tắc ràng buộc rà quét dữ liệu dạng: NẾU thỏa mãn (Điều kiện bước 1) THÌ PHẢI bắt buộc thỏa mãn (Điều kiện bước 2). Hệ thống tự rà rà soát và ghi chú dòng sai phạm vào cột "Loi_Logic".</p>
                 </div>
@@ -5384,7 +5384,7 @@ export default function App() {
             </div>
           )}
 
-          {/* 10. TAB TRA CỨU DANH MỤC NGÀNH VSIC CHUẨN */}
+          {/* 10. TAB TRA CỨU DANH MỤC NGÀNH VSIC  */}
           {activeTab === "danhmucvsic" && (
             <div className="space-y-6 animate-fade-in">
               <VsicCatalogExplorer />
