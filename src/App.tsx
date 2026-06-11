@@ -4266,101 +4266,7 @@ export default function App() {
               )}
               </div>
 
-              {/* Danh sách dữ liệu chính */}
-              {mainData.length > 0 ? (
-                <div className="bg-[#1f2937] border border-[#374151] rounded-2xl overflow-hidden shadow-sm space-y-4 p-4">
-                  
-                  {/* Thanh công cụ lọc */}
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-[#374151] pb-4">
-                    <div className="relative w-full sm:max-w-xs">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                      <input 
-                        type="text" 
-                        placeholder="Tìm nhanh mọi vùng..." 
-                        value={searchTerm}
-                        onChange={(e) => { setSearchTerm(e.target.value); setViewPage(1); }}
-                        className="w-full bg-[#111827] border border-[#374151] rounded-xl pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="text-xs text-gray-400">
-                        Hiển thị {paginatedData.length}/{filteredData.length} dòng
-                      </div>
-                      <button 
-                        onClick={handleExportExcel}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Download className="w-4 h-4" /> Xuất File báo cáo Excel
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Bảng dữ liệu bảng tính preview */}
-                  <div className="overflow-x-auto max-h-[500px] relative">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-[#111827] text-gray-400 border-b border-gray-800 font-mono sticky top-0 z-10 shadow-sm">
-                          {columns.map(col => (
-                            <th key={col} className="p-3 font-semibold text-center whitespace-nowrap min-w-[120px]">
-                              {col === mapping.mota && "📝 "}{col === mapping.manganh && "🏷️ "}{col === mapping.xa && "🗺️ "}{col === mapping.idCol && "🔑 "}{col}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginatedData.map((row, rIdx) => (
-                          <tr key={rIdx} className="border-b border-gray-800/40 hover:bg-gray-800/50 transition-colors">
-                            {columns.map(col => {
-                              const cellValue = row[col];
-                              return (
-                                <td key={col} className={`p-3 truncate max-w-[220px] text-center font-sans ${col === mapping.mota ? "text-slate-200 text-left" : "text-gray-300"}`} title={String(cellValue)}>
-                                  {cellValue === null || cellValue === undefined ? "" : String(cellValue)}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Thanh phân trang Pagination */}
-                  <div className="flex items-center justify-between border-t border-[#374151] pt-4 text-xs">
-                    <span className="text-gray-400">
-                      Trang <strong className="text-white">{viewPage}</strong> / {totalPages}
-                    </span>
-                    <div className="flex gap-2">
-                      <button 
-                        disabled={viewPage === 1}
-                        onClick={() => setViewPage(prev => Math.max(1, prev - 1))}
-                        className={`px-3 py-1.5 rounded-lg border border-gray-700 font-semibold ${viewPage === 1 ? "bg-[#111827] text-gray-600 cursor-not-allowed" : "bg-[#111827] hover:bg-[#374151] text-gray-300 cursor-pointer"}`}
-                      >
-                        Trước
-                      </button>
-                      <button 
-                        disabled={viewPage === totalPages}
-                        onClick={() => setViewPage(prev => Math.min(totalPages, prev + 1))}
-                        className={`px-3 py-1.5 rounded-lg border border-gray-700 font-semibold ${viewPage === totalPages ? "bg-[#111827] text-gray-600 cursor-not-allowed" : "bg-[#111827] hover:bg-[#374151] text-gray-300 cursor-pointer"}`}
-                      >
-                        Sau
-                      </button>
-                    </div>
-                  </div>
-
-                </div>
-              ) : (
-                <div className="bg-[#1f2937]/40 border-2 border-dashed border-[#374151] p-12 text-center rounded-2xl space-y-4">
-                  <Database className="w-12 h-12 text-[#4b5563] mx-auto animate-pulse" />
-                  <div>
-                    <h4 className="text-base font-bold text-white">Chưa có cơ sở dữ liệu nạp vào</h4>
-                    <p className="text-xs text-gray-400 max-w-md mx-auto pt-1 leading-relaxed">
-                      Hãy chọn "Tải tệp dữ liệu chính" ở ô phía trên để nạp bảng tài liệu và kích hoạt toàn bộ cơ cấu.
-                    </p>
-                  </div>
-                </div>
-              )}
-
+             
             </div>
           )}
 
@@ -5399,6 +5305,101 @@ export default function App() {
               )}
             </div>
           )}
+
+           {/* Danh sách dữ liệu chính */}
+              {mainData.length > 0 ? (
+                <div className="bg-[#1f2937] border border-[#374151] rounded-2xl overflow-hidden shadow-sm space-y-4 p-4">
+                  
+                  {/* Thanh công cụ lọc */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-[#374151] pb-4">
+                    <div className="relative w-full sm:max-w-xs">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                      <input 
+                        type="text" 
+                        placeholder="Tìm nhanh mọi vùng..." 
+                        value={searchTerm}
+                        onChange={(e) => { setSearchTerm(e.target.value); setViewPage(1); }}
+                        className="w-full bg-[#111827] border border-[#374151] rounded-xl pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs text-gray-400">
+                        Hiển thị {paginatedData.length}/{filteredData.length} dòng
+                      </div>
+                      <button 
+                        onClick={handleExportExcel}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Download className="w-4 h-4" /> Xuất File báo cáo Excel
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bảng dữ liệu bảng tính preview */}
+                  <div className="overflow-x-auto max-h-[500px] relative">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-[#111827] text-gray-400 border-b border-gray-800 font-mono sticky top-0 z-10 shadow-sm">
+                          {columns.map(col => (
+                            <th key={col} className="p-3 font-semibold text-center whitespace-nowrap min-w-[120px]">
+                              {col === mapping.mota && "📝 "}{col === mapping.manganh && "🏷️ "}{col === mapping.xa && "🗺️ "}{col === mapping.idCol && "🔑 "}{col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedData.map((row, rIdx) => (
+                          <tr key={rIdx} className="border-b border-gray-800/40 hover:bg-gray-800/50 transition-colors">
+                            {columns.map(col => {
+                              const cellValue = row[col];
+                              return (
+                                <td key={col} className={`p-3 truncate max-w-[220px] text-center font-sans ${col === mapping.mota ? "text-slate-200 text-left" : "text-gray-300"}`} title={String(cellValue)}>
+                                  {cellValue === null || cellValue === undefined ? "" : String(cellValue)}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Thanh phân trang Pagination */}
+                  <div className="flex items-center justify-between border-t border-[#374151] pt-4 text-xs">
+                    <span className="text-gray-400">
+                      Trang <strong className="text-white">{viewPage}</strong> / {totalPages}
+                    </span>
+                    <div className="flex gap-2">
+                      <button 
+                        disabled={viewPage === 1}
+                        onClick={() => setViewPage(prev => Math.max(1, prev - 1))}
+                        className={`px-3 py-1.5 rounded-lg border border-gray-700 font-semibold ${viewPage === 1 ? "bg-[#111827] text-gray-600 cursor-not-allowed" : "bg-[#111827] hover:bg-[#374151] text-gray-300 cursor-pointer"}`}
+                      >
+                        Trước
+                      </button>
+                      <button 
+                        disabled={viewPage === totalPages}
+                        onClick={() => setViewPage(prev => Math.min(totalPages, prev + 1))}
+                        className={`px-3 py-1.5 rounded-lg border border-gray-700 font-semibold ${viewPage === totalPages ? "bg-[#111827] text-gray-600 cursor-not-allowed" : "bg-[#111827] hover:bg-[#374151] text-gray-300 cursor-pointer"}`}
+                      >
+                        Sau
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              ) : (
+                <div className="bg-[#1f2937]/40 border-2 border-dashed border-[#374151] p-12 text-center rounded-2xl space-y-4">
+                  <Database className="w-12 h-12 text-[#4b5563] mx-auto animate-pulse" />
+                  <div>
+                    <h4 className="text-base font-bold text-white">Chưa có cơ sở dữ liệu nạp vào</h4>
+                    <p className="text-xs text-gray-400 max-w-md mx-auto pt-1 leading-relaxed">
+                      Hãy chọn "Tải tệp dữ liệu chính" ở ô phía trên để nạp bảng tài liệu và kích hoạt toàn bộ cơ cấu.
+                    </p>
+                  </div>
+                </div>
+              )}         
 
         </main>
       </div>
