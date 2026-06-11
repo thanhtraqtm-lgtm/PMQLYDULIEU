@@ -1,6 +1,13 @@
 import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
+
+// 1. IMPORT
+import JSZip from "jszip";
+
+// 2. BỘ NHỚ TỰ HỌC (Cái "Bảng trắng" mới để lưu bất nhất quán)
+const registryDescToCodes = new Map<string, Set<string>>(); 
+const registryCodeToDescs = new Map<string, Set<string>>();
 // --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) INTEGRATED DIRECTLY FOR RELIABLE PORTABILITY ---
 const DB_NAME = "PMQLDL";
 const DB_VERSION = 1;
@@ -2303,62 +2310,50 @@ export default function App() {
             invalidCount++;
           }
 
-          // Đối chiếu quy luật logic hoạt động mô tả & mã ngành để phát hiện mâu thuẫn lệch vai trò
-          let auditStatus = lookupResult.exactMatched ? "✅ Đạt chuẩn VSIC quốc gia" : "✅ Khớp quy nạp cấp học";
+          // 1. Lấy dữ liệu từ Mapping bạn đã chỉ định
+          const rawCode = row[mapping.manganh];
+          const rawDesc = mapping.mota ? String(row[mapping.mota] || "") : "";
+          const cleanCode = normalizeSectorCode(rawCode);
+
+          // 2. Tra cứu VSIC chuẩn (Không đoán mò, chỉ đối chiếu mã)
+          const lookupResult = lookupSectorNameWithFallback(cleanCode);
+          const isExistInVSIC = lookupResult.level > 0;
+          const stdName = lookupResult.name;
+
+          // 3. Xác định trạng thái (Chỉ báo lỗi nếu mã không tồn tại)
+          let auditStatus = "✅ Đạt chuẩn VSIC";
           let anomalyReason = "";
 
-          if (!isExistInVSIC) {
-            auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
-            anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục hệ thống phân cấp VSIC quốc gia`;
-          } else if (rawDesc.trim() !== "") {
-            const descLow = rawDesc.toLowerCase();
-            const stdLow = stdName.toLowerCase();
+          if (!cleanCode || cleanCode.trim() === "") {
+              auditStatus = "⚠️ Thiếu mã ngành";
+              anomalyReason = "Dòng này bị trống mã ngành.";
+          } else if (!isExistInVSIC) {
+              auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
+              anomalyReason = `Mã "${rawCode}" không tìm thấy trong danh mục VSIC chuẩn.`;
+          }
 
-            // 1. Lệch hạch toán: Nông nghiệp vs Phục vụ thương mại
-            const hasFeederWords = descLow.includes("trồng") || descLow.includes("nuôi") || descLow.includes("bắt") || descLow.includes("thu hoạch") || descLow.includes("đánh bắt");
-            const hasTradeWords = descLow.includes("bán buôn") || descLow.includes("bán lẻ") || descLow.includes("môi giới") || descLow.includes("đại lý") || descLow.includes("thương mại");
-            
-            const stdIsFeeder = stdLow.includes("nông nghiệp") || stdLow.includes("lâm nghiệp") || stdIsFeederWord(stdLow);
-            const stdIsTrade = stdLow.includes("bán buôn") || stdLow.includes("bán lẻ") || stdLow.includes("thương mại");
-
-            if (hasTradeWords && stdIsFeeder) {
-              auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Phân phối thương mại và sản xuất nông nghiệp)";
-              anomalyReason = `Mô tả ghi thương mại (${rawDesc}) nhưng lại gán mã thuộc ngành trồng trọt/chăn nuôi sản xuất trực tiếp (${cleanCode} - ${stdName})`;
-              conflictCount++;
-            } else if (hasFeederWords && stdIsTrade) {
-              auditStatus = "⚠️ Nghi ngờ lệch mã (Khai mâu thuẫn giữa Tự sản tự tiêu nông nghiệp và phân phối đại lý)";
-              anomalyReason = `Mô tả ghi trồng trọt, khai mỏ (${rawDesc}) nhưng mã ngành lại gán đại lý bán buôn, dịch vụ phân phối (${cleanCode} - ${stdName})`;
-              conflictCount++;
-            }
-
-            // 2. Chế biến sản xuất vs Dịch vụ ăn uống, xây dựng
-            const hasManufacture = descLow.includes("sản xuất") || descLow.includes("chế tạo") || descLow.includes("gia công") || descLow.includes("lắp đặt");
-            const hasService = descLow.includes("ăn uống") || descLow.includes("nhà hàng") || descLow.includes("quán") || descLow.includes("giáo dục") || descLow.includes("dịch vụ");
-
-            const stdIsManufacture = stdLow.includes("sản xuất") || stdLow.includes("chế biến") || stdLow.includes("chế tạo");
-            const stdIsService = stdLow.includes("ăn uống") || stdLow.includes("nhà hàng") || stdLow.includes("giáo dục") || stdLow.includes("dịch vụ");
-
-            if (hasManufacture && stdIsService) {
-              auditStatus = "⚠️ Nghi ngờ lệch mã (Sản xuất gia công vs Dịch vụ ăn uống hoặc đào tạo)";
-              anomalyReason = `Mô tả ghi chế tạo gia công (${rawDesc}) nhưng mã ngành lại thuộc về cung ứng ăn uống hoặc dịch vụ dân sinh (${cleanCode} - ${stdName})`;
-              conflictCount++;
-            } else if (hasService && stdIsManufacture) {
-              auditStatus = "⚠️ Nghi ngờ lệch mã (Cung ứng dịch vụ vs Chế biến sản xuất công nghiệp)";
-              anomalyReason = `Mô tả ghi phục vụ ẩm thực, giáo dục (${rawDesc}) nhưng mã ngành lại hạch toán vào sản xuất công nghiệp nặng/nhẹ (${cleanCode} - ${stdName})`;
-              conflictCount++;
-            }
+          // 4. Đẩy vào danh sách lỗi (Sử dụng đúng cột ID bạn đã mapping)
+          if (anomalyReason && anomalies.length < 5000) {
+              anomalies.push({
+                  dongSTT: idx + 1,
+                  maDinhDanh: row[mapping.idCol] || `Bản ghi ${idx + 1}`, 
+                  maGoc: rawCode,
+                  motaGoc: rawDesc,
+                  nganhChuan: stdName || "(Thất bại khi tra cứu)",
+                  phanTichloi: anomalyReason
+              });
           }
 
           if (anomalyReason && anomalies.length < 5000) {
-            anomalies.push({
-              dongSTT: idx + 1,
-              maDN: row["Mã Số Thuế"] || row["MaST"] || `Bản ghi số ${idx + 1}`,
-              maGoc: rawCode,
-              motaGoc: rawDesc,
-              nganhChuan: stdName || "(Thất bại khi tra cứu)",
-              phanTichloi: anomalyReason
-            });
-          }
+                anomalies.push({
+                  dongSTT: idx + 1,
+                  maDonVi: row[mapping.idCol] || `Bản ghi ${idx + 1}`, // Dùng ID từ Mapping
+                  maGoc: rawCode,
+                  motaGoc: rawDesc,
+                  nganhChuan: stdName || "(Thất bại khi tra cứu)",
+                  phanTichloi: anomalyReason
+              });
+              }
 
           // Xây dựng Bản ghi mới co cụm, bơm cột Tên Ngành Chuẩn VSIC và Trạng Thái Đối Chiếu VSIC nằm ngay bên cạnh cột Mô Tả Hoạt Động / Mã Ngành để dễ đối chiếu
           const flexRow: any = {};
