@@ -1,1265 +1,596 @@
 import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
-
-// --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) ---
-const DB_NAME = "HÊ THỐNG XỬ LÝ SO SÁNH TỔNG HỢP DATA";
-const DB_VERSION = 1;
-const STORE_NAME = "appState";
-
-interface AppState {
-  mainData: any[];
-  rawImportedData: any[];
-  columns: string[];
-  fileName: string;
-  mapping: {
-    mota: string;
-    manganh: string;
-    xa: string;
-    doanhthu: string;
-    laodong: string;
-    idCol: string;
-  };
-  customColConfigs: any[];
-  userSectorMap?: [string, string][];
-  userSectorFileName?: string;
-}
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(new Error("Không thể khởi tạo IndexedDB"));
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-  });
-}
-
-const CHUNK_SIZE = 5000;
-
-async function clearOldChunks(db: IDBDatabase): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.openKeyCursor();
-    request.onsuccess = (event: any) => {
-      const cursor = event.target.result;
-      if (cursor) {
-        const key = String(cursor.key);
-        if (key.startsWith("mainData_chunk_") || key.startsWith("rawImportedData_chunk_")) {
-          store.delete(key);
-        }
-        cursor.continue();
-      } else {
-        resolve();
-      }
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function saveArrayInChunks(db: IDBDatabase, prefix: string, array: any[]): Promise<void> {
-  const numChunks = Math.ceil(array.length / CHUNK_SIZE);
-  for (let i = 0; i < numChunks; i++) {
-    const start = i * CHUNK_SIZE;
-    const chunk = array.slice(start, start + CHUNK_SIZE);
-    await new Promise<void>((resolve) => setTimeout(resolve, 5));
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.put(chunk, `${prefix}_chunk_${i}`);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error || new Error(`Lỗi lưu mảnh ${prefix} ${i}`));
-    });
-  }
-}
-
-async function loadArrayInChunks(db: IDBDatabase, prefix: string, totalLength: number): Promise<any[]> {
-  const numChunks = Math.ceil(totalLength / CHUNK_SIZE);
-  const result: any[] = [];
-  for (let i = 0; i < numChunks; i++) {
-    await new Promise<void>((resolve) => setTimeout(resolve, 2));
-    const chunk: any[] = await new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(`${prefix}_chunk_${i}`);
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error || new Error(`Lỗi tải mảnh ${prefix} ${i}`));
-    });
-    result.push(...chunk);
-  }
-  return result;
-}
-
-async function saveAppState(state: AppState, forceSaveData: boolean = false): Promise<void> {
-  try {
-    const db = await openDB();
-    const { mainData, rawImportedData, ...meta } = state;
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const metaData = {
-        ...meta,
-        mainDataLength: mainData.length,
-        rawImportedDataLength: rawImportedData.length,
-        isChunked: true
-      };
-      const request = store.put(metaData, "sessionMeta");
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error || new Error("Lỗi lưu metadata"));
-    });
-    if (forceSaveData) {
-      await clearOldChunks(db);
-      await saveArrayInChunks(db, "mainData", mainData);
-      await saveArrayInChunks(db, "rawImportedData", rawImportedData);
-    }
-    // Lưu danh mục ngành
-    const sectorMapArray = Array.from(state.userSectorMap || []);
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const req1 = store.put(sectorMapArray, "userSectorMap");
-      const req2 = store.put(state.userSectorFileName || "", "userSectorFileName");
-      Promise.all([req1, req2]).then(() => resolve()).catch(reject);
-    });
-    await new Promise<void>((resolve) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      store.delete("currentSession");
-      resolve();
-    });
-  } catch (error) {
-    console.error("IndexedDB Save Error:", error);
-  }
-}
-
-async function loadAppState(): Promise<AppState | null> {
-  try {
-    const db = await openDB();
-    const meta: any = await new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get("sessionMeta");
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    if (meta && meta.isChunked) {
-      const mainData = await loadArrayInChunks(db, "mainData", meta.mainDataLength || 0);
-      const rawImportedData = await loadArrayInChunks(db, "rawImportedData", meta.rawImportedDataLength || 0);
-      return { ...meta, mainData, rawImportedData };
-    }
-    const legacy = await new Promise<any>((resolve) => {
-      const transaction = db.transaction(STORE_NAME, "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get("currentSession");
-      request.onsuccess = () => resolve(request.result);
-    });
-    return legacy || null;
-  } catch (error) {
-    console.error("IndexedDB Load Error:", error);
-    return null;
-  }
-}
-
-async function clearAppState(): Promise<void> {
-  try {
-    const db = await openDB();
-    await clearOldChunks(db);
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      store.delete("sessionMeta");
-      store.delete("userSectorMap");
-      store.delete("userSectorFileName");
-      resolve();
-    });
-  } catch (error) {
-    console.error("IndexedDB Clear Error:", error);
-  }
-}
-
 import { 
-  Home, 
-  FileSpreadsheet, 
-  GitMerge, 
-  Combine, 
-  Scissors, 
-  BarChart3, 
-  PieChart,
-  Activity, 
-  CheckSquare, 
-  Download, 
-  Loader2, 
-  FileUp, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Info, 
-  Brain,
-  Layers,
-  ArrowRight,
-  ArrowRightLeft,
-  Database,
-  Search,
-  Plus,
-  Trash2,
-  FileCheck,
-  Lock,
-  KeyRound,
-  LogOut
+  Home, FileSpreadsheet, GitMerge, Combine, Scissors, BarChart3, PieChart,
+  CheckSquare, Download, Loader2, FileUp, AlertTriangle, CheckCircle2, Brain,
+  Layers, ArrowRight, ArrowRightLeft, Database, Search, Plus, Lock, KeyRound, LogOut,
+  ChevronLeft, ChevronRight
 } from "lucide-react";
-
-// Import các hàm xử lý từ vsic.ts (đã được sửa động)
 import { 
-  normalizeSectorCode, 
-  getSectorHierarchy, 
-  smartSuggestSectorByDescription,
-  getSectorLevel,
-  getParentSectorCode,
-  lookupSectorNameWithFallback,
-  isSummaryRow,
-  clearAllSectorsInVSIC,
-  loadSectorsIntoVSIC
+  normalizeSectorCode, getSectorLevel, getParentSectorCode,
+  lookupSectorNameWithFallback, clearAllSectorsInVSIC, loadSectorsIntoVSIC
 } from "./data/vsic";
-
 import SectorRevenueChart from "./components/sectorRevenueChart";
 import VsicCatalogExplorer from "./components/vsicCatalogExplorer";
 import DescriptorMatchScanner from "./components/descriptorMatchScanner";
 import { BeautifulReportTable } from "./components/BeautifulReportTable";
 
-// Component xem trước dữ liệu (dùng chung cho các tab)
-const DataPreviewTable: React.FC<{ data: any[]; columns: string[] }> = ({ data, columns }) => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [viewPage, setViewPage] = useState(1);
+// ------------------ Component bảng dữ liệu (đẹp) ------------------
+const DataPreviewTable = ({ data, columns, title }: { data: any[]; columns: string[]; title?: string }) => {
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const pageSize = 50;
-  const filteredData = useMemo(() => {
-    if (!searchTerm) return data;
-    const term = searchTerm.toLowerCase();
-    return data.filter(row => Object.values(row).some(val => String(val).toLowerCase().includes(term)));
-  }, [data, searchTerm]);
-  const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
-  const paginatedData = filteredData.slice((viewPage - 1) * pageSize, viewPage * pageSize);
-  const handleExport = () => {
-    if (data.length === 0) return;
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "KetQua");
-    XLSX.writeFile(wb, `KetQua_XuLy.xlsx`);
-  };
-  if (data.length === 0) return null;
+  const filtered = useMemo(() => {
+    if (!search) return data;
+    const term = search.toLowerCase();
+    return data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(term)));
+  }, [data, search]);
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paginated = filtered.slice((page-1)*pageSize, page*pageSize);
+  if (!data.length) return null;
   return (
-    <div className="mt-6 bg-[#1f2937] border border-[#374151] rounded-2xl overflow-hidden shadow-sm space-y-4 p-4">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-[#374151] pb-4">
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input type="text" placeholder="Tìm kiếm trong kết quả..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setViewPage(1); }} className="w-full bg-[#111827] border border-[#374151] rounded-xl pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
-        </div>
-        <button onClick={handleExport} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5"><Download className="w-4 h-4" /> Xuất Excel</button>
+    <div className="mt-6 bg-[#1f2937]/80 rounded-2xl border border-gray-800 p-4">
+      <div className="flex justify-between items-center mb-3">
+        <div className="flex items-center gap-2"><Database className="w-4 h-4 text-cyan-400"/><span className="font-bold">{title||"Kết quả"}</span><span className="text-xs text-gray-400">{data.length} dòng</span></div>
+        <div className="relative"><Search className="absolute left-2 top-1.5 w-3.5 h-3.5 text-gray-500"/><input className="pl-7 pr-2 py-1 bg-[#111827] border border-gray-700 rounded-lg text-xs" placeholder="Tìm..." value={search} onChange={e=>{setSearch(e.target.value); setPage(1);}}/></div>
       </div>
-      <div className="overflow-x-auto max-h-[500px] relative">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead className="bg-[#111827] text-gray-400 border-b border-gray-800 font-mono sticky top-0 z-10">
-            <tr>{columns.map(col => <th key={col} className="p-3 font-semibold text-center whitespace-nowrap min-w-[120px]">{col}</th>)}</tr>
-          </thead>
-          <tbody>
-            {paginatedData.map((row, idx) => (
-              <tr key={idx} className="border-b border-gray-800/40 hover:bg-gray-800/50">
-                {columns.map(col => <td key={col} className="p-3 truncate max-w-[220px] text-center text-gray-300" title={String(row[col])}>{row[col] === undefined ? "" : String(row[col])}</td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex items-center justify-between pt-2 text-xs">
-        <span className="text-gray-400">Trang <strong className="text-white">{viewPage}</strong> / {totalPages}</span>
-        <div className="flex gap-2">
-          <button disabled={viewPage === 1} onClick={() => setViewPage(prev => Math.max(1, prev - 1))} className="px-3 py-1.5 rounded-lg border border-gray-700 bg-[#111827] text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed">Trước</button>
-          <button disabled={viewPage === totalPages} onClick={() => setViewPage(prev => Math.min(totalPages, prev + 1))} className="px-3 py-1.5 rounded-lg border border-gray-700 bg-[#111827] text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed">Sau</button>
-        </div>
-      </div>
+      <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-[#0f172a]"><tr>{columns.map(c=><th key={c} className="p-2 text-center">{c}</th>)}</tr></thead><tbody>{paginated.map((row,i)=>(
+        <tr key={i} className="border-t border-gray-800">{columns.map(c=><td key={c} className="p-2 text-center truncate max-w-[180px]">{row[c]??""}</td>)}</tr>
+      ))}</tbody></table></div>
+      <div className="flex justify-between mt-3 text-xs"><span>Trang {page}/{totalPages||1}</span><div className="flex gap-2"><button disabled={page===1} onClick={()=>setPage(p=>p-1)}><ChevronLeft className="w-4 h-4"/></button><button disabled={page===totalPages} onClick={()=>setPage(p=>p+1)}><ChevronRight className="w-4 h-4"/></button></div></div>
     </div>
   );
 };
 
-interface ColumnMapping {
-  mota: string;
-  manganh: string;
-  xa: string;
-  doanhthu: string;
-  laodong: string;
-  idCol: string;
-}
-interface LogicRule { col: string; op: string; val: string; }
+// ------------------ Main App ------------------
+interface ColumnMapping { mota: string; manganh: string; xa: string; doanhthu: string; laodong: string; idCol: string; }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<string>("trangchu");
-  const [loading, setLoading] = useState<boolean>(false);
-  const [progress, setProgress] = useState<number>(0);
-  const [statusMessage, setStatusMessage] = useState<string>("");
+  // Auth
+  const [isAuthorized, setIsAuthorized] = useState(()=>localStorage.getItem("vsic_app_authorized")==="true");
+  const [typedPwd, setTypedPwd] = useState("");
+  const [pwdErr, setPwdErr] = useState("");
+  const appPwd = "admin123";
 
-  // Mật khẩu
-  const [appPassword, setAppPassword] = useState<string>(() => localStorage.getItem("vsic_app_password") || "admin123");
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => localStorage.getItem("vsic_app_authorized") === "true");
-  const [typedPassword, setTypedPassword] = useState<string>("");
-  const [passwordError, setPasswordError] = useState<string>("");
-  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState<boolean>(false);
-  const [newPasswordVal, setNewPasswordVal] = useState<string>("");
-
-  // State dữ liệu chính
+  // Data
+  const [activeTab, setActiveTab] = useState("trangchu");
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [msg, setMsg] = useState("");
   const [mainData, setMainData] = useState<any[]>([]);
-  const [rawImportedData, setRawImportedData] = useState<any[]>([]);
+  const [rawData, setRawData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
-  const [fileName, setFileName] = useState<string>("");
-  const [quickReportResultRows, setQuickReportResultRows] = useState<any[]>([]);
-  const [quickReportResultCols, setQuickReportResultCols] = useState<string[]>([]);
-  const [quickReportLevel, setQuickReportLevel] = useState<number>(1);
-  const [mapping, setMapping] = useState<ColumnMapping>({ mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" });
-  const [customColConfigs, setCustomColConfigs] = useState<{ originalName: string; use: boolean; newName: string; role: "" | "mota" | "manganh" | "xa" | "doanhthu" | "laodong" | "idCol" }[]>([]);
-
-  // State danh mục người dùng
-  const [userSectorMap, setUserSectorMap] = useState<Map<string, string>>(new Map());
-  const [userSectorFileName, setUserSectorFileName] = useState<string>("");
-
-  // Các state khác
-  const [calcColName, setCalcColName] = useState<string>("");
-  const [calcCol1, setCalcCol1] = useState<string>("");
-  const [calcCol2, setCalcCol2] = useState<string>("");
-  const [calcOperator, setCalcOperator] = useState<"+" | "-" | "*" | "/" | "concat">("+");
-  const [calcType, setCalcType] = useState<"column" | "constant">("column");
-  const [calcConstant, setCalcConstant] = useState<string>("");
-  const [calcRounding, setCalcRounding] = useState<"none" | "int" | "1dec" | "2dec">("none");
-  const [selectedTargetKey, setSelectedTargetKey] = useState<keyof ColumnMapping>("mota");
-  const [reportType, setReportType] = useState<"flat" | "pivot">("pivot");
-  const [isConfigExpanded, setIsConfigExpanded] = useState<boolean>(true);
-  const [oldData, setOldData] = useState<any[]>([]);
-  const [oldFileName, setOldFileName] = useState<string>("");
-  const [newData, setNewData] = useState<any[]>([]);
-  const [newFileName, setNewFileName] = useState<string>("");
-  const [diffKey, setDiffKey] = useState<string>("");
-  const [leftData, setLeftData] = useState<any[]>([]);
-  const [leftFileName, setLeftFileName] = useState<string>("");
-  const [rightData, setRightData] = useState<any[]>([]);
-  const [rightFileName, setRightFileName] = useState<string>("");
-  const [leftKey, setLeftKey] = useState<string>("");
-  const [rightKey, setRightKey] = useState<string>("");
-  const [splitCol, setSplitCol] = useState<string>("");
-  const [detectedWorkbook, setDetectedWorkbook] = useState<any | null>(null);
-  const [detectedSheets, setDetectedSheets] = useState<string[]>([]);
-  const [selectedSheetsToMerge, setSelectedSheetsToMerge] = useState<string[]>([]);
-  const [sheetMergeCommonKey, setSheetMergeCommonKey] = useState<string>("");
-  const [crossReportData, setCrossReportData] = useState<any[]>([]);
-  const [crossReportCols, setCrossReportCols] = useState<string[]>([]);
-  const [crossReportManganhCol, setCrossReportManganhCol] = useState<string>("");
-  const [crossReportXaCol, setCrossReportXaCol] = useState<string>("");
-  const [crossReportDoanhThuCol, setCrossReportDoanhThuCol] = useState<string>("");
-  const [crossReportLaoDongCol, setCrossReportLaoDongCol] = useState<string>("");
-  const [crossReportLevel, setCrossReportLevel] = useState<number>(2);
-  const [groupByCols, setGroupByCols] = useState<string[]>([]);
-  const [aggRules, setAggRules] = useState<{ col: string; op: string }[]>([]);
-  const [newAggCol, setNewAggCol] = useState<string>("");
-  const [newAggOp, setNewAggOp] = useState<string>("sum");
-  const [ifRules, setIfRules] = useState<LogicRule[]>([]);
-  const [thenRules, setThenRules] = useState<LogicRule[]>([]);
-  const [ifCombine, setIfCombine] = useState<"AND" | "OR">("AND");
-  const [thenCombine, setThenCombine] = useState<"AND" | "OR">("AND");
-  const [newIfRule, setNewIfRule] = useState<LogicRule>({ col: "", op: "==", val: "" });
-  const [newThenRule, setNewThenRule] = useState<LogicRule>({ col: "", op: "==", val: "" });
-  const [t2IndustryCol, setT2IndustryCol] = useState<string>("");
-  const [t2MetricCols, setT2MetricCols] = useState<string[]>([]);
-  const [t2AggMethod, setT2AggMethod] = useState<"sum" | "avg">("sum");
-  const [t2ReportData, setT2ReportData] = useState<any[]>([]);
-  const [t2ReportCols, setT2ReportCols] = useState<string[]>([]);
-  const [t2ReportLevel, setT2ReportLevel] = useState<number>(2);
-  const [quickReportManganhCol, setQuickReportManganhCol] = useState<string>("");
-  const [quickReportXaCol, setQuickReportXaCol] = useState<string>("");
-  const [quickReportDoanhThuCol, setQuickReportDoanhThuCol] = useState<string>("");
-  const [quickReportLaoDongCol, setQuickReportLaoDongCol] = useState<string>("");
-  const [pivotManganhCol, setPivotManganhCol] = useState<string>("");
-  const [stdIndustryCol, setStdIndustryCol] = useState<string>("");
-  const [stdDescriptionCol, setStdDescriptionCol] = useState<string>("");
-  const [stdReportAnomalies, setStdReportAnomalies] = useState<any[]>([]);
-  const [stdMatchStats, setStdMatchStats] = useState<{ total: number; valid: number; invalid: number; conflicts: number }>({ total: 0, valid: 0, invalid: 0, conflicts: 0 });
-  const [crossCompareColA, setCrossCompareColA] = useState<string>("");
-  const [crossCompareColB, setCrossCompareColB] = useState<string>("");
-  const [crossCompareRule, setCrossCompareRule] = useState<string>("normalize");
-  const [crossCompareAnomalies, setCrossCompareAnomalies] = useState<any[]>([]);
-  const [crossCompareStats, setCrossCompareStats] = useState<{ total: number; matchCount: number; mismatchCount: number }>({ total: 0, matchCount: 0, mismatchCount: 0 });
-  const [viewPage, setViewPage] = useState<number>(1);
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [inconsistenciesTab, setInconsistenciesTab] = useState<"desc" | "code">("desc");
+  const [fileName, setFileName] = useState("");
+  const [mapping, setMapping] = useState<ColumnMapping>({ mota:"", manganh:"", xa:"", doanhthu:"", laodong:"", idCol:"" });
+  const [colConfigs, setColConfigs] = useState<{originalName:string; use:boolean; newName:string; role:""|"mota"|"manganh"|"xa"|"doanhthu"|"laodong"|"idCol"}[]>([]);
+  const [userSectorMap, setUserSectorMap] = useState<Map<string,string>>(new Map());
+  const [userSectorFile, setUserSectorFile] = useState("");
+  const [expanded, setExpanded] = useState(true);
+  const [reportType, setReportType] = useState<"flat"|"pivot">("pivot");
+  const [quickRows, setQuickRows] = useState<any[]>([]);
+  const [quickCols, setQuickCols] = useState<string[]>([]);
+  const [quickLevel, setQuickLevel] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [pageView, setPageView] = useState(1);
   const pageSize = 50;
 
-  // Khôi phục dữ liệu từ IndexedDB và localStorage
-  useEffect(() => {
-    async function restoreSession() {
-      setLoading(true);
-      setStatusMessage("Đang khôi phục phiên làm việc...");
-      try {
-        const saved = await loadAppState();
-        if (saved && saved.mainData && saved.mainData.length > 0) {
-          setMainData(saved.mainData);
-          setRawImportedData(saved.rawImportedData || saved.mainData);
-          setColumns(saved.columns);
-          setFileName(saved.fileName);
-          if (saved.mapping) setMapping(saved.mapping);
-          if (saved.customColConfigs) setCustomColConfigs(saved.customColConfigs);
-          if (saved.userSectorMap) {
-            const recovered = new Map(saved.userSectorMap);
-            setUserSectorMap(recovered);
-            clearAllSectorsInVSIC();
-            loadSectorsIntoVSIC(Object.fromEntries(recovered));
-          }
-          if (saved.userSectorFileName) setUserSectorFileName(saved.userSectorFileName);
-        }
-        // Khôi phục danh mục từ localStorage nếu chưa có
-        const localCatalog = localStorage.getItem("custom_vsic_data");
-        if (localCatalog && !userSectorMap.size) {
-          const obj = JSON.parse(localCatalog);
-          const recovered = new Map(Object.entries(obj));
-          setUserSectorMap(recovered);
-          clearAllSectorsInVSIC();
-          loadSectorsIntoVSIC(obj);
-          const localName = localStorage.getItem("custom_vsic_filename");
-          if (localName) setUserSectorFileName(localName);
-        }
-      } catch (err) { console.error(err); }
-      finally { setLoading(false); }
-    }
-    restoreSession();
-  }, []);
+  // Feature states
+  const [oldData, setOldData] = useState<any[]>([]); const [oldName, setOldName]=useState("");
+  const [newData, setNewData]=useState<any[]>([]); const [newName,setNewName]=useState("");
+  const [diffKey,setDiffKey]=useState("");
+  const [leftData,setLeftData]=useState<any[]>([]); const [leftName,setLeftName]=useState("");
+  const [rightData,setRightData]=useState<any[]>([]); const [rightName,setRightName]=useState("");
+  const [leftKey,setLeftKey]=useState(""); const [rightKey,setRightKey]=useState("");
+  const [splitCol,setSplitCol]=useState("");
+  const [detectedSheets,setDetectedSheets]=useState<string[]>([]);
+  const [selectedSheets,setSelectedSheets]=useState<string[]>([]);
+  const [sheetKey,setSheetKey]=useState("");
+  const [workbook,setWorkbook]=useState<any>(null);
+  // Quick report columns
+  const [qrManganh, setQrManganh]=useState(""); const [qrXa, setQrXa]=useState("");
+  const [qrDoanhthu, setQrDoanhthu]=useState(""); const [qrLaodong, setQrLaodong]=useState("");
+  // Std columns
+  const [stdCol, setStdCol]=useState(""); const [stdMatch, setStdMatch]=useState({total:0,valid:0,invalid:0});
+  // Compare columns
+  const [compA, setCompA]=useState(""); const [compB, setCompB]=useState(""); const [compRule, setCompRule]=useState("normalize");
+  // Calculated column
+  const [calcName, setCalcName]=useState(""); const [calcCol1, setCalcCol1]=useState(""); const [calcCol2, setCalcCol2]=useState("");
+  const [calcOp, setCalcOp]=useState<"+"|"-"|"*"|"/"|"concat">("+");
+  const [calcType, setCalcType]=useState<"column"|"constant">("column");
+  const [calcConst, setCalcConst]=useState(""); const [calcRound, setCalcRound]=useState<"none"|"int"|"1dec"|"2dec">("none");
 
-  // Hàm upload danh mục ngành
-  const handleUploadUserSectorCatalog = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setLoading(true);
-    setStatusMessage(`Đang nạp danh mục ngành: ${file.name}...`);
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        let rows: any[] = [];
-        const data = evt.target?.result;
-        const isCSV = file.name.toLowerCase().endsWith('.csv');
-        if (isCSV) {
-          const text = data as string;
-          rows = parseCSV(text);
-        } else {
-          const wb = XLSX.read(data, { type: 'array', dense: true });
-          const ws = wb.Sheets[wb.SheetNames[0]];
-          rows = XLSX.utils.sheet_to_json(ws);
+  // Helper
+  const sleep = (ms:number)=>new Promise(r=>setTimeout(r,ms));
+  const parseCSV = (text:string)=>{
+    const rows = text.split(/\r?\n/).filter(r=>r.trim());
+    if(!rows.length) return [];
+    const headers = rows[0].split(",").map(h=>h.trim());
+    return rows.slice(1).map(row=>{
+      const vals = row.split(",");
+      const obj:any={};
+      headers.forEach((h,i)=>obj[h]=vals[i]||"");
+      return obj;
+    });
+  };
+  const chunkProcess = async (arr:any[], size:number, fn:any, onProgress?:any)=>{
+    const res=[]; const len=arr.length;
+    for(let i=0;i<len;i+=size){
+      const chunk=arr.slice(i,i+size);
+      for(let j=0;j<chunk.length;j++) res.push(fn(chunk[j],i+j));
+      if(onProgress) onProgress(Math.round(i/len*100));
+      await sleep(0);
+    }
+    return res;
+  };
+
+  // Upload user sector
+  const handleUploadCatalog = async (e:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0]; if(!file) return;
+    setLoading(true); setMsg("Đang nạp danh mục...");
+    const reader=new FileReader();
+    reader.onload=async(ev)=>{
+      try{
+        let rows:any[];
+        if(file.name.endsWith(".csv")) rows=parseCSV(ev.target?.result as string);
+        else{
+          const wb=XLSX.read(ev.target?.result,{type:"array",dense:true});
+          const ws=wb.Sheets[wb.SheetNames[0]];
+          rows=XLSX.utils.sheet_to_json(ws);
         }
-        if (rows.length === 0) throw new Error("File danh mục trống");
-        const firstRow = rows[0];
-        let codeCol = Object.keys(firstRow).find(k => /mã|ma|code|Mã/i.test(k)) || Object.keys(firstRow)[0];
-        let nameCol = Object.keys(firstRow).find(k => /tên|ten|name|Tên/i.test(k)) || Object.keys(firstRow)[1] || codeCol;
-        const newMap = new Map<string, string>();
-        rows.forEach(row => {
-          const code = String(row[codeCol] || "").trim();
-          const name = String(row[nameCol] || "").trim();
-          if (code && name) newMap.set(code, name);
-        });
-        if (newMap.size === 0) throw new Error("Không tìm thấy cặp mã - tên hợp lệ");
+        const first=rows[0];
+        let codeCol=Object.keys(first).find(k=>/mã|ma|code/i.test(k))||Object.keys(first)[0];
+        let nameCol=Object.keys(first).find(k=>/tên|ten|name/i.test(k))||Object.keys(first)[1]||codeCol;
+        const newMap=new Map();
+        rows.forEach(r=>{const c=String(r[codeCol]||"").trim(); const n=String(r[nameCol]||"").trim(); if(c&&n) newMap.set(c,n);});
+        if(!newMap.size) throw new Error("Không tìm thấy cặp mã-tên");
         clearAllSectorsInVSIC();
-        const plainObj = Object.fromEntries(newMap);
-        loadSectorsIntoVSIC(plainObj);
-        localStorage.setItem("custom_vsic_data", JSON.stringify(plainObj));
-        localStorage.setItem("custom_vsic_is_pure", "false");
-        localStorage.setItem("custom_vsic_filename", file.name);
-        setUserSectorMap(newMap);
-        setUserSectorFileName(file.name);
-        setStatusMessage(`✅ Đã nạp thành công ${newMap.size} mã ngành từ ${file.name}`);
-        // Tự động lưu vào IndexedDB
-        saveAppState({
-          mainData, rawImportedData, columns, fileName, mapping, customColConfigs,
-          userSectorMap: Array.from(newMap), userSectorFileName: file.name
-        }, false);
-      } catch (err: any) {
-        alert("Lỗi khi đọc file danh mục: " + err.message);
-      } finally {
-        setLoading(false);
-      }
+        loadSectorsIntoVSIC(Object.fromEntries(newMap));
+        localStorage.setItem("custom_vsic_data",JSON.stringify(Object.fromEntries(newMap)));
+        localStorage.setItem("custom_vsic_filename",file.name);
+        setUserSectorMap(newMap); setUserSectorFile(file.name);
+        setMsg(`Đã nạp ${newMap.size} mã ngành`);
+      }catch(e:any){ alert(e.message); } finally{ setLoading(false); }
     };
-    if (file.name.toLowerCase().endsWith('.csv')) reader.readAsText(file, "UTF-8");
+    if(file.name.endsWith(".csv")) reader.readAsText(file,"UTF-8");
+    else reader.readAsArrayBuffer(file);
+  };
+  const handleClearCatalog = ()=>{
+    clearAllSectorsInVSIC(); localStorage.removeItem("custom_vsic_data");
+    setUserSectorMap(new Map()); setUserSectorFile("");
+  };
+
+  // Upload main file
+  const handleFileUpload = (e:React.ChangeEvent<HTMLInputElement>, type:"main"|"old"|"new"|"left"|"right")=>{
+    const file=e.target.files?.[0]; if(!file) return;
+    setLoading(true); setMsg(`Đang tải ${file.name}...`);
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      try{
+        let data:any[];
+        if(file.name.endsWith(".csv")) data=parseCSV(ev.target?.result as string);
+        else{
+          const wb=XLSX.read(ev.target?.result,{type:"array",dense:true});
+          const ws=wb.Sheets[wb.SheetNames[0]];
+          data=XLSX.utils.sheet_to_json(ws);
+          if(type==="main"){ setWorkbook(wb); setDetectedSheets(wb.SheetNames); setSelectedSheets(wb.SheetNames); }
+        }
+        const cols=Object.keys(data[0]||{});
+        if(type==="main"){
+          setRawData(data); setMainData(data); setColumns(cols); setFileName(file.name);
+          const init=cols.map(c=>({originalName:c, use:true, newName:c, role:""}));
+          setColConfigs(init); setMapping({mota:"",manganh:"",xa:"",doanhthu:"",laodong:"",idCol:""});
+          setActiveTab("xemdulieu");
+        }else if(type==="old"){ setOldData(data); setOldName(file.name); }
+        else if(type==="new"){ setNewData(data); setNewName(file.name); }
+        else if(type==="left"){ setLeftData(data); setLeftName(file.name); }
+        else if(type==="right"){ setRightData(data); setRightName(file.name); }
+        setMsg(`Đã tải ${data.length} dòng`);
+      }catch(e:any){ alert("Lỗi: "+e.message); } finally{ setLoading(false); }
+    };
+    if(file.name.endsWith(".csv")) reader.readAsText(file,"UTF-8");
     else reader.readAsArrayBuffer(file);
   };
 
-  const handleClearUserSectors = () => {
-    clearAllSectorsInVSIC();
-    localStorage.removeItem("custom_vsic_data");
-    localStorage.removeItem("custom_vsic_is_pure");
-    localStorage.removeItem("custom_vsic_filename");
-    setUserSectorMap(new Map());
-    setUserSectorFileName("");
-    setStatusMessage("🗑️ Đã xóa toàn bộ danh mục ngành tùy chỉnh.");
-    alert("Đã xóa sạch danh mục ngành đã nạp.");
-  };
-
-  // ==================== CÁC HÀM XỬ LÝ CHÍNH ====================
-  
-  // Hàm parse CSV
-  const parseCSV = (rawText: string): any[] => {
-    let text = rawText;
-    if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1);
-    const firstLineEnd = text.indexOf('\n');
-    const firstLine = firstLineEnd === -1 ? text : text.substring(0, firstLineEnd);
-    let delimiter = ',';
-    const commaCount = (firstLine.match(/,/g) || []).length;
-    const semicolonCount = (firstLine.match(/;/g) || []).length;
-    const tabCount = (firstLine.match(/\t/g) || []).length;
-    if (semicolonCount > commaCount && semicolonCount > tabCount) delimiter = ';';
-    else if (tabCount > commaCount && tabCount > semicolonCount) delimiter = '\t';
-    const length = text.length;
-    const rows: string[][] = [];
-    let currentRow: string[] = [];
-    let i = 0, inQuotes = false, start = 0;
-    while (i < length) {
-      const char = text[i];
-      if (char === '"') {
-        if (!inQuotes) { inQuotes = true; start = i + 1; }
-        else if (i + 1 < length && text[i + 1] === '"') { i++; }
-        else { inQuotes = false; }
-      } else if (!inQuotes) {
-        if (char === delimiter) {
-          let cell = text.substring(start, i);
-          if (text[i-1] === '"' && text[start-1] === '"') cell = cell.substring(0, cell.length-1);
-          if (cell.includes('""')) cell = cell.replace(/""/g, '"');
-          currentRow.push(cell.trim());
-          start = i+1;
-        } else if (char === '\n' || char === '\r') {
-          let cell = text.substring(start, i);
-          if (text[i-1] === '"' && text[start-1] === '"') cell = cell.substring(0, cell.length-1);
-          if (cell.includes('""')) cell = cell.replace(/""/g, '"');
-          currentRow.push(cell.trim());
-          if (currentRow.length > 0 && (currentRow.length > 1 || currentRow[0] !== "")) rows.push(currentRow);
-          currentRow = [];
-          if (char === '\r' && i+1 < length && text[i+1] === '\n') i++;
-          start = i+1;
-        }
-      }
-      i++;
-    }
-    if (start < length) {
-      let cell = text.substring(start, length);
-      if (text[length-1] === '"' && text[start-1] === '"') cell = cell.substring(0, cell.length-1);
-      if (cell.includes('""')) cell = cell.replace(/""/g, '"');
-      currentRow.push(cell.trim());
-    }
-    if (currentRow.length > 0 && (currentRow.length > 1 || currentRow[0] !== "")) rows.push(currentRow);
-    if (rows.length === 0) return [];
-    const headers = rows[0];
-    const data: any[] = [];
-    for (let idx = 1; idx < rows.length; idx++) {
-      const r = rows[idx];
-      const obj: any = {};
-      let hasData = false;
-      for (let c = 0; c < headers.length; c++) {
-        const headerName = headers[c] || `Cột ${c+1}`;
-        const val = r[c] !== undefined ? r[c] : "";
-        obj[headerName] = val;
-        if (val !== "") hasData = true;
-      }
-      if (hasData) data.push(obj);
-    }
-    return data;
-  };
-
-  const chunkProcess = async <T, R>(array: T[], size: number, processFn: (item: T, index: number) => R, onProgress?: (percent: number) => void): Promise<R[]> => {
-    const result: R[] = [];
-    const len = array.length;
-    for (let i = 0; i < len; i += size) {
-      const chunk = array.slice(i, i+size);
-      for (let j = 0; j < chunk.length; j++) result.push(processFn(chunk[j], i+j));
-      if (onProgress) onProgress(Math.min(100, Math.round((i/len)*100)));
-      await new Promise(r => setTimeout(r, 0));
-    }
-    return result;
-  };
-
-  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-  const cleanNumberForSummary = (val: any): number => {
-    if (val === null || val === undefined) return 0;
-    if (typeof val === "number") return val;
-    let str = String(val).trim();
-    if (!str) return 0;
-    if (str.includes(",") && str.includes(".")) {
-      const lastComma = str.lastIndexOf(",");
-      const lastDot = str.lastIndexOf(".");
-      if (lastComma > lastDot) str = str.replace(/\./g, "").replace(/,/g, ".");
-      else str = str.replace(/,/g, "");
-    } else if (str.includes(",")) {
-      const parts = str.split(",");
-      if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) str = str.replace(/,/g, "");
-      else str = str.replace(/,/g, ".");
-    } else if (str.includes(" ")) str = str.replace(/\s/g, "");
-    const parsed = parseFloat(str.replace(/[^0-9.\-]/g, ""));
-    return isNaN(parsed) ? 0 : parsed;
-  };
-
-  const autoSaveSession = async (customMainData?: any[], customRawData?: any[], customCols?: string[], customFileName?: string, customMapping?: ColumnMapping, customConfigs?: any[]) => {
-    try {
-      await saveAppState({
-        mainData: customMainData !== undefined ? customMainData : mainData,
-        rawImportedData: customRawData !== undefined ? customRawData : rawImportedData,
-        columns: customCols !== undefined ? customCols : columns,
-        fileName: customFileName !== undefined ? customFileName : fileName,
-        mapping: customMapping !== undefined ? customMapping : mapping,
-        customColConfigs: customConfigs !== undefined ? customConfigs : customColConfigs,
-        userSectorMap: Array.from(userSectorMap),
-        userSectorFileName
-      }, true);
-    } catch (err) { console.error(err); }
-  };
-
-  // Hàm tải file chính
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "main" | "old" | "new" | "left" | "right") => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Merge sheets
+  const handleMergeSheets = async()=>{
+    if(!workbook || selectedSheets.length<2 || !sheetKey) {alert("Chọn sheets và cột khóa"); return;}
     setLoading(true);
-    setStatusMessage(`Đang tải tệp: ${file.name}...`);
-    const isCSV = file.name.toLowerCase().endsWith(".csv") || file.name.toLowerCase().endsWith(".txt");
-    if (isCSV) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const text = evt.target?.result as string;
-          const data = parseCSV(text);
-          if (data.length === 0) throw new Error("Tệp trống");
-          const cols = Object.keys(data[0]);
-          if (type === "main") {
-            setRawImportedData(data); setMainData(data); setColumns(cols); setFileName(file.name);
-            setQuickReportManganhCol(""); setStdIndustryCol(""); setCrossCompareColA(""); setStdDescriptionCol("");
-            setQuickReportXaCol(""); setQuickReportDoanhThuCol(""); setQuickReportLaoDongCol("");
-            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
-            setMapping(autoMap);
-            const initConfigs = cols.map(c => ({ originalName: c, use: true, newName: c, role: "" as any }));
-            setCustomColConfigs(initConfigs);
-            setActiveTab("xemdulieu");
-            autoSaveSession(data, data, cols, file.name, autoMap, initConfigs);
-          } else if (type === "old") { setOldData(data); setOldFileName(file.name); }
-          else if (type === "new") { setNewData(data); setNewFileName(file.name); }
-          else if (type === "left") { setLeftData(data); setLeftFileName(file.name); }
-          else if (type === "right") { setRightData(data); setRightFileName(file.name); }
-          setStatusMessage(`Đã tải ${data.length} dòng.`);
-        } catch(err: any) { alert("Lỗi CSV: "+err.message); }
-        finally { setLoading(false); }
-      };
-      reader.readAsText(file, "UTF-8");
-    } else {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const arrayBuffer = evt.target?.result as ArrayBuffer;
-          const wb = XLSX.read(arrayBuffer, { type: "array", dense: true, cellFormula: false, cellHTML: false, cellStyles: false });
-          if (type === "main") {
-            setDetectedWorkbook(wb);
-            setDetectedSheets(wb.SheetNames);
-            if (wb.SheetNames.length > 1) { setSelectedSheetsToMerge(wb.SheetNames); setSheetMergeCommonKey(""); }
-            else { setSelectedSheetsToMerge([]); setSheetMergeCommonKey(""); }
-          }
-          const wsName = wb.SheetNames[0];
-          const ws = wb.Sheets[wsName];
-          const data = XLSX.utils.sheet_to_json(ws) as any[];
-          if (data.length === 0) throw new Error("Tệp trống");
-          const cols = Object.keys(data[0]);
-          if (type === "main") {
-            setRawImportedData(data); setMainData(data); setColumns(cols); setFileName(file.name);
-            setQuickReportManganhCol(""); setStdIndustryCol(""); setCrossCompareColA(""); setStdDescriptionCol("");
-            setQuickReportXaCol(""); setQuickReportDoanhThuCol(""); setQuickReportLaoDongCol("");
-            const autoMap: ColumnMapping = { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" };
-            setMapping(autoMap);
-            const initConfigs = cols.map(c => ({ originalName: c, use: true, newName: c, role: "" as any }));
-            setCustomColConfigs(initConfigs);
-            setActiveTab("xemdulieu");
-            autoSaveSession(data, data, cols, file.name, autoMap, initConfigs);
-          } else if (type === "old") { setOldData(data); setOldFileName(file.name); }
-          else if (type === "new") { setNewData(data); setNewFileName(file.name); }
-          else if (type === "left") { setLeftData(data); setLeftFileName(file.name); }
-          else if (type === "right") { setRightData(data); setRightFileName(file.name); }
-          setStatusMessage(`Đã tải ${data.length} dòng.`);
-        } catch(err: any) { alert("Lỗi Excel: "+err.message); }
-        finally { setLoading(false); }
-      };
-      reader.readAsArrayBuffer(file);
-    }
-  };
-
-  // Ghép nối dữ liệu
-  const handleMerge = async () => {
-    if (leftData.length === 0 || rightData.length === 0) { alert("Vui lòng tải đủ cả 2 bảng!"); return; }
-    if (!leftKey || !rightKey) { alert("Vui lòng chọn cột khóa!"); return; }
-    setLoading(true); setProgress(0); setStatusMessage("Bắt đầu ghép nối...");
-    await sleep(200);
-    const rightMap = new Map();
-    for (const row of rightData) { const kv = String(row[rightKey] || "").trim(); if (kv) rightMap.set(kv, row); }
-    const mergedResults: any[] = [];
-    const rightCols = Object.keys(rightData[0] || {}).filter(c => c !== rightKey);
-    for (const leftRow of leftData) {
-      const matchKey = String(leftRow[leftKey] || "").trim();
-      const matchedRight = rightMap.get(matchKey);
-      const mergedRow = { ...leftRow };
-      rightCols.forEach(rc => { const finalColName = Object.keys(leftRow).includes(rc) ? `${rc}_Phai` : rc; mergedRow[finalColName] = matchedRight ? matchedRight[rc] : ""; });
-      mergedResults.push(mergedRow);
-    }
-    const mergedCols = Object.keys(mergedResults[0] || {});
-    setMainData(mergedResults);
-    setRawImportedData(mergedResults);
-    setColumns(mergedCols);
-    setFileName(`GhepNoi_${leftFileName}_vs_${rightFileName}.xlsx`);
-    setMapping({ mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" });
-    const initMergedConfigs = mergedCols.map(c => ({ originalName: c, use: true, newName: c, role: "" as any }));
-    setCustomColConfigs(initMergedConfigs);
-    setProgress(100); setStatusMessage(`Ghép nối thành công! ${mergedResults.length} dòng.`);
-    await sleep(400);
-    setLoading(false);
-  };
-
-  // So sánh Cũ - Mới
-  const handleCompare = async () => {
-    if (oldData.length === 0 || newData.length === 0) { alert("Vui lòng tải đầy đủ tệp Cũ và Mới!"); return; }
-    if (!diffKey) { alert("Vui lòng chọn Cột Khóa!"); return; }
-    setLoading(true); setProgress(0); setStatusMessage("Khởi động so sánh...");
-    await sleep(200);
-    const oldMap = new Map(); oldData.forEach(row => { const k = String(row[diffKey] || "").trim(); if(k) oldMap.set(k, row); });
-    const newMap = new Map(); newData.forEach(row => { const k = String(row[diffKey] || "").trim(); if(k) newMap.set(k, row); });
-    const allKeys = Array.from(new Set([...oldMap.keys(), ...newMap.keys()]));
-    const firstOldRow = oldData.find(r => r && typeof r === 'object') || {};
-    const firstNewRow = newData.find(r => r && typeof r === 'object') || {};
-    const oldCols = Object.keys(firstOldRow);
-    const newCols = Object.keys(firstNewRow);
-    const unionCols = Array.from(new Set([...oldCols, ...newCols])).filter(c => c !== diffKey);
-    const resultRows: any[] = [];
-    for (const key of allKeys) {
-      const oldRow = oldMap.get(key);
-      const newRow = newMap.get(key);
-      const combined: any = { [diffKey]: key };
-      if (oldRow && !newRow) {
-        unionCols.forEach(col => { combined[`${col}_Cu`] = oldRow[col] || ""; combined[`${col}_Moi`] = ""; });
-        combined["TrangThai_SoSanh"] = "❌ Đã xóa";
-      } else if (!oldRow && newRow) {
-        unionCols.forEach(col => { combined[`${col}_Cu`] = ""; combined[`${col}_Moi`] = newRow[col] || ""; });
-        combined["TrangThai_SoSanh"] = "✅ Mới thêm";
-      } else {
-        const changedCols: string[] = [];
-        unionCols.forEach(col => {
-          const valCu = String(oldRow[col] !== undefined ? oldRow[col] : "").trim();
-          const valMoi = String(newRow[col] !== undefined ? newRow[col] : "").trim();
-          combined[`${col}_Cu`] = oldRow[col] || "";
-          combined[`${col}_Moi`] = newRow[col] || "";
-          if (valCu !== valMoi) changedCols.push(col);
-        });
-        combined["TrangThai_SoSanh"] = changedCols.length ? `⚠️ Thay đổi: [${changedCols.join(", ")}]` : "💡 Không đổi";
-      }
-      resultRows.push(combined);
-    }
-    const compareCols = Object.keys(resultRows[0] || {});
-    setMainData(resultRows);
-    setRawImportedData(resultRows);
-    setColumns(compareCols);
-    setFileName(`SoSanhDiff_${oldFileName}_vs_${newFileName}.xlsx`);
-    setMapping({ mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" });
-    const initCompareConfigs = compareCols.map(c => ({ originalName: c, use: true, newName: c, role: "" as any }));
-    setCustomColConfigs(initCompareConfigs);
-    setProgress(100); setStatusMessage(`So sánh thành công! ${resultRows.length} khóa.`);
-    await sleep(400);
-    setLoading(false);
-  };
-
-  // Báo cáo nhanh theo cấp ngành và xã
-  const handleQuickReport = async (level: number) => {
-    if (mainData.length === 0) { alert("Vui lòng nạp dữ liệu chính trước."); return; }
-    const targetManganh = quickReportManganhCol || mapping.manganh;
-    const targetXa = quickReportXaCol || mapping.xa;
-    const targetDoanhThu = quickReportDoanhThuCol || mapping.doanhthu;
-    const targetLaoDong = quickReportLaoDongCol || mapping.laodong;
-    if (!targetManganh || !targetXa) { alert("Vui lòng chỉ định cột Mã ngành và Xã."); return; }
-    if (userSectorMap.size === 0) { alert("Vui lòng tải danh mục ngành trước khi chạy báo cáo!"); return; }
-    setLoading(true); setProgress(0); setStatusMessage(`Đang tạo báo cáo nhanh cấp ${level}...`);
-    await sleep(200);
-    try {
-      const processedData = await chunkProcess(mainData, 5000, (row) => {
-        const mng = normalizeSectorCode(row[targetManganh]);
-        let tenNganhLabel = "";
-        if (level === 2) {
-          const sec2Code = mng ? mng.slice(0,2) : "";
-          const sec2Name = userSectorMap.get(sec2Code) || "";
-          tenNganhLabel = sec2Code ? `${sec2Code} - ${sec2Name}` : "Chưa xác định";
-        } else {
-          let sec1Code = "";
-          if (mng) { if (/^[A-Z]$/.test(mng)) sec1Code = mng.toUpperCase(); else sec1Code = getParentSectorCode(mng) || ""; }
-          const sec1Name = userSectorMap.get(sec1Code) || "";
-          tenNganhLabel = sec1Code ? `${sec1Code} - ${sec1Name}` : "Chưa xác định";
-        }
-        return { ...row, _temNganhCap: tenNganhLabel, _tempXa: String(row[targetXa] || "Khác").trim() };
+    const merged=new Map(); const allCols=new Set<string>();
+    for(const s of selectedSheets){
+      const ws=workbook.Sheets[s];
+      if(!ws) continue;
+      const rows=XLSX.utils.sheet_to_json(ws);
+      rows.forEach((row:any)=>{
+        const key=String(row[sheetKey]||"").trim()||`_no_${Math.random()}`;
+        merged.set(key, merged.has(key)?{...merged.get(key),...row}:{...row});
+        Object.keys(row).forEach(k=>allCols.add(k));
       });
-      let finalReportRows: any[] = [];
-      if (reportType === "pivot") {
-        const communes = Array.from(new Set(processedData.map(r => r._tempXa))).sort();
-        const sectorLabels = Array.from(new Set(processedData.map(r => r._temNganhCap))).sort();
-        communes.forEach(commune => {
-          const communeObj: any = { "Địa_Bàn_Xã": commune };
-          sectorLabels.forEach(sector => {
-            const matchedRows = processedData.filter(r => r._tempXa === commune && r._temNganhCap === sector);
-            let sumDoanhThu = 0, sumLaoDong = 0;
-            matchedRows.forEach(r => {
-              if (targetDoanhThu) { const v = parseFloat(String(r[targetDoanhThu]).replace(/[^0-9.\-]/g, "")); if (!isNaN(v)) sumDoanhThu += v; }
-              if (targetLaoDong) { const v = parseFloat(String(r[targetLaoDong]).replace(/[^0-9.\-]/g, "")); if (!isNaN(v)) sumLaoDong += v; }
-            });
-            communeObj[`${sector} - Tổng Doanh Thu`] = Math.round(sumDoanhThu * 100) / 100;
-            communeObj[`${sector} - Tổng Lao Động`] = Math.round(sumLaoDong);
-          });
-          finalReportRows.push(communeObj);
-        });
-      } else {
-        const groups = new Map<string, any[]>();
-        processedData.forEach(row => { const key = JSON.stringify({ Ngành: row._temNganhCap, Xã: row._tempXa }); if (!groups.has(key)) groups.set(key, []); groups.get(key)!.push(row); });
-        groups.forEach((rowsObj, keyStr) => {
-          const dims = JSON.parse(keyStr);
-          let sumDoanhThu = 0, sumLaoDong = 0;
-          rowsObj.forEach(r => {
-            if (targetDoanhThu) { const v = parseFloat(String(r[targetDoanhThu]).replace(/[^0-9.\-]/g, "")); if (!isNaN(v)) sumDoanhThu += v; }
-            if (targetLaoDong) { const v = parseFloat(String(r[targetLaoDong]).replace(/[^0-9.\-]/g, "")); if (!isNaN(v)) sumLaoDong += v; }
-          });
-          finalReportRows.push({ [`Ngành_Cấp_${level}`]: dims.Ngành, "Địa_Bàn_Xã": dims.Xã, "Số_Lượng_Doanh_Nghiệp": rowsObj.length, "Tổng_Doanh_Thu_Tích_Lũy": Math.round(sumDoanhThu*100)/100, "Tổng_Lao_Động_Hợp_Lực": Math.round(sumLaoDong) });
-        });
-      }
-      setQuickReportResultRows(finalReportRows);
-      setQuickReportResultCols(Object.keys(finalReportRows[0] || {}));
-      setQuickReportLevel(level);
-      setMapping(prev => ({ ...prev, manganh: targetManganh, xa: targetXa, doanhthu: targetDoanhThu || prev.doanhthu, laodong: targetLaoDong || prev.laodong }));
-      setProgress(100); setStatusMessage(`Báo cáo nhanh cấp ${level} thành công!`);
-      await sleep(350); setLoading(false);
-    } catch(err: any) { alert("Lỗi: "+err.message); setLoading(false); }
+    }
+    const list=Array.from(merged.values()); const newCols=Array.from(allCols);
+    setRawData(list); setMainData(list); setColumns(newCols);
+    setColConfigs(newCols.map(c=>({originalName:c,use:true,newName:c,role:""})));
+    setLoading(false); setMsg("Ghép sheets thành công!");
   };
 
-  const handleExportQuickReport = () => {
-    if (quickReportResultRows.length === 0) { alert("Chưa có dữ liệu báo cáo!"); return; }
-    const ws = XLSX.utils.json_to_sheet(quickReportResultRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `BaoCao_NganhCap${quickReportLevel}`);
-    XLSX.writeFile(wb, `BaoCao_TongHop_NganhCap${quickReportLevel}_Va_Xa_${reportType}.xlsx`);
-  };
-
-  // Xuất Excel tổng hợp
-  const handleExportExcel = () => {
-    const exportData = searchTerm ? filteredData : mainData;
-    if (exportData.length === 0) { alert("Không có dữ liệu!"); return; }
-    setLoading(true); setStatusMessage("Đang tạo file Excel...");
-    setTimeout(() => {
-      try {
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Bao_Cao_Tinh_Toan");
-        if (userSectorMap.size > 0) {
-          const vsicRows = Array.from(userSectorMap.entries()).map(([code, name]) => ({ "Mã VSIC": code, "Tên Phân Cấp Ngành": name, "Phân Cấp": `Cấp ${getSectorLevel(code)}` }));
-          const wsVsic = XLSX.utils.json_to_sheet(vsicRows);
-          XLSX.utils.book_append_sheet(wb, wsVsic, "Danh_Muc_Nganh_Chuan");
-        }
-        let outName = fileName || "Ket_Qua_Bao_Cao.xlsx";
-        if (searchTerm) { const safeSuffix = `_Loc_${searchTerm.trim().slice(0,15).replace(/[^a-zA-Z0-9À-ỹ]/g,"_")}`; outName = outName.replace(/\.xlsx$/i, safeSuffix+".xlsx"); }
-        XLSX.writeFile(wb, outName);
-        setStatusMessage("Xuất Excel thành công!");
-      } catch(e:any) { alert("Lỗi xuất Excel: "+e.message); }
-      finally { setLoading(false); }
-    }, 200);
-  };
-
-  // Tách file hàng loạt
-  const handleSplitData = async () => {
-    if (mainData.length === 0) { alert("Không có dữ liệu!"); return; }
-    if (!splitCol) { alert("Chọn cột để tách!"); return; }
+  // Merge left-right
+  const handleMerge = async()=>{
+    if(!leftData.length||!rightData.length||!leftKey||!rightKey){alert("Thiếu dữ liệu hoặc khóa"); return;}
     setLoading(true);
-    setStatusMessage("Đang tách file...");
-    const groups = new Map<string, any[]>();
-    mainData.forEach(row => {
-      const val = String(row[splitCol] || "Rong").trim();
-      const safeVal = val.replace(/[^a-zA-Z0-9_\-À-ỹ\s]/g, "");
-      if (!groups.has(safeVal)) groups.set(safeVal, []);
-      groups.get(safeVal)!.push(row);
+    const rightMap=new Map(); rightData.forEach(r=>{const k=String(r[rightKey]||"").trim(); if(k) rightMap.set(k,r);});
+    const merged=[];
+    const rightCols=Object.keys(rightData[0]||{}).filter(c=>c!==rightKey);
+    for(const l of leftData){
+      const k=String(l[leftKey]||"").trim();
+      const m=rightMap.get(k);
+      const row={...l};
+      rightCols.forEach(c=>{const newName=row.hasOwnProperty(c)?`${c}_Phai`:c; row[newName]=m?m[c]:"";});
+      merged.push(row);
+    }
+    const cols=Object.keys(merged[0]||{});
+    setMainData(merged); setRawData(merged); setColumns(cols);
+    setColConfigs(cols.map(c=>({originalName:c,use:true,newName:c,role:""})));
+    setLoading(false); setMsg(`Ghép nối thành công ${merged.length} dòng`);
+  };
+
+  // Compare
+  const handleCompare = async()=>{
+    if(!oldData.length||!newData.length||!diffKey){alert("Thiếu dữ liệu hoặc khóa"); return;}
+    setLoading(true);
+    const oldMap=new Map(); oldData.forEach(r=>{const k=String(r[diffKey]||"").trim(); if(k) oldMap.set(k,r);});
+    const newMap=new Map(); newData.forEach(r=>{const k=String(r[diffKey]||"").trim(); if(k) newMap.set(k,r);});
+    const allKeys=Array.from(new Set([...oldMap.keys(),...newMap.keys()]));
+    const oldCols=Object.keys(oldData[0]||{}); const newCols=Object.keys(newData[0]||{});
+    const unionCols=Array.from(new Set([...oldCols,...newCols])).filter(c=>c!==diffKey);
+    const res=[];
+    for(const k of allKeys){
+      const o=oldMap.get(k); const n=newMap.get(k);
+      const row:any={[diffKey]:k};
+      if(o&&!n){
+        unionCols.forEach(c=>{row[`${c}_Cu`]=o[c]||""; row[`${c}_Moi`]="";});
+        row["Trạng_thái"]="❌ Đã xóa";
+      }else if(!o&&n){
+        unionCols.forEach(c=>{row[`${c}_Cu`]=""; row[`${c}_Moi`]=n[c]||"";});
+        row["Trạng_thái"]="✅ Mới thêm";
+      }else{
+        const changed=[];
+        unionCols.forEach(c=>{
+          const v1=String(o[c]??"").trim(); const v2=String(n[c]??"").trim();
+          row[`${c}_Cu`]=o[c]??""; row[`${c}_Moi`]=n[c]??"";
+          if(v1!==v2) changed.push(c);
+        });
+        row["Trạng_thái"]=changed.length?`⚠️ Thay đổi: ${changed.join(", ")}`:"💡 Không đổi";
+      }
+      res.push(row);
+    }
+    const cols=Object.keys(res[0]||{});
+    setMainData(res); setRawData(res); setColumns(cols);
+    setColConfigs(cols.map(c=>({originalName:c,use:true,newName:c,role:""})));
+    setLoading(false); setMsg(`So sánh xong ${res.length} khóa`);
+  };
+
+  // Split
+  const handleSplit = async()=>{
+    if(!mainData.length||!splitCol){alert("Chọn cột tách"); return;}
+    setLoading(true);
+    const groups=new Map();
+    mainData.forEach(row=>{
+      let val=String(row[splitCol]||"Khác").trim().replace(/[\\/:*?"<>|]/g,"_");
+      if(!groups.has(val)) groups.set(val,[]);
+      groups.get(val).push(row);
     });
-    const zip = new JSZip();
-    for (let [key, rows] of groups.entries()) {
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Data");
-      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "binary" });
-      const buf = new ArrayBuffer(wbout.length);
-      const view = new Uint8Array(buf);
-      for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
-      zip.file(`Tach_${key}.xlsx`, buf);
+    const zip=new JSZip(); let i=0;
+    for(const [key,rows] of groups.entries()){
+      const ws=XLSX.utils.json_to_sheet(rows);
+      const wb=XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb,ws,"Data");
+      zip.file(`Tach_${key}.xlsx`, XLSX.write(wb,{bookType:"xlsx",type:"array"}));
+      setProgress(Math.round(++i/groups.size*100)); await sleep(10);
     }
-    const content = await zip.generateAsync({ type: "blob" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(content);
-    link.download = `TachFile_${splitCol}.zip`;
-    link.click();
-    setLoading(false);
-    setStatusMessage("Đã tách và tải về ZIP.");
+    const blob=await zip.generateAsync({type:"blob"});
+    const link=document.createElement("a"); link.href=URL.createObjectURL(blob); link.download=`Tach_${splitCol}.zip`; link.click();
+    setLoading(false); setMsg(`Đã tách ${groups.size} file`);
   };
 
-  // Chuẩn hóa VSIC (thêm cột tên ngành chuẩn)
-  const handleStandardizeSectorsAndMatch = async () => {
-    if (mainData.length === 0) { alert("Không có dữ liệu!"); return; }
-    if (!stdIndustryCol) { alert("Vui lòng chọn cột Mã ngành!"); return; }
-    if (userSectorMap.size === 0) { alert("Vui lòng tải danh mục ngành trước!"); return; }
-    setLoading(true); setProgress(0); setStatusMessage("Đang chuẩn hóa mã ngành...");
-    try {
-      let validCount = 0, invalidCount = 0, conflictCount = 0;
-      const updatedRows = await chunkProcess(mainData, 5000, (row, idx) => {
-        const rawCode = row[stdIndustryCol];
-        const clean = normalizeSectorCode(rawCode);
-        const lookup = lookupSectorNameWithFallback(clean);
-        const stdName = lookup.name;
-        const isValid = lookup.exactMatched;
-        if (isValid) validCount++; else invalidCount++;
-        let auditStatus = isValid ? "✅ Đạt chuẩn" : "❌ Không có trong danh mục";
-        const newRow: any = {};
-        Object.keys(row).forEach(k => {
-          newRow[k] = row[k];
-          if (k === stdIndustryCol) {
-            newRow["Tên Ngành Chuẩn VSIC"] = stdName || "(Không tìm thấy)";
-            newRow["Trạng Thái Đối Chiếu"] = auditStatus;
-          }
-        });
-        if (!newRow["Tên Ngành Chuẩn VSIC"]) {
-          newRow["Tên Ngành Chuẩn VSIC"] = stdName || "(Không tìm thấy)";
-          newRow["Trạng Thái Đối Chiếu"] = auditStatus;
-        }
-        return newRow;
-      });
-      const newCols = Object.keys(updatedRows[0] || {});
-      setMainData(updatedRows);
-      setColumns(newCols);
-      setStdMatchStats({ total: updatedRows.length, valid: validCount, invalid: invalidCount, conflicts: 0 });
-      autoSaveSession(updatedRows, rawImportedData, newCols, fileName, mapping, customColConfigs);
-      setStatusMessage("Chuẩn hóa thành công!");
-    } catch(e: any) { alert(e.message); }
-    finally { setLoading(false); }
-  };
-
-  // Đối chiếu song song 2 cột
-  const handleCrossColumnCompare = async () => {
-    if (mainData.length === 0) { alert("Không có dữ liệu!"); return; }
-    if (!crossCompareColA || !crossCompareColB) { alert("Chọn đủ 2 cột!"); return; }
-    setLoading(true); setProgress(0); setStatusMessage("Đang đối chiếu...");
-    try {
-      let matchCount = 0, mismatchCount = 0;
-      const anomalies: any[] = [];
-      const updatedRows = await chunkProcess(mainData, 5000, (row, idx) => {
-        const valA = String(row[crossCompareColA] ?? "").trim();
-        const valB = String(row[crossCompareColB] ?? "").trim();
-        let isMatch = false;
-        let reason = "";
-        if (crossCompareRule === "exact") isMatch = valA === valB;
-        else if (crossCompareRule === "normalize") isMatch = valA.toLowerCase().replace(/\s+/g, " ") === valB.toLowerCase().replace(/\s+/g, " ");
-        else if (crossCompareRule === "sector_code") {
-          const codeA = valA.replace(/\D/g, ""), codeB = valB.replace(/\D/g, "");
-          isMatch = codeA === codeB && codeA !== "";
-        } else if (crossCompareRule === "substring") isMatch = valA.toLowerCase().includes(valB.toLowerCase()) || valB.toLowerCase().includes(valA.toLowerCase());
-        if (isMatch) matchCount++;
-        else {
-          mismatchCount++;
-          if (anomalies.length < 2000) anomalies.push({ dongSTT: idx+1, valA, valB, reason: "Không khớp theo quy tắc" });
-        }
-        const newRow: any = {};
-        Object.keys(row).forEach(k => { newRow[k] = row[k]; if (k === crossCompareColB) { newRow[`SoSanh_${crossCompareColA}_vs_${crossCompareColB}`] = isMatch ? "✅ Trùng" : "❌ Lệch"; } });
-        if (!newRow[`SoSanh_${crossCompareColA}_vs_${crossCompareColB}`]) newRow[`SoSanh_${crossCompareColA}_vs_${crossCompareColB}`] = isMatch ? "✅ Trùng" : "❌ Lệch";
-        return newRow;
-      });
-      setMainData(updatedRows);
-      setColumns(Object.keys(updatedRows[0] || {}));
-      setCrossCompareStats({ total: updatedRows.length, matchCount, mismatchCount });
-      setCrossCompareAnomalies(anomalies);
-      autoSaveSession(updatedRows, rawImportedData, Object.keys(updatedRows[0] || {}), fileName, mapping, customColConfigs);
-      setStatusMessage("Đối chiếu hoàn tất!");
-    } catch(e: any) { alert(e.message); }
-    finally { setLoading(false); }
-  };
-
-  // Bổ sung cột ngành cấp 1 và cấp 2
-  const handleAppendSectorsToMainData = async () => {
-    if (mainData.length === 0) { alert("Không có dữ liệu!"); return; }
-    const targetManganh = quickReportManganhCol || mapping.manganh;
-    if (!targetManganh) { alert("Chọn cột mã ngành!"); return; }
-    if (userSectorMap.size === 0) { alert("Tải danh mục ngành trước!"); return; }
+  // Redefine columns
+  const handleRedefine = async()=>{
+    const active=colConfigs.filter(c=>c.use && c.newName.trim());
+    if(!active.length){alert("Chọn ít nhất một cột"); return;}
     setLoading(true);
-    setStatusMessage("Đang thêm cột cấp 1 và cấp 2...");
-    try {
-      const updatedRows = await chunkProcess(mainData, 5000, (row) => {
-        const rawCode = row[targetManganh];
-        const mng = normalizeSectorCode(rawCode);
-        const sec2Code = mng ? mng.slice(0,2) : "";
-        const sec2Name = userSectorMap.get(sec2Code) || "";
-        let sec1Code = "";
-        if (mng) { if (/^[A-Z]$/.test(mng)) sec1Code = mng.toUpperCase(); else sec1Code = getParentSectorCode(mng) || ""; }
-        const sec1Name = userSectorMap.get(sec1Code) || "";
-        const newRow: any = {};
-        Object.keys(row).forEach(k => { newRow[k] = row[k]; if (k === targetManganh) { newRow["Mã Ngành Cấp 1"] = sec1Code; newRow["Ngành Cấp 1"] = sec1Name; newRow["Mã Ngành Cấp 2"] = sec2Code; newRow["Ngành Cấp 2"] = sec2Name; } });
-        if (!newRow["Mã Ngành Cấp 1"]) { newRow["Mã Ngành Cấp 1"] = sec1Code; newRow["Ngành Cấp 1"] = sec1Name; newRow["Mã Ngành Cấp 2"] = sec2Code; newRow["Ngành Cấp 2"] = sec2Name; }
-        return newRow;
+    const newRows=await chunkProcess(rawData,10000,row=>{
+      const newRow:any={};
+      active.forEach(cfg=>newRow[cfg.newName.trim()]=row[cfg.originalName]??"");
+      return newRow;
+    });
+    const newCols=Object.keys(newRows[0]||{});
+    const newMap:ColumnMapping={mota:"",manganh:"",xa:"",doanhthu:"",laodong:"",idCol:""};
+    Object.keys(newMap).forEach(rk=>{
+      const old= mapping[rk as keyof ColumnMapping];
+      if(old){
+        const found=colConfigs.find(c=>c.originalName===old && c.use);
+        if(found) newMap[rk as keyof ColumnMapping]=found.newName.trim();
+      }
+    });
+    setMainData(newRows); setColumns(newCols); setMapping(newMap);
+    setLoading(false); setMsg("Đã tái cấu trúc bảng");
+  };
+
+  // Quick report
+  const handleQuickReport = async(level:number)=>{
+    if(!mainData.length){alert("Chưa có dữ liệu"); return;}
+    const targetManganh=qrManganh||mapping.manganh;
+    const targetXa=qrXa||mapping.xa;
+    if(!targetManganh||!targetXa){alert("Chọn cột mã ngành và xã"); return;}
+    setLoading(true);
+    const processed=await chunkProcess(mainData,5000,row=>{
+      const mng=normalizeSectorCode(row[targetManganh]);
+      let label="";
+      if(level===2){
+        const code=mng.slice(0,2); const name=userSectorMap.get(code)||"";
+        label=code?`${code} - ${name}`:"Chưa xác định";
+      }else{
+        let code="";
+        if(mng){ if(/^[A-Z]$/.test(mng)) code=mng.toUpperCase(); else code=getParentSectorCode(mng)||""; }
+        const name=userSectorMap.get(code)||"";
+        label=code?`${code} - ${name}`:"Chưa xác định";
+      }
+      return {...row, _sector:label, _xa:String(row[targetXa]||"Khác").trim()};
+    });
+    let finalRows:any[]=[];
+    if(reportType==="pivot"){
+      const xas=[...new Set(processed.map(r=>r._xa))].sort();
+      const sectors=[...new Set(processed.map(r=>r._sector))].sort();
+      xas.forEach(xa=>{
+        const obj:any={"Địa bàn":xa};
+        sectors.forEach(sec=>{
+          const match=processed.filter(r=>r._xa===xa && r._sector===sec);
+          let dt=0,ld=0;
+          match.forEach(r=>{
+            if(qrDoanhthu) dt+=Number(r[qrDoanhthu])||0;
+            if(qrLaodong) ld+=Number(r[qrLaodong])||0;
+          });
+          obj[`${sec} - DT`]=Math.round(dt*100)/100;
+          obj[`${sec} - LĐ`]=Math.round(ld);
+        });
+        finalRows.push(obj);
       });
-      setMainData(updatedRows);
-      setColumns(Object.keys(updatedRows[0] || {}));
-      autoSaveSession(updatedRows, rawImportedData, Object.keys(updatedRows[0] || {}), fileName, mapping, customColConfigs);
-      setStatusMessage("Đã thêm cột ngành cấp 1 và 2!");
-    } catch(e: any) { alert(e.message); }
-    finally { setLoading(false); }
+    }else{
+      const groups=new Map();
+      processed.forEach(r=>{const key=JSON.stringify({s:r._sector,x:r._xa}); if(!groups.has(key)) groups.set(key,[]); groups.get(key).push(r);});
+      groups.forEach((arr,key)=>{
+        const {s,x}=JSON.parse(key);
+        let dt=0,ld=0;
+        arr.forEach(r=>{dt+=Number(r[qrDoanhthu])||0; ld+=Number(r[qrLaodong])||0;});
+        finalRows.push({[`Ngành cấp ${level}`]:s, "Địa bàn":x, "Số DN":arr.length, "Doanh thu":Math.round(dt*100)/100, "Lao động":Math.round(ld)});
+      });
+    }
+    setQuickRows(finalRows); setQuickCols(Object.keys(finalRows[0]||{})); setQuickLevel(level);
+    setLoading(false); setMsg(`Báo cáo cấp ${level} hoàn tất`);
   };
 
-  // Kiểm tra logic đa điều kiện (stub - cần phát triển thêm)
-  const handleLogicCheck = async () => {
-    alert("Chức năng này đang được phát triển. Vui lòng cấu hình quy tắc trong code.");
+  // Standardize sectors
+  const handleStandardize = async()=>{
+    if(!mainData.length||!stdCol){alert("Chọn cột mã ngành"); return;}
+    setLoading(true);
+    let valid=0,invalid=0;
+    const updated=await chunkProcess(mainData,5000,row=>{
+      const raw=row[stdCol];
+      const clean=normalizeSectorCode(raw);
+      const lookup=lookupSectorNameWithFallback(clean);
+      if(lookup.exactMatched) valid++; else invalid++;
+      const newRow:any={};
+      Object.keys(row).forEach(k=>{
+        newRow[k]=row[k];
+        if(k===stdCol){ newRow["Tên ngành chuẩn"]=lookup.name||"(Không có)"; newRow["Trạng thái"]=lookup.exactMatched?"✅ Hợp lệ":"❌ Lỗi"; }
+      });
+      if(!newRow["Tên ngành chuẩn"]){ newRow["Tên ngành chuẩn"]=lookup.name; newRow["Trạng thái"]=lookup.exactMatched?"✅ Hợp lệ":"❌ Lỗi"; }
+      return newRow;
+    });
+    setMainData(updated); setColumns(Object.keys(updated[0]||{}));
+    setStdMatch({total:updated.length,valid,invalid});
+    setLoading(false); setMsg(`Chuẩn hóa xong: ${valid} hợp lệ, ${invalid} lỗi`);
   };
 
-  // Filter và pagination cho tab xem dữ liệu
-  const filteredData = useMemo(() => {
-    if (!searchTerm) return mainData;
-    const term = searchTerm.toLowerCase();
-    return mainData.filter(row => Object.values(row).some(val => String(val).toLowerCase().includes(term)));
-  }, [mainData, searchTerm]);
-  const paginatedData = filteredData.slice((viewPage-1)*pageSize, viewPage*pageSize);
-  const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
+  // Cross compare two columns
+  const handleCrossCompare = async()=>{
+    if(!mainData.length||!compA||!compB){alert("Chọn 2 cột để so sánh"); return;}
+    setLoading(true);
+    let match=0,mismatch=0;
+    const updated=await chunkProcess(mainData,5000,row=>{
+      let a=String(row[compA]??"").trim(); let b=String(row[compB]??"").trim();
+      let ok=false;
+      if(compRule==="exact") ok=a===b;
+      else if(compRule==="normalize") ok=a.toLowerCase().replace(/\s+/g," ")===b.toLowerCase().replace(/\s+/g," ");
+      else if(compRule==="sector_code"){
+        const ca=a.replace(/\D/g,""); const cb=b.replace(/\D/g,"");
+        ok=(ca===cb&&ca!=="")||(ca&&cb&&(ca.startsWith(cb)||cb.startsWith(ca)));
+      }else ok=a.toLowerCase().includes(b.toLowerCase())||b.toLowerCase().includes(a.toLowerCase());
+      if(ok) match++; else mismatch++;
+      const newRow:any={};
+      Object.keys(row).forEach(k=>{
+        newRow[k]=row[k];
+        if(k===compB) newRow["Kết quả đối chiếu"]=ok?"✅ Khớp":"❌ Lệch";
+      });
+      if(!newRow["Kết quả đối chiếu"]) newRow["Kết quả đối chiếu"]=ok?"✅ Khớp":"❌ Lệch";
+      return newRow;
+    });
+    setMainData(updated); setColumns(Object.keys(updated[0]||{}));
+    setLoading(false); setMsg(`Đối chiếu: ${match} khớp, ${mismatch} lệch`);
+  };
 
-  // ==================== RENDER ====================
-  if (!isAuthorized) {
+  // Append level columns
+  const handleAppendLevels = async()=>{
+    if(!mainData.length){alert("Chưa có dữ liệu"); return;}
+    const target=qrManganh||mapping.manganh;
+    if(!target){alert("Chọn cột mã ngành"); return;}
+    setLoading(true);
+    const updated=await chunkProcess(mainData,5000,row=>{
+      const raw=row[target];
+      const mng=normalizeSectorCode(raw);
+      let c1="", n1="", c2="", n2="";
+      if(mng){
+        c2=mng.slice(0,2); n2=userSectorMap.get(c2)||"";
+        if(/^[A-Z]$/.test(mng)) c1=mng.toUpperCase();
+        else c1=getParentSectorCode(mng)||"";
+        n1=userSectorMap.get(c1)||"";
+      }
+      const newRow:any={};
+      Object.keys(row).forEach(k=>{
+        newRow[k]=row[k];
+        if(k===target){
+          newRow["Mã cấp 1"]=c1; newRow["Tên cấp 1"]=n1;
+          newRow["Mã cấp 2"]=c2; newRow["Tên cấp 2"]=n2;
+        }
+      });
+      if(!newRow["Mã cấp 1"]){ newRow["Mã cấp 1"]=c1; newRow["Tên cấp 1"]=n1; newRow["Mã cấp 2"]=c2; newRow["Tên cấp 2"]=n2; }
+      return newRow;
+    });
+    setMainData(updated); setColumns(Object.keys(updated[0]||{}));
+    setLoading(false); setMsg("Đã thêm cột cấp 1 và cấp 2");
+  };
+
+  // Calculate column
+  const handleCalcColumn = async()=>{
+    if(!calcName.trim()){alert("Nhập tên cột mới"); return;}
+    if(!calcCol1){alert("Chọn cột thứ nhất"); return;}
+    if(calcType==="column"&&!calcCol2){alert("Chọn cột thứ hai"); return;}
+    if(calcType==="constant"&&!calcConst.trim()){alert("Nhập hằng số"); return;}
+    setLoading(true);
+    const compute=(a:any,b:any)=>{
+      if(calcOp==="concat") return `${a??""} ${b??""}`.trim();
+      const na=Number(String(a).replace(/[^0-9.-]/g,""))||0;
+      const nb=typeof b==="number"?b:(Number(String(b).replace(/[^0-9.-]/g,""))||0);
+      let res=0;
+      if(calcOp==="+") res=na+nb; else if(calcOp==="-") res=na-nb;
+      else if(calcOp==="*") res=na*nb; else if(calcOp==="/") res=nb!==0?na/nb:0;
+      if(calcRound==="int") return Math.round(res);
+      if(calcRound==="1dec") return Math.round(res*10)/10;
+      if(calcRound==="2dec") return Math.round(res*100)/100;
+      return res;
+    };
+    const updatedRaw=await chunkProcess(rawData,5000,row=>({...row,[calcName]:compute(row[calcCol1], calcType==="column"?row[calcCol2]:calcConst)}));
+    const updatedMain=await chunkProcess(mainData,5000,row=>({...row,[calcName]:compute(row[calcCol1], calcType==="column"?row[calcCol2]:calcConst)}));
+    const newCols=columns.includes(calcName)?columns:[...columns,calcName];
+    let newConfigs=[...colConfigs];
+    if(!newConfigs.some(c=>c.originalName===calcName)) newConfigs.push({originalName:calcName, use:true, newName:calcName, role:""});
+    setRawData(updatedRaw); setMainData(updatedMain); setColumns(newCols); setColConfigs(newConfigs);
+    setCalcName(""); setCalcCol1(""); setCalcCol2(""); setCalcConst("");
+    setLoading(false); setMsg(`Đã thêm cột "${calcName}"`);
+  };
+
+  // Export Excel
+  const handleExport = ()=>{
+    const ws=XLSX.utils.json_to_sheet(mainData);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"KetQua");
+    XLSX.writeFile(wb,fileName||"KetQua.xlsx");
+  };
+
+  // Filter data for view
+  const filteredMain = useMemo(()=>{
+    if(!searchTerm) return mainData;
+    const t=searchTerm.toLowerCase();
+    return mainData.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(t)));
+  },[mainData,searchTerm]);
+  const totalPagesView = Math.ceil(filteredMain.length/pageSize);
+  const paginatedMain = filteredMain.slice((pageView-1)*pageSize, pageView*pageSize);
+
+  // Restore session
+  useEffect(()=>{
+    const savedCat=localStorage.getItem("custom_vsic_data");
+    if(savedCat){
+      const obj=JSON.parse(savedCat);
+      const m=new Map(Object.entries(obj));
+      setUserSectorMap(m);
+      clearAllSectorsInVSIC();
+      loadSectorsIntoVSIC(obj);
+      setUserSectorFile(localStorage.getItem("custom_vsic_filename")||"");
+    }
+  },[]);
+
+  // Auth gate
+  if(!isAuthorized){
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#111827] text-gray-100 font-sans px-4">
-        <div className="w-full max-w-md bg-[#1f2937]/90 border border-purple-500/20 rounded-2xl p-8 shadow-2xl space-y-6 backdrop-blur-md">
-          <div className="text-center space-y-2">
-            <div className="mx-auto w-14 h-14 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center"><Lock className="w-7 h-7 text-white animate-pulse" /></div>
-            <h2 className="text-xl font-bold tracking-tight text-white">CỔNG BẢO MẬT TRUY CẬP</h2>
-            <p className="text-xs text-gray-400">Vui lòng nhập mật khẩu nội bộ</p>
-          </div>
-          <form onSubmit={(e) => { e.preventDefault(); if(typedPassword === appPassword) { localStorage.setItem("vsic_app_authorized","true"); setIsAuthorized(true); setPasswordError(""); } else setPasswordError("Mật khẩu không chính xác!"); }} className="space-y-4">
-            <input type="password" value={typedPassword} onChange={e=>setTypedPassword(e.target.value)} placeholder="Nhập mật khẩu..." className="w-full bg-[#111827] border border-[#374151] rounded-xl px-4 py-3 text-sm text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500" autoFocus />
-            {passwordError && <p className="text-red-400 text-xs">{passwordError}</p>}
-            <button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 text-white font-bold text-sm py-3 rounded-xl">🔐 Xác Nhận</button>
+      <div className="min-h-screen bg-gradient-to-br from-[#0a0f1f] to-[#111827] flex items-center justify-center">
+        <div className="bg-[#1f2937]/90 p-8 rounded-2xl w-96 border border-purple-500/30">
+          <div className="text-center"><Lock className="w-12 h-12 text-purple-500 mx-auto"/><h2 className="text-2xl font-bold mt-2">BẢO MẬT</h2></div>
+          <form onSubmit={(e)=>{e.preventDefault(); if(typedPwd===appPwd){localStorage.setItem("vsic_app_authorized","true"); setIsAuthorized(true);}else setPwdErr("Sai mật khẩu");}}>
+            <input type="password" value={typedPwd} onChange={e=>setTypedPwd(e.target.value)} className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 mt-4" placeholder="Mật khẩu" autoFocus/>
+            {pwdErr && <p className="text-red-400 text-sm mt-1">{pwdErr}</p>}
+            <button type="submit" className="w-full mt-4 bg-purple-600 py-2 rounded-lg">Xác nhận</button>
           </form>
-          <div className="border-t border-gray-800/60 pt-4 text-center"><p className="text-[11px] text-amber-400/85">💡 Mật khẩu mặc định: <strong className="font-mono bg-amber-950 px-1.5 py-0.5 rounded">admin123</strong></p></div>
+          <p className="text-center text-xs text-gray-500 mt-4">Mật khẩu: admin123</p>
         </div>
       </div>
     );
   }
 
+  // Main UI
   return (
-    <div className="flex flex-col h-screen bg-[#111827] text-gray-100 font-sans overflow-hidden">
-      <header className="border-b border-[#374151] bg-[#1f2937]/90 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-tr from-purple-600 to-indigo-500 p-2.5 rounded-xl shadow-lg shadow-purple-900/30"><Layers className="w-6 h-6 text-white animate-pulse" /></div>
-          <div><h1 className="text-xl font-bold tracking-tight text-white">HỆ THỐNG <span className="bg-purple-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">VSIC V38.5</span></h1><p className="text-xs text-gray-400 font-mono">CÔNG CỤ HỖ TRỢ SO SÁNH TỔNG HỢP DỮ LIỆU</p></div>
-        </div>
-        <div className="flex items-center gap-4">
-          <button onClick={() => { setNewPasswordVal(""); setShowPasswordChangeModal(true); }} className="px-3 py-1.5 bg-[#111827] hover:bg-gray-800 text-gray-300 rounded-lg text-xs font-semibold flex items-center gap-1.5"><KeyRound className="w-3.5 h-3.5 text-purple-400" /> Đổi MK</button>
-          <button onClick={() => { localStorage.removeItem("vsic_app_authorized"); setIsAuthorized(false); }} className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/40 text-red-300 border border-red-900/50 rounded-lg text-xs font-semibold flex items-center gap-1.5"><LogOut className="w-3.5 h-3.5" /> Khóa</button>
-          {fileName ? <div className="bg-[#111827] border border-[#374151] rounded-lg px-4 py-1.5 flex items-center gap-2 text-xs"><Database className="w-4 h-4 text-emerald-400" /><span className="text-gray-300 font-medium">Hiện tại: </span><span className="text-emerald-400 font-mono max-w-[200px] truncate">{fileName}</span><span className="bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">{mainData.length} dòng</span><button onClick={() => { setMainData([]); clearAppState(); }} className="text-red-400 hover:text-red-300 ml-2">Xóa</button></div> : <span className="text-xs text-amber-400/90 bg-amber-950/40 border border-amber-900/50 rounded-lg px-4 py-1.5"><AlertTriangle className="w-3.5 h-3.5 inline mr-1" /> Chưa có dữ liệu nguồn</span>}
+    <div className="flex flex-col h-screen bg-gradient-to-br from-[#0a0f1f] to-[#111827] text-white overflow-hidden">
+      <header className="bg-[#1f2937]/80 backdrop-blur border-b border-gray-800 px-6 py-3 flex justify-between items-center">
+        <div className="flex items-center gap-2"><Layers className="w-6 h-6 text-purple-500"/><h1 className="text-xl font-bold">HỆ THỐNG VSIC</h1></div>
+        <div className="flex gap-3">
+          <button onClick={()=>{localStorage.removeItem("vsic_app_authorized"); setIsAuthorized(false);}} className="bg-red-950/40 px-3 py-1 rounded-lg text-sm"><LogOut className="w-4 h-4 inline"/> Thoát</button>
+          {fileName && <div className="bg-[#111827] px-3 py-1 rounded-lg text-sm">{fileName} ({mainData.length})</div>}
         </div>
       </header>
-
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-72 bg-[#1f2937]/60 border-r border-[#374151] p-5 space-y-2 flex flex-col justify-between">
-          <div className="space-y-1.5">
-            <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 mb-2">Thao tác dữ liệu</div>
-            <button onClick={() => setActiveTab("trangchu")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "trangchu" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><Home className="w-4 h-4" /> Trang Chủ</button>
-            <button onClick={() => setActiveTab("xemdulieu")} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "xemdulieu" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><span className="flex items-center gap-3"><FileSpreadsheet className="w-4 h-4" /> Xem & Định Nghĩa Cột</span><span className="text-[10px] font-mono bg-[#111827] text-gray-400 px-1.5 py-0.5 rounded-md">{mainData.length}</span></button>
-            <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 pt-4 mb-2">Công cụ liên hợp</div>
-            <button onClick={() => setActiveTab("ghepnoi")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "ghepnoi" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><GitMerge className="w-4 h-4 text-blue-400" /> Ghép Nối Dữ Liệu</button>
-            <button onClick={() => setActiveTab("sosanh")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "sosanh" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><Combine className="w-4 h-4 text-cyan-400" /> So Sánh Đối Chiếu</button>
-            <button onClick={() => setActiveTab("tachfile")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "tachfile" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><Scissors className="w-4 h-4 text-pink-400" /> Tách File Hàng Loạt</button>
-            <button onClick={() => setActiveTab("tonghop")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "tonghop" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><BarChart3 className="w-4 h-4 text-amber-400" /> Tổng Hợp Báo Cáo</button>
-            <button onClick={() => setActiveTab("bieudotrucquan")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "bieudotrucquan" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><PieChart className="w-4 h-4 text-cyan-400" /> Biểu Đồ Trực Quan</button>
-            <div className="text-[11px] font-bold text-gray-500 tracking-wider uppercase font-mono px-3 pt-4 mb-2">Thông minh & Rà soát</div>
-            <button onClick={() => setActiveTab("chuanhoanganh")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "chuanhoanganh" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><Brain className="w-4 h-4 text-indigo-400" /> Chuẩn Hóa VSIC & AI</button>
-            <button onClick={() => setActiveTab("kiemtralogic")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "kiemtralogic" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><CheckSquare className="w-4 h-4 text-emerald-400" /> Cỗ Máy Kiểm Tra Logic</button>
-            <button onClick={() => setActiveTab("doichieumota")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "doichieumota" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><ArrowRightLeft className="w-4 h-4 text-purple-400" /> Đối Chiếu Mô Tả Ngành</button>
-            <button onClick={() => setActiveTab("danhmucvsic")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${activeTab === "danhmucvsic" ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" : "text-gray-300 hover:bg-[#374151]/50"}`}><Database className="w-4 h-4 text-amber-400" /> Danh Mục Ngành VSIC</button>
-          </div>
-          <div className="bg-[#111827]/80 rounded-xl p-3.5 border border-purple-950/40 text-[10px] text-gray-400 font-mono leading-relaxed"><div className="flex items-center gap-1.5 text-emerald-400 font-semibold"><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>💾 BỘ NHỚ LOCAL WORKSPACE</div><div>Dữ liệu được lưu an toàn trong IndexedDB. Tắt máy, đóng tab vẫn khôi phục 100%!</div></div>
+        <aside className="w-64 bg-[#1f2937]/50 border-r border-gray-800 p-4 space-y-1 overflow-y-auto">
+          {[
+            ["trangchu","🏠","Trang chủ"],[ "xemdulieu","📂","Xem & Định nghĩa cột"],[ "ghepnoi","🌿","Ghép nối"],[ "sosanh","🔍","So sánh"],[ "tachfile","✂️","Tách file"],[ "tonghop","📊","Tổng hợp báo cáo"],[ "bieudotrucquan","📈","Biểu đồ"],[ "chuanhoanganh","🧠","Chuẩn hóa VSIC"],[ "doichieumota","🔄","Đối chiếu mô tả"],[ "danhmucvsic","📚","Danh mục ngành"]
+          ].map(([id,icon,label])=>(
+            <button key={id} onClick={()=>setActiveTab(id)} className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${activeTab===id?"bg-purple-600/30 text-purple-400":"hover:bg-white/5"}`}>{icon} {label}</button>
+          ))}
         </aside>
-
-        <main className="flex-1 bg-[#111827] overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-6">
           {loading && (
-            <div className="fixed inset-0 z-50 bg-[#111827]/80 backdrop-blur-sm flex items-center justify-center p-6">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-purple-600 to-cyan-400 transition-all duration-300" style={{ width: `${progress}%` }}></div>
-                <Loader2 className="w-12 h-12 text-purple-500 mx-auto animate-spin" />
-                <h3 className="text-lg font-bold text-white">Đang xử lý dữ liệu</h3>
-                <p className="text-sm text-gray-400 font-mono min-h-[40px]">{statusMessage}</p>
-                <div className="w-full bg-[#111827] rounded-full h-2.5 overflow-hidden border border-gray-800"><div className="bg-purple-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div></div>
-                <div className="text-xs font-bold text-purple-400 tracking-wider font-mono">{progress}% Hoàn Thành</div>
-              </div>
-            </div>
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"><div className="bg-[#1f2937] p-6 rounded-2xl w-80 text-center"><Loader2 className="animate-spin w-10 h-10 mx-auto"/><p>{msg}</p><div className="w-full bg-gray-700 rounded-full h-1 mt-3"><div className="bg-purple-600 h-1 rounded-full" style={{width:`${progress}%`}}></div></div></div></div>
           )}
-
-          {showPasswordChangeModal && (
-            <div className="fixed inset-0 z-50 bg-[#111827]/80 backdrop-blur-sm flex items-center justify-center p-6">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl max-w-sm w-full p-6 space-y-4">
-                <div className="text-center space-y-1"><h3 className="text-base font-bold text-white">ĐỔI MẬT KHẨU</h3></div>
-                <input type="text" className="w-full bg-[#111827] border border-[#374151] rounded-lg px-3 py-2 text-xs text-white" placeholder="Mật khẩu mới" value={newPasswordVal} onChange={e=>setNewPasswordVal(e.target.value)} autoFocus />
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={()=>setShowPasswordChangeModal(false)} className="bg-[#1e293b] hover:bg-gray-800 text-gray-400 font-bold text-xs py-2 rounded-lg">Hủy</button>
-                  <button onClick={()=>{ if(newPasswordVal.trim()){ setAppPassword(newPasswordVal); localStorage.setItem("vsic_app_password", newPasswordVal); setShowPasswordChangeModal(false); setNewPasswordVal(""); alert(`Đã đổi mật khẩu thành ${newPasswordVal}`); } else alert("Vui lòng nhập mật khẩu mới!"); }} className="bg-gradient-to-r from-purple-600 to-indigo-500 text-white font-bold text-xs py-2 rounded-lg">Xác nhận</button>
-                </div>
-              </div>
-            </div>
+          {/* ==================== TRANG CHỦ ==================== */}
+          {activeTab==="trangchu" && (
+            <div><div className="bg-gradient-to-r from-purple-900/30 to-[#1f2937] p-6 rounded-2xl"><h2 className="text-2xl font-bold">Hệ thống phân tích dữ liệu ngành</h2><p className="text-gray-400">Upload danh mục ngành, chuẩn hóa, ghép nối, báo cáo</p></div><div className="grid md:grid-cols-2 gap-4 mt-6"><div className="bg-[#1f2937]/50 p-4 rounded-xl">📁 Bước 1: Tải dữ liệu chính</div><div className="bg-[#1f2937]/50 p-4 rounded-xl">📚 Bước 2: Nạp danh mục ngành</div><div className="bg-[#1f2937]/50 p-4 rounded-xl">⚙️ Bước 3: Xử lý & báo cáo</div><div className="bg-[#1f2937]/50 p-4 rounded-xl">📊 Kết quả hiển thị ngay tại tab</div></div></div>
           )}
-
-          {/* Tab Trang chủ */}
-          {activeTab === "trangchu" && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="bg-gradient-to-r from-purple-900/40 via-[#1f2937] to-[#1f2937] border border-purple-500/20 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 justify-between">
-                <div className="space-y-3 max-w-2xl">
-                  <span className="bg-purple-900/50 border border-purple-500/30 text-purple-400 text-xs font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">Phiên bản V38.5</span>
-                  <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">Hệ Thống Phân Tích & Chuẩn Hóa Dữ Liệu Ngành</h2>
-                  <p className="text-gray-300 text-sm leading-relaxed">Công cụ chuyên sâu hỗ trợ thống kê dữ liệu doanh nghiệp, ghép tách tệp lớn, so khớp, rà soát logic đa chỉ tiêu.</p>
-                  <div className="pt-2 flex items-center gap-4"><button onClick={()=>setActiveTab("xemdulieu")} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl shadow-md shadow-purple-900/30 flex items-center gap-2">📂 Nạp file dữ liệu <ArrowRight className="w-4 h-4" /></button></div>
-                </div>
-                <div className="w-full md:w-auto flex justify-center"><div className="bg-gradient-to-tr from-[#374151] to-purple-800/20 border border-[#4b5563] p-6 rounded-2xl text-center space-y-2 min-w-[200px]"><div className="text-4xl font-extrabold text-white font-mono">{userSectorMap.size}</div><div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">Mã ngành đã nạp</div><div className="text-[10px] text-green-400 font-mono">Từ danh mục của bạn</div></div></div>
-              </div>
-              <div className="space-y-6"><div className="border-b border-[#374151] pb-4"><h3 className="text-lg font-bold text-white flex items-center gap-2"><Layers className="w-5 h-5 text-purple-400" /> HƯỚNG DẪN NHANH</h3></div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-gray-300 leading-relaxed">
-                <div className="bg-[#1f2937]/50 border border-purple-500/20 rounded-2xl p-4"><span className="font-bold text-white">01. Nạp & Tiền xử lý</span><p className="text-gray-400 mt-1">Tải file Excel/CSV chính, đặt tên cột dễ nhớ, gán vai trò (mã ngành, xã, doanh thu...).</p></div>
-                <div className="bg-[#1f2937]/50 border border-indigo-500/20 rounded-2xl p-4"><span className="font-bold text-white">02. Chuẩn hóa VSIC</span><p className="text-gray-400 mt-1">Tải danh mục ngành (Excel/CSV), sau đó dùng AI để chuẩn hóa và rà lỗi logic.</p></div>
-                <div className="bg-[#1f2937]/50 border border-emerald-500/20 rounded-2xl p-4"><span className="font-bold text-white">03. Tổng hợp & Xuất báo cáo</span><p className="text-gray-400 mt-1">Chọn cấp độ ngành, chạy báo cáo, xem biểu đồ, tải file Excel kết quả.</p></div>
-              </div></div>
-            </div>
-          )}
-
-          {/* Tab Xem dữ liệu */}
-          {activeTab === "xemdulieu" && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div><h3 className="text-lg font-bold text-white">FILE DỮ LIỆU NGUỒN CHÍNH</h3><p className="text-xs text-gray-400">Tải lên tệp dữ liệu chính (Excel/CSV)</p></div>
-                  <label className="bg-purple-600 hover:bg-purple-700 text-white text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer"><FileUp className="w-4 h-4" /> TẢI FILE <input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={(e)=>handleFileUpload(e,"main")} className="hidden" /></label>
-                </div>
-                {/* Phần cấu hình cột có thể thêm vào đây nếu cần */}
-              </div>
-              {mainData.length > 0 && <DataPreviewTable data={mainData} columns={columns} />}
-            </div>
-          )}
-
-          {/* Tab Ghép nối */}
-          {activeTab === "ghepnoi" && (
+          {/* ==================== XEM & ĐỊNH NGHĨA CỘT ==================== */}
+          {activeTab==="xemdulieu" && (
             <div className="space-y-6">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
-                <h3 className="text-lg font-bold text-white">GHÉP NỐI HAI BẢNG</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-[#111827]/60 rounded-xl p-5 text-center"><h4 className="text-sm font-bold text-blue-400">BẢNG TRÁI</h4><label className="inline-block bg-[#1f2937] hover:bg-[#374151] text-xs text-blue-300 px-4 py-2 rounded-lg cursor-pointer">Chọn File <input type="file" onChange={(e)=>handleFileUpload(e,"left")} className="hidden" /></label><div className="text-xs text-gray-400 mt-2">{leftFileName ? `📂 ${leftFileName} (${leftData.length} dòng)` : "Chưa tải"}</div>{leftData.length>0 && <select value={leftKey} onChange={e=>setLeftKey(e.target.value)} className="w-full mt-3 bg-[#111827] border border-gray-700 rounded-lg px-2 py-1 text-xs"><option value="">-- Chọn khóa --</option>{Object.keys(leftData[0]||{}).map(c=><option key={c}>{c}</option>)}</select>}</div>
-                  <div className="bg-[#111827]/60 rounded-xl p-5 text-center"><h4 className="text-sm font-bold text-teal-400">BẢNG PHẢI</h4><label className="inline-block bg-[#1f2937] hover:bg-[#374151] text-xs text-teal-300 px-4 py-2 rounded-lg cursor-pointer">Chọn File <input type="file" onChange={(e)=>handleFileUpload(e,"right")} className="hidden" /></label><div className="text-xs text-gray-400 mt-2">{rightFileName ? `📂 ${rightFileName} (${rightData.length} dòng)` : "Chưa tải"}</div>{rightData.length>0 && <select value={rightKey} onChange={e=>setRightKey(e.target.value)} className="w-full mt-3 bg-[#111827] border border-gray-700 rounded-lg px-2 py-1 text-xs"><option value="">-- Chọn khóa --</option>{Object.keys(rightData[0]||{}).map(c=><option key={c}>{c}</option>)}</select>}</div>
-                </div>
-                <div className="flex justify-end"><button onClick={handleMerge} className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-6 py-2.5 rounded-xl">THỰC THI GHÉP NỐI</button></div>
-              </div>
-              {mainData.length > 0 && <DataPreviewTable data={mainData} columns={columns} />}
+              <div className="bg-[#1f2937] rounded-2xl p-6"><div className="flex justify-between"><h3 className="text-lg font-bold">📂 FILE DỮ LIỆU CHÍNH</h3><label className="bg-purple-600 px-4 py-2 rounded-xl cursor-pointer"><FileUp className="w-4 h-4 inline"/> TẢI FILE<input type="file" accept=".xlsx,.xls,.csv" onChange={(e)=>handleFileUpload(e,"main")} className="hidden"/></label></div>{detectedSheets.length>1 && (<div className="mt-3 p-3 bg-amber-950/30 rounded-lg"><p>Ghép {detectedSheets.length} sheets</p><div className="flex gap-2">{detectedSheets.map(s=><label key={s}><input type="checkbox" checked={selectedSheets.includes(s)} onChange={()=>setSelectedSheets(prev=>prev.includes(s)?prev.filter(x=>x!==s):[...prev,s])}/> {s}</label>)}</div><select value={sheetKey} onChange={e=>setSheetKey(e.target.value)} className="bg-[#111827] p-1 rounded"><option value="">Chọn cột khóa</option>{columns.map(c=><option key={c}>{c}</option>)}</select><button onClick={handleMergeSheets} className="bg-amber-600 px-3 py-1 rounded mt-2">Ghép sheets</button></div>)}</div>
+              {rawData.length>0 && (
+                <div className="bg-[#1f2937] rounded-2xl p-6"><div className="flex justify-between"><h4>📌 Định nghĩa lại cột</h4><button onClick={()=>setExpanded(!expanded)}>{expanded?"Thu gọn":"Mở rộng"}</button></div>{expanded && (<div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr><th>Dùng</th><th>Tên gốc</th><th>Tên mới</th><th>Vai trò</th></tr></thead><tbody>{colConfigs.map((cfg,i)=><tr key={i}><td><input type="checkbox" checked={cfg.use} onChange={e=>{const newC=[...colConfigs]; newC[i].use=e.target.checked; setColConfigs(newC);}}/></td><td>{cfg.originalName}</td><td><input value={cfg.newName} onChange={e=>{const newC=[...colConfigs]; newC[i].newName=e.target.value; setColConfigs(newC);}} className="bg-[#111827] border border-gray-700 rounded px-1"/></td><td><select value={cfg.role} onChange={e=>{const newC=[...colConfigs]; newC[i].role=e.target.value as any; setColConfigs(newC);}}><option value="">--</option><option value="mota">Mô tả</option><option value="manganh">Mã ngành</option><option value="xa">Xã</option><option value="doanhthu">Doanh thu</option><option value="laodong">Lao động</option></select></td></tr>)}</tbody></table><button onClick={handleRedefine} className="mt-3 bg-indigo-600 px-4 py-1 rounded">Áp dụng</button></div>)}</div>
+              )}
+              {rawData.length>0 && (
+                <div className="bg-[#1f2937] rounded-2xl p-6"><h4 className="text-indigo-400 font-bold">🧮 TÍNH TOÁN CỘT MỚI</h4><div className="grid grid-cols-2 md:grid-cols-12 gap-2 mt-2"><input className="col-span-3 bg-[#111827] border rounded p-1" placeholder="Tên cột mới" value={calcName} onChange={e=>setCalcName(e.target.value)}/><select className="col-span-2 bg-[#111827] border rounded p-1" value={calcCol1} onChange={e=>setCalcCol1(e.target.value)}><option value="">Cột A</option>{columns.map(c=><option key={c}>{c}</option>)}</select><select className="col-span-1 bg-[#111827] border rounded p-1" value={calcOp} onChange={e=>setCalcOp(e.target.value as any)}><option value="+">+</option><option value="-">-</option><option value="*">*</option><option value="/">/</option><option value="concat">concat</option></select><select className="col-span-1 bg-[#111827] border rounded p-1" value={calcType} onChange={e=>setCalcType(e.target.value as any)}><option value="column">Cột</option><option value="constant">Số</option></select>{calcType==="column"?<select className="col-span-3 bg-[#111827] border rounded p-1" value={calcCol2} onChange={e=>setCalcCol2(e.target.value)}><option value="">Cột B</option>{columns.map(c=><option key={c}>{c}</option>)}</select>:<input className="col-span-3 bg-[#111827] border rounded p-1" placeholder="Hằng số" value={calcConst} onChange={e=>setCalcConst(e.target.value)}/>}</div><div className="flex gap-3 mt-2"><select value={calcRound} onChange={e=>setCalcRound(e.target.value as any)} className="bg-[#111827] border rounded p-1"><option value="none">Không làm tròn</option><option value="int">Số nguyên</option><option value="1dec">1 số thập phân</option><option value="2dec">2 số thập phân</option></select><button onClick={handleCalcColumn} className="bg-indigo-600 px-4 py-1 rounded">➕ Thêm cột</button></div></div>
+              )}
+              <DataPreviewTable data={mainData} columns={columns} title="DỮ LIỆU CHÍNH" />
             </div>
           )}
-
-          {/* Tab So sánh */}
-          {activeTab === "sosanh" && (
-            <div className="space-y-6">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
-                <h3 className="text-lg font-bold text-white">SO SÁNH HAI FILE CŨ & MỚI</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-[#111827]/60 rounded-xl p-5 text-center"><h4 className="text-sm font-bold text-gray-400">FILE CŨ</h4><label className="inline-block bg-[#1f2937] hover:bg-[#374151] text-xs text-white px-4 py-2 rounded-lg cursor-pointer">Tải File <input type="file" onChange={(e)=>handleFileUpload(e,"old")} className="hidden" /></label><div className="text-xs text-gray-400 mt-2">{oldFileName ? `📂 ${oldFileName} (${oldData.length} dòng)` : "Chưa tải"}</div></div>
-                  <div className="bg-[#111827]/60 rounded-xl p-5 text-center"><h4 className="text-sm font-bold text-cyan-400">FILE MỚI</h4><label className="inline-block bg-[#1f2937] hover:bg-[#374151] text-xs text-cyan-300 px-4 py-2 rounded-lg cursor-pointer">Tải File <input type="file" onChange={(e)=>handleFileUpload(e,"new")} className="hidden" /></label><div className="text-xs text-gray-400 mt-2">{newFileName ? `📂 ${newFileName} (${newData.length} dòng)` : "Chưa tải"}</div></div>
-                </div>
-                {oldData.length>0 && newData.length>0 && <div className="max-w-md mx-auto"><select value={diffKey} onChange={e=>setDiffKey(e.target.value)} className="w-full bg-[#1f2937] border border-gray-700 rounded-lg px-2 py-1 text-xs"><option value="">-- Chọn cột khóa chung --</option>{Object.keys(oldData[0]||{}).filter(c=>Object.keys(newData[0]||{}).includes(c)).map(c=><option key={c}>{c}</option>)}</select></div>}
-                <div className="flex justify-end"><button onClick={handleCompare} className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs px-6 py-2.5 rounded-xl">BẮT ĐẦU SO SÁNH</button></div>
-              </div>
-              {mainData.length > 0 && <DataPreviewTable data={mainData} columns={columns} />}
-            </div>
+          {/* ==================== GHÉP NỐI ==================== */}
+          {activeTab==="ghepnoi" && (
+            <div className="space-y-6"><div className="bg-[#1f2937] rounded-2xl p-6"><div className="grid md:grid-cols-2 gap-4"><div><h4>Bảng trái</h4><label className="bg-gray-800 px-3 py-1 rounded cursor-pointer">Chọn file<input type="file" onChange={(e)=>handleFileUpload(e,"left")} className="hidden"/></label><div>{leftName}</div>{leftData.length>0 && <select value={leftKey} onChange={e=>setLeftKey(e.target.value)} className="w-full mt-2 bg-[#111827] border rounded p-1"><option value="">Khóa trái</option>{Object.keys(leftData[0]||{}).map(c=><option key={c}>{c}</option>)}</select>}</div><div><h4>Bảng phải</h4><label className="bg-gray-800 px-3 py-1 rounded cursor-pointer">Chọn file<input type="file" onChange={(e)=>handleFileUpload(e,"right")} className="hidden"/></label><div>{rightName}</div>{rightData.length>0 && <select value={rightKey} onChange={e=>setRightKey(e.target.value)} className="w-full mt-2 bg-[#111827] border rounded p-1"><option value="">Khóa phải</option>{Object.keys(rightData[0]||{}).map(c=><option key={c}>{c}</option>)}</select>}</div></div><button onClick={handleMerge} className="bg-blue-600 px-5 py-2 rounded-xl mt-4">Ghép nối</button></div><DataPreviewTable data={mainData} columns={columns} title="KẾT QUẢ GHÉP NỐI"/></div>
           )}
-
-          {/* Tab Tách file */}
-          {activeTab === "tachfile" && (
-            <div className="space-y-6">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
-                <h3 className="text-lg font-bold text-white">TÁCH FILE HÀNG LOẠT THEO CỘT</h3>
-                {mainData.length>0 ? <div className="max-w-md space-y-4"><select value={splitCol} onChange={e=>setSplitCol(e.target.value)} className="w-full bg-[#1f2937] border border-gray-700 rounded-lg px-2 py-1 text-xs"><option value="">-- Chọn cột để tách --</option>{columns.map(c=><option key={c}>{c}</option>)}</select><button onClick={handleSplitData} className="bg-pink-600 hover:bg-pink-700 text-white text-xs px-6 py-2.5 rounded-xl w-full">TÁCH & ZIP</button></div> : <div className="text-amber-400 text-xs">Chưa có dữ liệu nguồn</div>}
-              </div>
-            </div>
+          {/* ==================== SO SÁNH ==================== */}
+          {activeTab==="sosanh" && (
+            <div className="space-y-6"><div className="bg-[#1f2937] rounded-2xl p-6"><div className="grid md:grid-cols-2 gap-4"><div><h4>File cũ</h4><label className="bg-gray-800 px-3 py-1 rounded cursor-pointer">Chọn file<input type="file" onChange={(e)=>handleFileUpload(e,"old")} className="hidden"/></label><div>{oldName}</div></div><div><h4>File mới</h4><label className="bg-gray-800 px-3 py-1 rounded cursor-pointer">Chọn file<input type="file" onChange={(e)=>handleFileUpload(e,"new")} className="hidden"/></label><div>{newName}</div></div></div>{oldData.length&&newData.length&&<div className="mt-3"><select value={diffKey} onChange={e=>setDiffKey(e.target.value)} className="bg-[#111827] border rounded p-1"><option value="">Chọn cột khóa chung</option>{Object.keys(oldData[0]||{}).filter(c=>Object.keys(newData[0]||{}).includes(c)).map(c=><option key={c}>{c}</option>)}</select></div>}<button onClick={handleCompare} className="bg-cyan-600 px-5 py-2 rounded-xl mt-4">So sánh</button></div><DataPreviewTable data={mainData} columns={columns} title="KẾT QUẢ SO SÁNH"/></div>
           )}
-
-          {/* Tab Tổng hợp báo cáo */}
-          {activeTab === "tonghop" && (
-            <div className="space-y-6">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
-                <h3 className="text-lg font-bold text-white">TỔNG HỢP BÁO CÁO THEO NGÀNH & XÃ</h3>
-                {mainData.length>0 && (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="text-xs text-gray-400">Cột Mã ngành</label><select value={quickReportManganhCol} onChange={e=>setQuickReportManganhCol(e.target.value)} className="w-full bg-[#1f2937] border border-gray-700 rounded-lg px-2 py-1 text-sm"><option value="">-- Chọn --</option>{columns.map(c=><option key={c}>{c}</option>)}</select></div>
-                      <div><label className="text-xs text-gray-400">Cột Xã</label><select value={quickReportXaCol} onChange={e=>setQuickReportXaCol(e.target.value)} className="w-full bg-[#1f2937] border border-gray-700 rounded-lg px-2 py-1 text-sm"><option value="">-- Chọn --</option>{columns.map(c=><option key={c}>{c}</option>)}</select></div>
-                      <div><label className="text-xs text-gray-400">Cột Doanh thu</label><select value={quickReportDoanhThuCol} onChange={e=>setQuickReportDoanhThuCol(e.target.value)} className="w-full bg-[#1f2937] border border-gray-700 rounded-lg px-2 py-1 text-sm"><option value="">-- Tùy chọn --</option>{columns.map(c=><option key={c}>{c}</option>)}</select></div>
-                      <div><label className="text-xs text-gray-400">Cột Lao động</label><select value={quickReportLaoDongCol} onChange={e=>setQuickReportLaoDongCol(e.target.value)} className="w-full bg-[#1f2937] border border-gray-700 rounded-lg px-2 py-1 text-sm"><option value="">-- Tùy chọn --</option>{columns.map(c=><option key={c}>{c}</option>)}</select></div>
-                    </div>
-                    <div className="flex gap-3">
-                      <button onClick={()=>handleQuickReport(1)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-xl">Báo cáo cấp 1 (Lĩnh vực)</button>
-                      <button onClick={()=>handleQuickReport(2)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-xl">Báo cáo cấp 2 (Ngành)</button>
-                    </div>
-                  </>
-                )}
-                {quickReportResultRows.length>0 && <BeautifulReportTable rows={quickReportResultRows} cols={quickReportResultCols} level={quickReportLevel} reportType={reportType} onExport={handleExportQuickReport} />}
-              </div>
-              {mainData.length > 0 && <DataPreviewTable data={mainData} columns={columns} />}
-            </div>
+          {/* ==================== TÁCH FILE ==================== */}
+          {activeTab==="tachfile" && (
+            <div className="space-y-6"><div className="bg-[#1f2937] rounded-2xl p-6"><h3>✂️ Tách file theo cột</h3><select value={splitCol} onChange={e=>setSplitCol(e.target.value)} className="bg-[#111827] border rounded p-1 mt-2"><option value="">Chọn cột</option>{columns.map(c=><option key={c}>{c}</option>)}</select><button onClick={handleSplit} className="bg-pink-600 px-5 py-2 rounded-xl mt-4 ml-3">Tách & tải ZIP</button></div></div>
           )}
-
-          {/* Tab Biểu đồ trực quan */}
-          {activeTab === "bieudotrucquan" && (
-            <SectorRevenueChart mainData={mainData} columns={columns} mapping={mapping} />
+          {/* ==================== TỔNG HỢP BÁO CÁO ==================== */}
+          {activeTab==="tonghop" && (
+            <div className="space-y-6"><div className="bg-[#1f2937] rounded-2xl p-6"><h3>📊 Báo cáo theo ngành & xã</h3><div className="grid md:grid-cols-2 gap-3 mt-3"><select value={qrManganh} onChange={e=>setQrManganh(e.target.value)} className="bg-[#111827] border rounded p-1"><option value="">Cột mã ngành</option>{columns.map(c=><option key={c}>{c}</option>)}</select><select value={qrXa} onChange={e=>setQrXa(e.target.value)} className="bg-[#111827] border rounded p-1"><option value="">Cột xã</option>{columns.map(c=><option key={c}>{c}</option>)}</select><select value={qrDoanhthu} onChange={e=>setQrDoanhthu(e.target.value)} className="bg-[#111827] border rounded p-1"><option value="">Doanh thu (tùy chọn)</option>{columns.map(c=><option key={c}>{c}</option>)}</select><select value={qrLaodong} onChange={e=>setQrLaodong(e.target.value)} className="bg-[#111827] border rounded p-1"><option value="">Lao động (tùy chọn)</option>{columns.map(c=><option key={c}>{c}</option>)}</select></div><div className="flex gap-3 mt-3"><button onClick={()=>handleQuickReport(1)} className="bg-emerald-600 px-4 py-1 rounded">Báo cáo cấp 1</button><button onClick={()=>handleQuickReport(2)} className="bg-emerald-600 px-4 py-1 rounded">Báo cáo cấp 2</button></div></div>{quickRows.length>0 && <BeautifulReportTable rows={quickRows} cols={quickCols} level={quickLevel} reportType={reportType} onExport={()=>{const ws=XLSX.utils.json_to_sheet(quickRows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"BaoCao"); XLSX.writeFile(wb,"BaoCao.xlsx");}} />}<DataPreviewTable data={mainData} columns={columns} title="DỮ LIỆU HIỆN TẠI"/></div>
           )}
-
-          {/* Tab Chuẩn hóa VSIC & AI */}
-          {activeTab === "chuanhoanganh" && (
-            <div className="space-y-6">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
-                <h3 className="text-lg font-bold text-white">CHUẨN HÓA & KHỚP MÃ NGÀNH THÔNG MINH</h3>
-                {mainData.length>0 && (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="text-xs text-gray-400">Cột Mã ngành (cấp 5)</label><select value={stdIndustryCol} onChange={e=>setStdIndustryCol(e.target.value)} className="w-full bg-[#1f2937] border border-gray-700 rounded-lg px-2 py-1 text-sm"><option value="">-- Chọn --</option>{columns.map(c=><option key={c}>{c}</option>)}</select></div>
-                      <div><label className="text-xs text-gray-400">Cột Mô tả hoạt động</label><select value={stdDescriptionCol} onChange={e=>setStdDescriptionCol(e.target.value)} className="w-full bg-[#1f2937] border border-gray-700 rounded-lg px-2 py-1 text-sm"><option value="">-- Chọn --</option>{columns.map(c=><option key={c}>{c}</option>)}</select></div>
-                    </div>
-                    <button onClick={handleStandardizeSectorsAndMatch} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4 py-2 rounded-xl">CHUẨN HÓA MÃ NGÀNH</button>
-                  </>
-                )}
-              </div>
-              {mainData.length > 0 && <DataPreviewTable data={mainData} columns={columns} />}
-            </div>
+          {/* ==================== BIỂU ĐỒ ==================== */}
+          {activeTab==="bieudotrucquan" && <SectorRevenueChart mainData={mainData} columns={columns} mapping={mapping} />}
+          {/* ==================== CHUẨN HÓA VSIC ==================== */}
+          {activeTab==="chuanhoanganh" && (
+            <div className="space-y-6"><div className="bg-[#1f2937] rounded-2xl p-6"><h3>🧠 Chuẩn hóa mã ngành</h3><select value={stdCol} onChange={e=>setStdCol(e.target.value)} className="bg-[#111827] border rounded p-1 mt-2"><option value="">Chọn cột mã ngành</option>{columns.map(c=><option key={c}>{c}</option>)}</select><button onClick={handleStandardize} className="ml-3 bg-indigo-600 px-4 py-1 rounded">Chuẩn hóa</button>{stdMatch.total>0 && <div className="mt-2 text-sm">✅ Hợp lệ: {stdMatch.valid} | ❌ Lỗi: {stdMatch.invalid}</div>}</div><DataPreviewTable data={mainData} columns={columns} title="SAU CHUẨN HÓA"/></div>
           )}
-
-          {/* Tab Kiểm tra logic */}
-          {activeTab === "kiemtralogic" && (
-            <div className="space-y-6">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
-                <h3 className="text-lg font-bold text-white">KIỂM TRA LOGIC ĐA ĐIỀU KIỆN</h3>
-                <div className="text-xs text-gray-400">Chức năng đang phát triển. Vui lòng cấu hình quy tắc trong code.</div>
-                <button onClick={handleLogicCheck} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-xl">KIỂM TRA LOGIC</button>
-              </div>
-              {mainData.length > 0 && <DataPreviewTable data={mainData} columns={columns} />}
-            </div>
-          )}
-
-          {/* Tab Đối chiếu mô tả ngành */}
-          {activeTab === "doichieumota" && (
-            <DescriptorMatchScanner mainData={mainData} columns={columns} mapping={mapping} />
-          )}
-
-          {/* Tab Danh mục ngành VSIC */}
-          {activeTab === "danhmucvsic" && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div><h3 className="text-lg font-bold text-white flex items-center gap-2"><Database className="w-5 h-5 text-cyan-400" /> NẠP BỔ SUNG DANH MỤC NGÀNH CỦA BẠN (EXCEL / CSV)</h3><p className="text-xs text-gray-400">Tải lên file danh mục (mã, tên) để hệ thống sử dụng làm chuẩn.</p></div>
-                  <div className="flex gap-3"><label className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 cursor-pointer"><FileUp className="w-4 h-4" /> TẢI FILE <input type="file" accept=".xlsx,.xls,.csv" onChange={handleUploadUserSectorCatalog} className="hidden" /></label><button onClick={handleClearUserSectors} className="bg-red-800/60 hover:bg-red-700/80 text-red-200 font-bold text-xs px-4 py-2 rounded-xl">Xóa sạch</button></div>
-                </div>
-                {userSectorFileName && <div className="bg-[#111827] rounded-xl p-3 border border-cyan-500/20 flex items-center gap-2 text-xs"><CheckCircle2 className="w-4 h-4 text-cyan-400" /><span className="text-gray-300">Đã nạp: <strong>{userSectorFileName}</strong> ( {userSectorMap.size} mã ngành )</span><span className="text-green-400 ml-auto">✅ Sẵn sàng</span></div>}
-                <div className="text-xs text-gray-500 border-t border-gray-800 pt-3">💡 Hướng dẫn: File cần có ít nhất 2 cột (Mã ngành, Tên ngành). Hệ thống tự động phát hiện tên cột.</div>
-              </div>
-              <VsicCatalogExplorer />
-            </div>
+          {/* ==================== ĐỐI CHIẾU MÔ TẢ ==================== */}
+          {activeTab==="doichieumota" && <DescriptorMatchScanner mainData={mainData} columns={columns} mapping={mapping} />}
+          {/* ==================== DANH MỤC NGÀNH ==================== */}
+          {activeTab==="danhmucvsic" && (
+            <div className="space-y-6"><div className="bg-[#1f2937] rounded-2xl p-6"><div className="flex justify-between"><div><h3>📚 Nạp danh mục ngành của bạn</h3><p className="text-sm text-gray-400">Excel/CSV (mã, tên)</p></div><div><label className="bg-cyan-600 px-4 py-2 rounded-xl cursor-pointer"><FileUp className="w-4 h-4 inline"/> TẢI FILE<input type="file" accept=".xlsx,.xls,.csv" onChange={handleUploadCatalog} className="hidden"/></label><button onClick={handleClearCatalog} className="ml-2 bg-red-800/60 px-4 py-2 rounded-xl">XÓA</button></div></div>{userSectorFile && <div className="mt-3 bg-green-900/30 p-2 rounded">✅ Đã nạp: {userSectorFile} ({userSectorMap.size} mã)</div>}</div><VsicCatalogExplorer /></div>
           )}
         </main>
       </div>
