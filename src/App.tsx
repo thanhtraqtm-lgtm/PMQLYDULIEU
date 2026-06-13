@@ -1275,7 +1275,7 @@ export default function App() {
     }
   };
 
-  // Áp dụng định nghĩa lại tên cột & tái cấu trúc bảng dữ liệu mới
+  // Áp dụng định nghĩa lại tên cột & tái cấu trúc  mới
   const handleApplyColumnRedefinition = async () => {
     if (rawImportedData.length === 0) {
       alert("Không tìm thấy dữ liệu tệp gốc để tái cấu trúc! Hãy nạp tệp chính trước.");
@@ -1340,7 +1340,7 @@ export default function App() {
 
     await sleep(400);
     setLoading(false);
-    setActiveTab("xemdulieu"); // Di chuyển tới tab hiển thị bảng dữ liệu mới
+    setActiveTab("xemdulieu"); // Di chuyển tới tab hiển thị  mới
   };
 
   // Thực hiện phép tính toán học hoặc ghép chữ giữa các cột (Column to Column calculations)
@@ -1640,7 +1640,7 @@ export default function App() {
   // 1. CHỨC NĂNG GHÉP NỐI DỮ LIỆU (Left Join)
   const handleMerge = async () => {
     if (leftData.length === 0 || rightData.length === 0) {
-      alert("Vui lòng tải đủ cả 2 bảng dữ liệu Trái & Phải!");
+      alert("Vui lòng tải đủ cả 2  Trái & Phải!");
       return;
     }
     if (!leftKey || !rightKey) {
@@ -4718,7 +4718,7 @@ export default function App() {
                     onClick={handleCompare}
                     className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md shadow-cyan-900/30 font-sans cursor-pointer flex items-center gap-1.5"
                   >
-                    <Combine className="w-4 h-4" /> BẮT ĐẦU SO SÁNH & DIFF
+                    <Combine className="w-4 h-4" /> BẮT ĐẦU SO SÁNH 
                   </button>
                 </div>
               </div>
@@ -4727,7 +4727,7 @@ export default function App() {
                 <MainDataInlinePreview 
                   data={mainData} 
                   columns={columns} 
-                  title="BẢNG DỮ LIỆU ĐỐI CHIẾU SỢI CHỈ ĐỎ (DIFF)" 
+                  title="BẢNG DỮ LIỆU ĐỐI CHIẾU SO SÁNH" 
                   subtitle="Xem nhanh danh sách kết quả rà soát chênh lệch cũ mới, trạng thái cập nhật được điền tự động."
                   mapping={mapping}
                 />
@@ -4918,7 +4918,7 @@ export default function App() {
                         className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs py-3.5 rounded-xl transition-all shadow-lg hover:shadow-indigo-900/30 flex items-center justify-center gap-2 cursor-pointer font-sans border border-indigo-500/30"
                         title="Đối khớp trực tiếp mã ngành đã chỉ định sang Danh mục đã nạp trong bộ nhớ, sau đó thêm mới các cột Ngành cấp 1 và Cấp 2 vào bảng tính gốc"
                       >
-                        ⚡ BÊ THÔNG TIN NGÀNH CẤP 1 &amp; CẤP 2 SANG CỘT MỚI (TRÊN BẢNG TÍNH GỐC)
+                        ⚡ SAO CHÉP NGÀNH CẤP 1 &amp; CẤP 2 SANG CỘT MỚI (TRÊN BẢNG TÍNH GỐC)
                       </button>
                     </div>
 
