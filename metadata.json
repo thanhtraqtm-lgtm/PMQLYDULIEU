@@ -1,6 +1,6 @@
 {
-  "name": "PHANMEMQLDL",
-  "description": "Hệ thống so sánh xử lý dữ liệu và tra cứu mã ngành kinh tế Việt Nam (VSIC2025)",
+  "name": "HỆ THỐNG SO SÁNH XỬ LÝ TỔNG HỢP DỮ LIỆU VISC",
+  "description": "Hệ thống xử lý so sánh kiểm tra dữ liệu VISC2025",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

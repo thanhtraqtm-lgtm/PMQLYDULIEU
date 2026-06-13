@@ -14,7 +14,8 @@ import {
 import { 
   normalizeSectorCode, 
   getParentSectorCode, 
-  vsicRawData 
+  vsicRawData,
+  isSummaryRow
 } from "../data/vsic";
 import { BarChart3, AlertCircle, CheckCircle2, ChevronRight, HelpCircle } from "lucide-react";
 
@@ -71,6 +72,9 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
     const map: { [code: string]: { revenue: number; records: number; communes: Set<string> } } = {};
 
     mainData.forEach(row => {
+      // Bỏ qua dòng tổng cộng/lũy kế của file Excel
+      if (isSummaryRow(row)) return;
+
       // Normalize raw sector code
       const rawMng = row[selectedManganh];
       const mng = normalizeSectorCode(rawMng);
@@ -115,31 +119,7 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
 
     // Form summary structure
     const results: Level1Summary[] = Object.keys(map).map(code => {
-      const defaultL1Names: { [key: string]: string } = {
-        'A': 'Nông nghiệp, lâm nghiệp và thủy sản',
-        'B': 'Khai khoáng',
-        'C': 'Công nghiệp chế biến, chế tạo',
-        'D': 'Sản xuất và phân phối điện, khí đốt, nước nóng...',
-        'E': 'Cung cấp nước; quản lý và xử lý rác thải...',
-        'F': 'Xây dựng',
-        'G': 'Bán buôn và bán lẻ; sửa chữa ô tô, xe máy...',
-        'H': 'Vận tải kho bãi',
-        'I': 'Dịch vụ lưu trú và ăn uống',
-        'J': 'Hoạt động xuất bản, phát sóng, sản xuất và phân phối nội dung',
-        'K': 'Thông tin và truyền thông',
-        'L': 'Hoạt động tài chính, ngân hàng và bảo hiểm',
-        'M': 'Hoạt động kinh doanh bất động sản',
-        'N': 'Hoạt động chuyên môn, khoa học và công nghệ',
-        'O': 'Hoạt động hành chính và dịch vụ hỗ trợ',
-        'P': 'Hoạt động của Đảng cộng sản, tổ chức chính trị - xã hội, quản lý nhà nước, an ninh quốc phòng; bảo đảm xã hội bắt buộc ',
-        'Q': 'Giáo dục và đào tạo',
-        'R': 'Y tế và hoạt động trợ giúp xã hội',
-        'S': 'Nghệ thuật, thể thao và giải trí',
-        'T': 'Hoạt động dịch vụ khác',
-        'U': 'Hoạt động của các tổ chức quốc tế'
-      };
-
-      const name = vsicRawData[code] || defaultL1Names[code.toUpperCase()] || (code === "KHAC" ? "Mã ngành chưa khớp VSIC / Khác" : `Ngành cấp 1 chưa định nghĩa (${code})`);
+      const name = vsicRawData[code] || vsicRawData[code.toUpperCase()] || (code === "KHAC" ? "Mã ngành chưa khớp VSIC / Khác" : `Ngành cấp 1 chưa định nghĩa (${code})`);
       return {
         code,
         name,
