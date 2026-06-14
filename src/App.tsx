@@ -3471,31 +3471,33 @@ export default function App() {
           </div>
         </div>
       
-          {fileName ? (
-            <div className="bg-[#111827] border border-[#374151] rounded-lg px-4 py-1.5 flex items-center gap-2 text-xs">
-              <Database className="w-4 h-4 text-emerald-400" />
-              <span className="text-gray-300 font-medium">Hiện tại: </span>
-              <span className="text-emerald-400 font-mono max-w-[200px] truncate" title={fileName}>{fileName}</span>
-              <span className="bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono font-semibold">{mainData.length} dòng</span>
-              <button 
-                onClick={clearData}
-                className="text-red-400 hover:text-red-300 ml-2 font-bold cursor-pointer transition-colors"
-                title="Xóa dữ liệu nạp lại"
-              >
-               Xóa
-              </button>
-            </div>
-          ) : (
-            <span className="text-xs text-amber-400/90 bg-amber-950/40 border border-amber-900/50 rounded-lg px-4 py-1.5 flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5" /> Chưa có dữ liệu nguồn
-            </span>
-          )}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 mr-1">
+            {fileName ? (
+              <div className="bg-[#111827] border border-[#374151] rounded-lg px-4 py-1.5 flex items-center gap-2 text-xs">
+                <Database className="w-4 h-4 text-emerald-400" />
+                <span className="text-gray-300 font-medium">Hiện tại: </span>
+                <span className="text-emerald-400 font-mono max-w-[200px] truncate" title={fileName}>{fileName}</span>
+                <span className="bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono font-semibold">{mainData.length} dòng</span>
+                <button 
+                  onClick={clearData}
+                  className="text-red-400 hover:text-red-300 ml-2 font-bold cursor-pointer transition-colors"
+                  title="Xóa dữ liệu nạp lại"
+                >
+                  Xóa
+                </button>
+              </div>
+            ) : (
+              <span className="text-xs text-amber-400/90 bg-amber-950/40 border border-amber-900/50 rounded-lg px-4 py-1.5 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> Chưa có dữ liệu nguồn
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
 
-    {/* Main Layout split: Sidebar + Content */}
-    <div className="flex flex-1 overflow-hidden">
+      {/* Main Layout split: Sidebar + Content */}
+      <div className="flex flex-1 overflow-hidden">
         
         {/* Navigation Sidebar */}
         <aside className="w-72 bg-[#1f2937]/60 border-r border-[#374151] p-5 space-y-2 flex flex-col justify-between">
