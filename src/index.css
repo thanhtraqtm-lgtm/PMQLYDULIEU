@@ -1,34 +1,14 @@
-/* 1. Import Tailwind v4 */
 @import "tailwindcss";
-
-/* 2. Import font từ Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
 
 @theme {
-  /* Gán font Inter */
   --font-sans: "Inter", system-ui, sans-serif;
-
-  /* Nới rộng khoảng cách dòng toàn cục để chữ không bị dít */
+  --text-base: 1.125rem;
   --leading-relaxed: 1.75;
-  
-  /* Cấu hình màu sắc để giao diện không bị lỗi */
-  --color-gray-900: #111827;
-  --color-purple-600: #7c3aed;
 }
 
-/* 3. Đảm bảo các thành phần cơ bản không bị vỡ bố cục */
 @layer base {
-  body {
-    @apply bg-[#111827] text-white font-sans antialiased;
-  }
-  
-  /* Đảm bảo các đoạn văn không bị dính vào nhau */
-  p {
-    @apply leading-relaxed text-gray-400 mt-2;
-  }
-
-  /* Đảm bảo tiêu đề có khoảng thở */
-  h2, h3 {
-    @apply leading-tight tracking-normal;
-  }
+  body { @apply bg-[#111827] text-white; }
+  p { @apply mt-4 text-gray-400; }
+  h2, h3 { @apply leading-tight; }
 }
