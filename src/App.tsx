@@ -2823,7 +2823,7 @@ export default function App() {
       await sleep(350);
       setLoading(false);
 
-      alert(`Hoàn thành bê ngành cấp 1 & 2!\n- Tổng cộng: ${updatedRows.length} dòng dữ liệu\n- Đối khớp danh mục thành công: ${matchedCount} dòng\n- Các cột mới đã được tạo trực tiếp sát bên cạnh cột [${targetManganh}] ở bảng tính gốc của bạn.`);
+      alert(`Hoàn thành sao chép ngành cấp 1 & 2!\n- Tổng cộng: ${updatedRows.length} dòng dữ liệu\n- Đối khớp danh mục thành công: ${matchedCount} dòng\n- Các cột mới đã được tạo trực tiếp sát bên cạnh cột [${targetManganh}] ở bảng tính gốc của bạn.`);
     } catch (err: any) {
       alert("Lỗi quá trình bê cột ngành: " + err.message);
       setLoading(false);
