@@ -3818,9 +3818,15 @@ export default function App() {
                         <div className="bg-cyan-950/50 border border-cyan-500/30 p-2.5 rounded-xl text-cyan-400">
                           <Combine className="w-5 h-5" />
                         </div>
-                        <span className="bg-cyan-900/40 text-cyan-300 border border-cyan-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          THẨM ĐỊNH CHÉO
-                        </span>
+                        <a
+                          href="https://youtube.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bg-cyan-950/40 text-cyan-300 border border-cyan-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-cyan-800/60 hover:text-white hover:border-cyan-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
+                          title="Click xem video hướng dẫn So sánh đối chiếu"
+                        >
+                          <span>🎥</span> CLICK ĐỂ XEM HƯỚNG DẪN SO SÁNH
+                        </a>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
                         🔍 So Sánh Đối Chiếu
@@ -3844,9 +3850,15 @@ export default function App() {
                         <div className="bg-pink-950/50 border border-pink-500/30 p-2.5 rounded-xl text-pink-400">
                           <Scissors className="w-5 h-5" />
                         </div>
-                        <span className="bg-pink-900/40 text-pink-300 border border-pink-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          BẺ TÁCH HÀNG LOẠT
-                        </span>
+                        <a
+                          href="https://youtube.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bg-rose-950/40 text-rose-300 border border-rose-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-rose-800/60 hover:text-white hover:border-rose-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
+                          title="Click xem video hướng dẫn Tách file hàng loạt"
+                        >
+                          <span>🎥</span> CLICK ĐỂ XEM HƯỚNG DẪN TÁCH FILE
+                        </a>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-pink-300 transition-colors">
                         ✂️ Tách File Hàng Loạt
@@ -3870,9 +3882,15 @@ export default function App() {
                         <div className="bg-amber-950/50 border border-amber-500/30 p-2.5 rounded-xl text-amber-400">
                           <BarChart3 className="w-5 h-5" />
                         </div>
-                        <span className="bg-amber-900/40 text-amber-300 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          ĐA CHIỀU PIVOT
-                        </span>
+                        <a
+                          href="https://youtube.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bg-amber-950/40 text-amber-300 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-amber-800/60 hover:text-white hover:border-amber-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
+                          title="Click xem video hướng dẫn Tổng hợp báo cáo"
+                        >
+                          <span>🎥</span> CLICK ĐỂ XEM HƯỚNG DẪN TỔNG HỢP
+                        </a>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-amber-300 transition-colors">
                         📊 Tổng Hợp Báo Cáo
@@ -3896,9 +3914,15 @@ export default function App() {
                         <div className="bg-indigo-950/50 border border-indigo-500/30 p-2.5 rounded-xl text-indigo-400">
                           <Brain className="w-5 h-5" />
                         </div>
-                        <span className="bg-indigo-900/40 text-indigo-300 border border-indigo-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          TRÍ TUỆ NHÂN TẠO
-                        </span>
+                        <a
+                          href="https://youtube.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bg-indigo-950/40 text-indigo-300 border border-indigo-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-indigo-800/60 hover:text-white hover:border-indigo-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
+                          title="Click xem video hướng dẫn Kiểm tra sai lệch ngành"
+                        >
+                          <span>🎥</span> CLICK XEM HƯỚNG DẪN GIỮA MÔ TẢ VỚI TÊN NGÀNH
+                        </a>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-indigo-300 transition-colors">
                         🧠 Kiểm tra sai lệch giữa mô tả và tên ngành
@@ -3922,9 +3946,15 @@ export default function App() {
                         <div className="bg-emerald-950/50 border border-emerald-500/30 p-2.5 rounded-xl text-emerald-400">
                           <CheckSquare className="w-5 h-5" />
                         </div>
-                        <span className="bg-emerald-900/40 text-emerald-300 border border-emerald-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          RÀ SOÁT QUY TẮC ĐỘNG
-                        </span>
+                        <a
+                          href="https://youtube.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bg-emerald-950/40 text-emerald-300 border border-emerald-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-emerald-800/60 hover:text-white hover:border-emerald-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
+                          title="Click xem video hướng dẫn Kiểm tra logic"
+                        >
+                          <span>🎥</span> CLICK XEM HƯỚNG DẪN KIỂM TRA LOGIC
+                        </a>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
                        🛂 Kiểm Tra Logic
