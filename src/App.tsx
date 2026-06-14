@@ -3498,6 +3498,7 @@ export default function App() {
 
       {/* Main Layout split: Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">
+
         
         {/* Navigation Sidebar */}
         <aside className="w-72 bg-[#1f2937]/60 border-r border-[#374151] p-5 space-y-2 flex flex-col justify-between">
