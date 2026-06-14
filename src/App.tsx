@@ -3754,7 +3754,7 @@ export default function App() {
                         <div className="bg-purple-950/50 border border-purple-500/30 p-2.5 rounded-xl text-purple-400">
                           <FileSpreadsheet className="w-5 h-5" />
                         </div>
-                        a
+                        <a
                           href="https://youtube.com"
                           target="_blank"
                           rel="noreferrer"
