@@ -293,7 +293,7 @@ export default function App() {
 
   // Trạng thái mật khẩu bảo vệ ứng dụng độc lập tránh bắt đăng nhập email phiền hà
   const [appPassword, setAppPassword] = useState<string>(() => {
-    return localStorage.getItem("vsic_app_password") || "...";
+    return localStorage.getItem("vsic_app_password") || "admin";
   });
   const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
     return localStorage.getItem("vsic_app_authorized") === "true";
@@ -3413,8 +3413,8 @@ export default function App() {
             <div className="mx-auto w-14 h-14 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-900/30">
               <Lock className="w-7 h-7 text-white animate-pulse" />
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-white pt-2">CỔNG BẢO MẬT TRUY CẬP</h2>
-            <p className="text-xs text-gray-400">Vui lòng nhập mật khẩu nội bộ để sử dụng hệ thống VSIC</p>
+            <h2 className="text-xl font-bold tracking-tight text-white pt-2">ĐĂNG NHẬP</h2>
+            <p className="text-xs text-gray-400">Vui lòng nhập mật khẩu nội bộ để sử dụng hệ thống</p>
           </div>
 
           <form onSubmit={handleCheckPassword} className="space-y-4">
@@ -3439,13 +3439,13 @@ export default function App() {
               type="submit"
               className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-650 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              🔐 Xác Nhận Trạm Làm Việc
+              🔐 ĐĂNG NHẬP
             </button>
           </form>
 
           <div className="border-t border-gray-800/60 pt-4 text-center space-y-1">
             <p className="text-[11px] text-amber-400/85 italic">
-              💡 Gợi ý: Mật khẩu mặc định là <strong className="font-mono bg-amber-950 px-1.5 py-0.5 rounded border border-amber-900/40 text-amber-300">admin123</strong>
+              💡 Gợi ý: Mật khẩu mặc định là <strong className="font-mono bg-amber-950 px-1.5 py-0.5 rounded border border-amber-900/40 text-amber-300">....</strong>
             </p>
             <p className="text-[10px] text-gray-500 font-mono">Hệ thống bảo lưu mã khóa cục bộ an toàn trong trình duyệt của bạn</p>
           </div>
