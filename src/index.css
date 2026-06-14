@@ -1,12 +1,34 @@
+/* 1. Import Tailwind v4 */
+@import "tailwindcss";
+
+/* 2. Import font từ Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @theme {
-  /* 1. Gán font */
+  /* Gán font Inter */
   --font-sans: "Inter", system-ui, sans-serif;
 
-  /* 2. Nới lỏng khoảng cách dòng (leading) cho toàn bộ trang */
-  /* Thay vì mặc định quá chặt, chúng ta đặt các mức thoáng hơn */
+  /* Nới rộng khoảng cách dòng toàn cục để chữ không bị dít */
   --leading-relaxed: 1.75;
-  --leading-loose: 2;
+  
+  /* Cấu hình màu sắc để giao diện không bị lỗi */
+  --color-gray-900: #111827;
+  --color-purple-600: #7c3aed;
+}
 
-  /* 3. Tăng khoảng cách chữ (tracking) một chút để chữ không bị dính */
-  --tracking-normal: 0.02em; 
+/* 3. Đảm bảo các thành phần cơ bản không bị vỡ bố cục */
+@layer base {
+  body {
+    @apply bg-[#111827] text-white font-sans antialiased;
+  }
+  
+  /* Đảm bảo các đoạn văn không bị dính vào nhau */
+  p {
+    @apply leading-relaxed text-gray-400 mt-2;
+  }
+
+  /* Đảm bảo tiêu đề có khoảng thở */
+  h2, h3 {
+    @apply leading-tight tracking-normal;
+  }
 }
