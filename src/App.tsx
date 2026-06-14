@@ -3759,7 +3759,7 @@ export default function App() {
                           target="_blank"
                           rel="noreferrer"
                           className="bg-purple-900/40 text-purple-300 border border-purple-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-purple-800/60 hover:text-white hover:border-purple-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
-                          title="Bấm vào đây để xem video hướng dẫn sử dụng"
+                          title="Click xem video Định nghĩa cột"
                         >
                           <span>🎥</span> BẤM VÀO ĐÂY XEM HƯỚNG DẪN
                         </a>
