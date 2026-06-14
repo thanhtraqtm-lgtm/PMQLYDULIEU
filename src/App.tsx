@@ -3728,7 +3728,7 @@ export default function App() {
                   <div className="pt-2 flex items-center gap-4">
                     <button 
                       onClick={() => setActiveTab("xemdulieu")}
-                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-2 cursor-pointer"
+                      className="bg-purple-600 hover:bg-purple-700 hover:shadow-[0_0_20px_rgba(147,51,234,0.6)] text-white font-semibold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-2 cursor-pointer"
                     >
                       📂 Nạp file dữ liệu của bạn để bắt đầu <ArrowRight className="w-4 h-4" />
                     </button>
