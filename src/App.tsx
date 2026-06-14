@@ -3722,10 +3722,10 @@ export default function App() {
                   <h2 className="text-xl md:text-2xl font-bold text-white tracking-normal">
                     CÔNG CỤ XỬ LÝ SO SÁNH TỔNG HỢP DỮ LIỆU.
                   </h2>
-                  <p className="text-gray-300 text-sm leading-relaxed">
+                  <p className="text-gray-300 text-sm leading-relaxed" mt-4 max-w-2xl>
                     Là công cụ hỗ trợ người dùng xử lý so sánh kiểm tra và tổng hợp. Cho phép người dùng nạp tất cả các loai file excel/csv với mọi cấu trúc mà không phải chỉnh sửa thủ công. Hệ thống tự động nhận diện thông minh, dù tên cột hoặc thứ tự cột trong file của bạn khác nhau.
                   </p>
-                  <div className="pt-2 flex items-center gap-4">
+                  <div className="pt-6 flex items-center gap-4">
                     <button 
                       onClick={() => setActiveTab("xemdulieu")}
                       className="bg-purple-600 hover:bg-purple-700 hover:shadow-[0_0_20px_rgba(147,51,234,0.8)] text-white font-semibold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-2 cursor-pointer"
