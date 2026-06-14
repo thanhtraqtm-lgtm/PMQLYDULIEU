@@ -293,7 +293,7 @@ export default function App() {
 
   // Trạng thái mật khẩu bảo vệ ứng dụng độc lập tránh bắt đăng nhập email phiền hà
   const [appPassword, setAppPassword] = useState<string>(() => {
-    return localStorage.getItem("vsic_app_password") || "admin";
+    return localStorage.getItem("vsic_app_password") || "admin123";
   });
   const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
     return localStorage.getItem("vsic_app_authorized") === "true";
