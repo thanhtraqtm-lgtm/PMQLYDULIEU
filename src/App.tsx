@@ -3720,7 +3720,7 @@ export default function App() {
                     HỆ THỐNG VISC 2025
                   </span>
                   <h2 className="text-2xl md:text-3xl font-bold text-white tracking-normal">
-                    Công cụ xử lý so sánh kiểm tra tổng hợp dữ liệu.
+                    CÔNG CỤ XỬ LÝ SO SÁNH TỔNG HỢP DỮ LIỆU.
                   </h2>
                   <p className="text-gray-300 text-sm leading-relaxed">
                     Là công cụ hỗ trợ người dùng xử lý so sánh kiểm tra và tổng hợp. Cho phép người dùng nạp tất cả các loai file excel/csv với mọi cấu trúc mà không phải chỉnh sửa thủ công. Hệ thống tự động nhận diện thông minh, dù tên cột hoặc thứ tự cột trong file của bạn khác nhau.
