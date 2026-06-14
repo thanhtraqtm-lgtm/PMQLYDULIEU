@@ -13,9 +13,11 @@
   h2 { @apply leading-tight; }
 }
 
-/* Các hiệu ứng bổ sung */
-.glass-card { @apply bg-[#1f2937]/50 backdrop-blur-md border border-white/5; }
-.shimmer-text { @apply bg-clip-text text-transparent bg-[linear-gradient(90deg,#fff_0%,#a78bfa_50%,#fff_100%)] bg-[length:200%_auto] animate-shimmer; }
-.card-glow { @apply transition-all duration-500 border border-transparent hover:border-purple-500/50 hover:shadow-[0_0_20px_rgba(139,92,246,0.1)]; }
+/* Hiệu ứng chữ chạy - Dùng trực tiếp không cần config */
+.shimmer-text { 
+  @apply bg-clip-text text-transparent bg-[linear-gradient(90deg,#fff_0%,#a78bfa_50%,#fff_100%)] bg-[length:200%_auto] animate-[shimmer_3s_linear_infinite]; 
+}
 
-@keyframes shimmer { to { background-position: -200% center; } }
+@keyframes shimmer { 
+  to { background-position: -200% center; } 
+}
