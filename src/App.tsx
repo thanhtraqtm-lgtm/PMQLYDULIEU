@@ -4793,7 +4793,7 @@ export default function App() {
                     <BarChart3 className="w-5 h-5 text-amber-400" /> TỔNG HỢP BÁO CÁO THEO NGÀNH CẤP 1 & CẤP 2 (KẾT HỢP ĐỊA BÀN XÃ)
                   </h3>
                   <p className="text-xs text-gray-400 font-sans">
-                    Phân hệ hạch toán tổng hợp chuyên sâu cho phép quy thuộc ngành từ mã ngành bất kỳ lên cấp 1 (lĩnh vực lớn A-U) hoặc tách thành ngành cấp 2 (2 số đầu), sau đó cộng gom doanh thu, quy mô lao động theo từng xã địa phương dựa trên danh mục nạp vào.
+                    Tổng hợp Doanh Thu và Lao động ngành kinh tế cấp 2 chia theo xã .
                   </p>
                 </div>
 
@@ -4888,7 +4888,7 @@ export default function App() {
                           <div>
                             <div className="font-bold text-gray-100 font-sans">Bảng phẳng danh sách truyền thống</div>
                             <div className="text-[10.5px] text-gray-400 mt-1 font-sans">
-                              Mỗi dòng là một cặp địa bàn xã và ngành cụ thể cùng số DN, tổng doanh thu và tổng lao động tương ứng.
+                              Mỗi dòng là một cặp địa bàn xã và ngành cụ thể cùng số đơn vị, tổng doanh thu và tổng lao động tương ứng.
                             </div>
                           </div>
                         </label>
@@ -5464,7 +5464,7 @@ export default function App() {
                 <MainDataInlinePreview 
                   data={filteredLogicData} 
                   columns={columns} 
-                  title="BẢNG DỮ LIỆU ĐÁNH GIÁ LOGIC" 
+                  title="KẾT QUẢ KIỂM TRA DỮ LIỆU" 
                   subtitle={`Bảng xem kết quả rà soát chéo chênh lệch theo bộ lọc đã chọn (${filteredLogicData.length} dòng).`}
                   mapping={mapping}
                 />
