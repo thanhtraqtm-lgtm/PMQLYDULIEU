@@ -453,11 +453,6 @@ export default function App() {
   const [crossCompareAnomalies, setCrossCompareAnomalies] = useState<any[]>([]);
   const [crossCompareStats, setCrossCompareStats] = useState<{ total: number; matchCount: number; mismatchCount: number }>({ total: 0, matchCount: 0, mismatchCount: 0 });
 
-  // Báo cáo động độc lập khởi tạo trống để người dùng tự chọn, không đoán bừa bãi
-  useEffect(() => {
-    // Không tự động đoán gán cứng các cột phục vụ báo cáo động nữa.
-  }, [columns]);
-
   // Tự động gán lựa chọn cột báo cáo nhanh dựa theo cấu hình gán cột có sẵn của dữ liệu nguồn
   useEffect(() => {
     if (mapping.manganh && !quickReportManganhCol) {
