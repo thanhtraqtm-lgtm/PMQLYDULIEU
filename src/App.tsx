@@ -3470,30 +3470,7 @@ export default function App() {
             <p className="text-xs text-gray-400 font-mono">CÔNG CỤ HỖ TRỢ SO SÁNH TỔNG HỢP DỮ LIỆU</p>
           </div>
         </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 mr-1">
-            <button
-              onClick={() => {
-                setNewPasswordVal("");
-                setShowPasswordChangeModal(true);
-              }}
-              className="px-3 py-1.5 bg-[#111827] hover:bg-gray-800 text-gray-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors border border-[#374151]"
-              title="Thiết lập/Đổi mật khẩu bảo vệ riêng tư"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-purple-400" />
-              Đổi MK
-            </button>
-            <button
-              onClick={handleLogout}
-              className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/40 text-red-300 border border-red-900/50 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
-              title="Khóa trạm làm việc ngay"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Khóa
-            </button>
-          </div>
-
+      
           {fileName ? (
             <div className="bg-[#111827] border border-[#374151] rounded-lg px-4 py-1.5 flex items-center gap-2 text-xs">
               <Database className="w-4 h-4 text-emerald-400" />
