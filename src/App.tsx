@@ -3847,7 +3847,7 @@ export default function App() {
                           <Scissors className="w-5 h-5" />
                         </div>
                         <span className="bg-pink-900/40 text-pink-300 border border-pink-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          BẺ TÁCH HOÀN LOẠT
+                          BẺ TÁCH HÀNG LOẠT
                         </span>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-pink-300 transition-colors">
@@ -3957,13 +3957,13 @@ export default function App() {
                   <div className="space-y-1">
                     <span className="font-bold text-white block">01. Nạp & Tiền xử lý dữ liệu</span>
                     <p className="text-gray-400">
-                      Truy cập bảng <strong>📂 Xem & Định nghĩa cột</strong>. Tải tệp Excel gốc lên, thực hiện đổi tên Việt hóa dễ thương cho các cột và dán nhãn vai trò tương thích giúp hệ thống dễ chỉ huy dữ liệu chuẩn xác.
+                      Truy cập bảng <strong>📂 Xem & Định nghĩa cột</strong>. Tải tệp Excel gốc lên, thực hiện đổi và cho phép gõ tiếng Việt cho các cột.
                     </p>
                   </div>
                   <div className="space-y-1">
                     <span className="font-bold text-white block">02. Kiểm tra mã ngành & Rà rà logic</span>
                     <p className="text-gray-400">
-                      Sử dụng <strong>🧠 Kiểm tra khớp ngành </strong> để hoàn thiện liên kết 5 cấp ngành nghề; tiếp theo sử dụng <strong>🛂  Kiểm tra Logic</strong> thiết lập các quy chuẩn kiểm tra để lọc sạch các bản ghi lỗi hoặc dị thường.
+                      Sử dụng <strong>🧠 Kiểm tra khớp ngành </strong> để hoàn thiện liên kết 5 cấp ngành nghề; tiếp theo sử dụng <strong>🛂  Kiểm tra Logic</strong> thiết lập các quy chuẩn kiểm tra để lọc sạch các bản ghi lỗi hoặc khác biệt.
                     </p>
                   </div>
                   <div className="space-y-1">
