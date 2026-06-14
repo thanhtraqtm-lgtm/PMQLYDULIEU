@@ -3482,7 +3482,7 @@ export default function App() {
                 className="text-red-400 hover:text-red-300 ml-2 font-bold cursor-pointer transition-colors"
                 title="Xóa dữ liệu nạp lại"
               >
-                Xóa
+               Xóa
               </button>
             </div>
           ) : (
@@ -3494,8 +3494,8 @@ export default function App() {
       </div>
     </header>
 
-      {/* Main Layout split: Sidebar + Content */}
-      <div className="flex flex-1 overflow-hidden">
+    {/* Main Layout split: Sidebar + Content */}
+    <div className="flex flex-1 overflow-hidden">
         
         {/* Navigation Sidebar */}
         <aside className="w-72 bg-[#1f2937]/60 border-r border-[#374151] p-5 space-y-2 flex flex-col justify-between">
