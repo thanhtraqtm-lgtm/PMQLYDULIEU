@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/* 1. Import font từ Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+@theme {
+  /* 2. Gán font đã import vào biến --font-sans */
+  --font-sans: "Inter", system-ui, sans-serif;
+}
