@@ -293,7 +293,7 @@ export default function App() {
 
   // Trạng thái mật khẩu bảo vệ ứng dụng độc lập tránh bắt đăng nhập email phiền hà
   const [appPassword, setAppPassword] = useState<string>(() => {
-    return localStorage.getItem("vsic_app_password") || "admin123";
+    return localStorage.getItem("vsic_app_password") || "...";
   });
   const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
     return localStorage.getItem("vsic_app_authorized") === "true";
@@ -4965,7 +4965,7 @@ export default function App() {
               <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6 animate-fade-in">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Brain className="w-5 h-5 text-indigo-400 animate-pulse" /> CÔNG CỤ TỰ ĐỘNG PHÂN TÍCH BẤT NHẤT QUÁN QUY LUẬT VSIC
+                    <Brain className="w-5 h-5 text-indigo-400 animate-pulse" /> CÔNG CỤ TỰ ĐỘNG PHÂN TÍCH GIỮA MÔ TẢ VÀ MÃ NGÀNH VSIC 2025
                   </h3>
                   <p className="text-xs text-gray-400">Rà soát chéo thông minh: Quét toàn bộ tệp tin dữ liệu chính, phát hiện mâu thuẫn phân gán lỗi giữa Mô tả hoạt động thực tế và Bản mã ngành VSIC.</p>
                 </div>
