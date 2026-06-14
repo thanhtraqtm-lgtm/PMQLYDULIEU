@@ -3476,7 +3476,7 @@ export default function App() {
               <Database className="w-4 h-4 text-emerald-400" />
               <span className="text-gray-300 font-medium">Hiện tại: </span>
               <span className="text-emerald-400 font-mono max-w-[200px] truncate" title={fileName}>{fileName}</span>
-              <span className="bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono font-semibold-">{mainData.length} dòng</span>
+              <span className="bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono font-semibold">{mainData.length} dòng</span>
               <button 
                 onClick={clearData}
                 className="text-red-400 hover:text-red-300 ml-2 font-bold cursor-pointer transition-colors"
