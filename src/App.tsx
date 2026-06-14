@@ -3491,7 +3491,8 @@ export default function App() {
             </span>
           )}
         </div>
-      </header>
+      </div> {/* Bạn đang bị thiếu chính xác thẻ </div> này ở đây */}
+    </header>
 
       {/* Main Layout split: Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">
