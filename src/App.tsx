@@ -3786,9 +3786,15 @@ export default function App() {
                         <div className="bg-blue-950/50 border border-blue-500/30 p-2.5 rounded-xl text-blue-400">
                           <GitMerge className="w-5 h-5" />
                         </div>
-                        <span className="bg-blue-900/40 text-blue-300 border border-blue-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider">
-                          TÍCH HỢP FILE
-                        </span>
+                        <a
+                          href="https://youtube.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bg-blue-950/40 text-blue-300 border border-blue-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-blue-800/60 hover:text-white hover:border-blue-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
+                          title="Click xem video hướng dẫn Ghép nối dữ liệu"
+                        >
+                          <span>🎥</span> Click xem hướng dẫn về Ghép nối dữ liệu
+                        </a>
                       </div>
                       <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors">
                         🌿 Ghép Nối Dữ Liệu
