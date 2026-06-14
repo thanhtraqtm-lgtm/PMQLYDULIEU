@@ -3719,7 +3719,7 @@ export default function App() {
                   <span className="bg-purple-900/50 border border-purple-500/30 text-purple-400 text-xs font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                     HỆ THỐNG VISC 2025
                   </span>
-                  <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                  <h2 className="text-2xl md:text-3xl font-semibold text-white">
                     Công cụ xử lý so sánh kiểm tra tổng hợp dữ liệu.
                   </h2>
                   <p className="text-gray-300 text-sm leading-relaxed">
