@@ -3722,7 +3722,7 @@ export default function App() {
                     HỆ THỐNG VISC 2025
                   </span>
                   
-                  <h2 className="text-xl md:text-2xl font-semibold text-white tracking-normal leading-tight">
+                  <h2 className="text-xl md:text-2xl font-semibold text-white tracking-normal leading-tight shimmer-text">
                     CÔNG CỤ XỬ LÝ SO SÁNH TỔNG HỢP DỮ LIỆU.
                   </h2>
                   
