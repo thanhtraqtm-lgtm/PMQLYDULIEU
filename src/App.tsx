@@ -3491,7 +3491,7 @@ export default function App() {
             </span>
           )}
         </div>
-      </div> {/* Bạn đang bị thiếu chính xác thẻ </div> này ở đây */}
+      </div>
     </header>
 
       {/* Main Layout split: Sidebar + Content */}
