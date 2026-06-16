@@ -3787,7 +3787,7 @@ export default function App() {
                           <GitMerge className="w-5 h-5" />
                         </div>
                         <a
-                          href="https://youtube.com"
+                          href="https://youtu.be/yUEgyy2Ic8w"
                           target="_blank"
                           rel="noreferrer"
                           className="bg-blue-950/40 text-blue-300 border border-blue-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-blue-800/60 hover:text-white hover:border-blue-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
@@ -3851,7 +3851,7 @@ export default function App() {
                           <Scissors className="w-5 h-5" />
                         </div>
                         <a
-                          href="https://youtube.com"
+                          href="https://youtu.be/Bo-XdJUwVRo"
                           target="_blank"
                           rel="noreferrer"
                           className="bg-rose-950/40 text-rose-300 border border-rose-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-rose-800/60 hover:text-white hover:border-rose-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
@@ -3883,7 +3883,7 @@ export default function App() {
                           <BarChart3 className="w-5 h-5" />
                         </div>
                         <a
-                          href="https://youtube.com"
+                          href="https://youtu.be/TROPQX9oEvg"
                           target="_blank"
                           rel="noreferrer"
                           className="bg-amber-950/40 text-amber-300 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-amber-800/60 hover:text-white hover:border-amber-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
@@ -3915,7 +3915,7 @@ export default function App() {
                           <Brain className="w-5 h-5" />
                         </div>
                         <a
-                          href="https://youtube.com"
+                          href="https://youtu.be/bU1w3-Pv5Gk"
                           target="_blank"
                           rel="noreferrer"
                           className="bg-indigo-950/40 text-indigo-300 border border-indigo-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-indigo-800/60 hover:text-white hover:border-indigo-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
