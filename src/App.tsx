@@ -3819,7 +3819,7 @@ export default function App() {
                           <Combine className="w-5 h-5" />
                         </div>
                         <a
-                          href="https://youtube.com"
+                          href="https://youtu.be/Bo-XdJUwVRo"
                           target="_blank"
                           rel="noreferrer"
                           className="bg-cyan-950/40 text-cyan-300 border border-cyan-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-cyan-800/60 hover:text-white hover:border-cyan-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
@@ -3851,7 +3851,7 @@ export default function App() {
                           <Scissors className="w-5 h-5" />
                         </div>
                         <a
-                          href="https://youtu.be/Bo-XdJUwVRo"
+                          href="https://youtu.be/TROPQX9oEvg"
                           target="_blank"
                           rel="noreferrer"
                           className="bg-rose-950/40 text-rose-300 border border-rose-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase font-mono tracking-wider hover:bg-rose-800/60 hover:text-white hover:border-rose-400/50 cursor-pointer transition-all inline-flex items-center gap-1"
