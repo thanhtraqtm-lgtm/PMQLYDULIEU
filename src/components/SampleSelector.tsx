@@ -44,11 +44,16 @@ export default function SampleSelector() {
 
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
 
+  // Upload handlers
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
     setFile(f);
+    setIsProcessing(true);
+    setProgress(0);
     const buffer = await f.arrayBuffer();
     const wb = XLSX.read(buffer, { type: 'array' });
     setSheetNames(wb.SheetNames);
@@ -60,18 +65,21 @@ export default function SampleSelector() {
       setRawData(data);
       if (data.length > 0) setHeaders(data[0].map((h: any) => String(h)));
     }
+    setIsProcessing(false);
     setShowResults(false);
   };
 
   const handleSheetChange = async (sheet: string) => {
     if (!file) return;
     setSelectedSheet(sheet);
+    setIsProcessing(true);
     const buffer = await file.arrayBuffer();
     const wb = XLSX.read(buffer, { type: 'array' });
     const ws = wb.Sheets[sheet];
     const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][];
     setRawData(data);
     if (data.length > 0) setHeaders(data[0].map((h: any) => String(h)));
+    setIsProcessing(false);
     setShowResults(false);
   };
 
@@ -86,29 +94,62 @@ export default function SampleSelector() {
   };
 
   const applyFilters = async () => {
-    if (rawData.length < 2) return;
+    if (rawData.length < 2 || isProcessing) return;
+    setIsProcessing(true);
+    setProgress(0);
 
-    const dataRows = rawData.slice(1).map(row => {
-      const obj: any = {};
-      headers.forEach((h, i) => { obj[h] = row[i]; });
-      return obj;
-    });
+    // Delay to let UI update
+    setTimeout(() => {
+      try {
+        const dataRows = rawData.slice(1);
+        const getVal = (row: any, field: keyof typeof mapping) => {
+          const colName = mapping[field];
+          return colName ? row[colName] : undefined;
+        };
 
-    const getVal = (row: any, field: keyof typeof mapping) => {
-      const colName = mapping[field];
-      return colName ? row[colName] : undefined;
-    };
+        // Chunk processing for normalization
+        const CHUNK_SIZE = 2000;
+        const totalChunks = Math.ceil(dataRows.length / CHUNK_SIZE);
+        const normalized: any[] = [];
 
-    const normalized = dataRows.map(row => ({
-      ...row,
-      _maNganh: String(getVal(row, 'maNganh') || '').trim(),
-      _doanhThu: parseFloat(getVal(row, 'doanhThu') || '0') || 0,
-      _loaiHinh: String(getVal(row, 'loaiHinh') || '').trim().toLowerCase(),
-      _tenDN: String(getVal(row, 'tenDN') || '').trim(),
-      _xaPhuong: String(getVal(row, 'xaPhuong') || '').trim(),
-      _originalRow: row,
-    }));
+        function processChunk(chunkIndex: number) {
+          if (chunkIndex >= totalChunks) {
+            // All normalized, now apply filters
+            applyFilterLogic(normalized, getVal);
+            return;
+          }
+          const start = chunkIndex * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, dataRows.length);
+          const chunk = dataRows.slice(start, end);
 
+          for (const row of chunk) {
+            const obj: any = {};
+            headers.forEach((h, i) => { obj[h] = row[i]; });
+            const norm = {
+              ...obj,
+              _maNganh: String(getVal(obj, 'maNganh') || '').trim(),
+              _doanhThu: parseFloat(getVal(obj, 'doanhThu') || '0') || 0,
+              _loaiHinh: String(getVal(obj, 'loaiHinh') || '').trim().toLowerCase(),
+              _tenDN: String(getVal(obj, 'tenDN') || '').trim(),
+              _xaPhuong: String(getVal(obj, 'xaPhuong') || '').trim(),
+              _originalRow: obj,
+            };
+            normalized.push(norm);
+          }
+
+          setProgress(Math.round(((chunkIndex + 1) / totalChunks) * 50));
+          setTimeout(() => processChunk(chunkIndex + 1), 0);
+        }
+
+        processChunk(0);
+      } catch (error) {
+        console.error(error);
+        setIsProcessing(false);
+      }
+    }, 50);
+  };
+
+  const applyFilterLogic = async (normalized: any[], getVal: Function) => {
     let existingSampleKeys: Set<string> = new Set();
     if (filterOptions.prioritizeExistingSample && filterOptions.existingSampleFile && filterOptions.existingSampleKeyCol) {
       try {
@@ -164,12 +205,14 @@ export default function SampleSelector() {
         const nonState = normalized.filter(r =>
           r._loaiHinh !== 'nhà nước' && r._loaiHinh !== 'nn' && isIndustry(r._maNganh)
         );
+
         const groups: Record<string, any[]> = {};
         nonState.forEach(r => {
           const cap2 = r._maNganh.substring(0, 2);
           if (!groups[cap2]) groups[cap2] = [];
           groups[cap2].push(r);
         });
+
         for (const [cap2, items] of Object.entries(groups)) {
           const sorted = items.sort((a, b) => {
             const aKey = String(getVal(a._originalRow, 'tenDN') || '').trim();
@@ -179,8 +222,10 @@ export default function SampleSelector() {
             if (aPriority !== bPriority) return bPriority - aPriority;
             return b._doanhThu - a._doanhThu;
           });
+
           const totalRevenue = sorted.reduce((sum, r) => sum + r._doanhThu, 0);
           if (totalRevenue === 0) continue;
+
           let cumulative = 0;
           let cutIndex = sorted.length;
           for (let i = 0; i < sorted.length; i++) {
@@ -190,6 +235,7 @@ export default function SampleSelector() {
               break;
             }
           }
+
           for (let i = 0; i < cutIndex; i++) {
             resultWithTags.push({ ...sorted[i]._originalRow, Loai: 'Chính' });
           }
@@ -209,6 +255,7 @@ export default function SampleSelector() {
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(r);
       });
+
       for (const [key, items] of Object.entries(grouped)) {
         const [xa, cap2] = key.split('|');
         const count = items.length;
@@ -217,8 +264,11 @@ export default function SampleSelector() {
         else if (count <= 100) sampleSize = 5;
         else if (count <= 1000) sampleSize = 8;
         else sampleSize = Math.ceil(count * 0.01);
+
         if (sampleSize === 0) continue;
+
         const sorted = items.sort((a, b) => b._doanhThu - a._doanhThu);
+
         for (let i = 0; i < Math.min(sampleSize, sorted.length); i++) {
           resultWithTags.push({ ...sorted[i]._originalRow, Loai: 'Chính' });
         }
@@ -228,12 +278,13 @@ export default function SampleSelector() {
           resultWithTags.push({ ...sorted[i]._originalRow, Loai: 'Dự phòng' });
         }
       }
+
       const maxPerXa = 100;
       const xaCount: Record<string, number> = {};
       const finalResult = [];
       for (const item of resultWithTags) {
-        const xa = String(getVal(item, 'xaPhuong') || '').trim();
         if (item.Loai === 'Chính') {
+          const xa = String(getVal(item, 'xaPhuong') || '').trim();
           xaCount[xa] = (xaCount[xa] || 0) + 1;
           finalResult.push(item);
         }
@@ -250,9 +301,14 @@ export default function SampleSelector() {
       resultWithTags = finalResult;
     }
 
-    const uniqueResult = Array.from(new Set(resultWithTags.map(r => JSON.stringify(r)))).map(s => JSON.parse(s));
+    const uniqueResult = Array.from(
+      new Set(resultWithTags.map(r => JSON.stringify(r)))
+    ).map(s => JSON.parse(s));
+
     setFilteredData(uniqueResult);
     setShowResults(true);
+    setProgress(100);
+    setIsProcessing(false);
   };
 
   const exportResult = () => {
@@ -268,28 +324,41 @@ export default function SampleSelector() {
       <h2 className="text-2xl font-bold text-purple-300">🎯 Chọn mẫu điều tra</h2>
 
       <div className="flex gap-4">
-        <button onClick={() => setActiveBlock('enterprise')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${activeBlock === 'enterprise' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300'}`}>
+        <button
+          onClick={() => setActiveBlock('enterprise')}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${activeBlock === 'enterprise' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+        >
           🏭 Khối Doanh nghiệp
         </button>
-        <button onClick={() => setActiveBlock('individual')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${activeBlock === 'individual' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300'}`}>
+        <button
+          onClick={() => setActiveBlock('individual')}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${activeBlock === 'individual' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+        >
           🏪 Khối Cá thể
         </button>
       </div>
 
       <div className="border border-gray-600 p-4 rounded-lg bg-[#111827]/80">
         <label className="font-semibold">📁 File dữ liệu (Doanh nghiệp/Cá thể):</label>
-        <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload}
-          className="mt-2 block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-purple-500 file:text-white file:cursor-pointer" />
+        <input
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleFileUpload}
+          className="mt-2 block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-purple-500 file:text-white file:cursor-pointer"
+        />
       </div>
 
       {sheetNames.length > 0 && (
         <div className="flex items-center gap-3">
           <label className="font-medium">Sheet:</label>
-          <select value={selectedSheet} onChange={(e) => handleSheetChange(e.target.value)}
-            className="bg-[#111827] border border-gray-600 rounded px-3 py-1 text-sm text-white">
-            {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
+          <select
+            value={selectedSheet}
+            onChange={(e) => handleSheetChange(e.target.value)}
+            className="bg-[#111827] border border-gray-600 rounded px-3 py-1 text-sm text-white"
+          >
+            {sheetNames.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
           </select>
           <span className="text-xs text-gray-400">({rawData.length - 1} dòng dữ liệu)</span>
         </div>
@@ -314,7 +383,9 @@ export default function SampleSelector() {
                   className="bg-[#0f172a] border border-gray-600 rounded px-2 py-1 text-xs text-white"
                 >
                   <option value="">-- Chọn --</option>
-                  {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
+                  {headers.map((h, i) => (
+                    <option key={i} value={h}>{h}</option>
+                  ))}
                 </select>
               </div>
             ))}
@@ -324,46 +395,68 @@ export default function SampleSelector() {
 
       {rawData.length > 0 && (
         <div className="border border-gray-600 p-4 rounded-lg space-y-4 bg-[#111827]/80">
-          <h3 className="font-semibold text-lg text-amber-400">⚙️ Điều kiện lọc ({activeBlock === 'enterprise' ? 'Doanh nghiệp' : 'Cá thể'})</h3>
+          <h3 className="font-semibold text-lg text-amber-400">
+            ⚙️ Điều kiện lọc ({activeBlock === 'enterprise' ? 'Doanh nghiệp' : 'Cá thể'})
+          </h3>
 
           {activeBlock === 'enterprise' ? (
             <>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={filterOptions.includeStateOwned}
-                  onChange={e => setFilterOptions(prev => ({ ...prev, includeStateOwned: e.target.checked }))} />
+                <input
+                  type="checkbox"
+                  checked={filterOptions.includeStateOwned}
+                  onChange={e => setFilterOptions(prev => ({ ...prev, includeStateOwned: e.target.checked }))}
+                />
                 <span>Lấy toàn bộ <strong>Doanh nghiệp Nhà nước</strong></span>
               </label>
 
               <div className="flex items-center gap-4 flex-wrap">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={filterOptions.includeSmallCommunes}
-                    onChange={e => setFilterOptions(prev => ({ ...prev, includeSmallCommunes: e.target.checked }))} />
+                  <input
+                    type="checkbox"
+                    checked={filterOptions.includeSmallCommunes}
+                    onChange={e => setFilterOptions(prev => ({ ...prev, includeSmallCommunes: e.target.checked }))}
+                  />
                   <span>Lấy <strong>DN công nghiệp cấp 2</strong> ở xã có số DN &lt; </span>
                 </label>
-                <input type="number" value={filterOptions.smallCommuneThreshold}
+                <input
+                  type="number"
+                  value={filterOptions.smallCommuneThreshold}
                   onChange={e => setFilterOptions(prev => ({ ...prev, smallCommuneThreshold: parseInt(e.target.value) || 5 }))}
-                  className="w-20 bg-[#0f172a] border border-gray-600 rounded px-2 py-1 text-sm text-white" disabled={!filterOptions.includeSmallCommunes} />
+                  className="w-20 bg-[#0f172a] border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                  disabled={!filterOptions.includeSmallCommunes}
+                />
               </div>
 
               <div className="space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={filterOptions.includeRevenueSample}
-                    onChange={e => setFilterOptions(prev => ({ ...prev, includeRevenueSample: e.target.checked }))} />
+                  <input
+                    type="checkbox"
+                    checked={filterOptions.includeRevenueSample}
+                    onChange={e => setFilterOptions(prev => ({ ...prev, includeRevenueSample: e.target.checked }))}
+                  />
                   <span>Chọn mẫu <strong>DN ngoài Nhà nước</strong> theo tỷ trọng doanh thu cộng dồn</span>
                 </label>
                 <div className="flex items-center gap-2 ml-6">
                   <span>Ngưỡng (%): </span>
-                  <input type="number" value={filterOptions.revenueThreshold}
+                  <input
+                    type="number"
+                    value={filterOptions.revenueThreshold}
                     onChange={e => setFilterOptions(prev => ({ ...prev, revenueThreshold: parseFloat(e.target.value) || 75 }))}
-                    className="w-20 bg-[#0f172a] border border-gray-600 rounded px-2 py-1 text-sm text-white" disabled={!filterOptions.includeRevenueSample} />
+                    className="w-20 bg-[#0f172a] border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                    disabled={!filterOptions.includeRevenueSample}
+                  />
                   <span>%</span>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={filterOptions.prioritizeExistingSample}
-                    onChange={e => setFilterOptions(prev => ({ ...prev, prioritizeExistingSample: e.target.checked }))} />
+                  <input
+                    type="checkbox"
+                    checked={filterOptions.prioritizeExistingSample}
+                    onChange={e => setFilterOptions(prev => ({ ...prev, prioritizeExistingSample: e.target.checked }))}
+                  />
                   <span>Ưu tiên lấy DN có trong file mẫu tháng trước</span>
                 </label>
                 {filterOptions.prioritizeExistingSample && (
@@ -376,11 +469,17 @@ export default function SampleSelector() {
                         className="bg-[#0f172a] border border-gray-600 rounded px-2 py-1 text-xs text-white mt-1"
                       >
                         <option value="">-- Chọn cột --</option>
-                        {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                        {headers.map(h => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
                       </select>
                     </div>
-                    <input type="file" accept=".xlsx,.xls" onChange={handleExistingSampleUpload}
-                      className="text-sm text-gray-300 file:py-1 file:px-3 file:rounded file:bg-gray-600 file:text-gray-200 file:cursor-pointer" />
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleExistingSampleUpload}
+                      className="text-sm text-gray-300 file:py-1 file:px-3 file:rounded file:bg-gray-600 file:text-gray-200 file:cursor-pointer"
+                    />
                   </div>
                 )}
               </div>
@@ -394,15 +493,32 @@ export default function SampleSelector() {
 
           <div className="flex items-center gap-4">
             <label className="text-sm">Số lượng dự phòng mỗi nhóm:</label>
-            <input type="number" value={filterOptions.backupCount}
+            <input
+              type="number"
+              value={filterOptions.backupCount}
               onChange={e => setFilterOptions(prev => ({ ...prev, backupCount: parseInt(e.target.value) || 0 }))}
-              className="w-20 bg-[#0f172a] border border-gray-600 rounded px-2 py-1 text-sm text-white" min={0} />
+              className="w-20 bg-[#0f172a] border border-gray-600 rounded px-2 py-1 text-sm text-white"
+              min={0}
+            />
           </div>
 
-          <button onClick={applyFilters}
-            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition">
-            🔍 Chạy lọc
+          <button
+            onClick={applyFilters}
+            disabled={isProcessing}
+            className={`px-6 py-2 rounded-lg font-semibold text-sm transition ${isProcessing ? 'bg-gray-600 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
+          >
+            {isProcessing ? '⏳ Đang xử lý...' : '🔍 Chạy lọc'}
           </button>
+
+          {isProcessing && (
+            <div className="w-full bg-gray-700 rounded-full h-2.5 mt-2">
+              <div
+                className="bg-purple-500 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              ></div>
+              <p className="text-xs text-center mt-1 text-gray-400">{progress}%</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -410,8 +526,10 @@ export default function SampleSelector() {
         <div className="border border-gray-600 p-4 rounded-lg bg-[#111827]/80">
           <div className="flex justify-between items-center mb-3">
             <h3 className="font-semibold text-lg text-emerald-400">📊 Kết quả lọc ({filteredData.length} dòng)</h3>
-            <button onClick={exportResult}
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition">
+            <button
+              onClick={exportResult}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition"
+            >
               💾 Xuất Excel
             </button>
           </div>
