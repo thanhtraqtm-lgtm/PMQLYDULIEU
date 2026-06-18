@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
+import SampleSelector from "./components/SampleSelector";
+
 // --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) INTEGRATED DIRECTLY FOR RELIABLE PORTABILITY ---
 const DB_NAME = "VTongDatabase";
 const DB_VERSION = 1;
@@ -3599,6 +3601,17 @@ export default function App() {
             >
               <CheckSquare className="w-4 h-4 text-emerald-400" /> 🛂 Kiểm Tra Logic
             </button>
+            <button 
+              onClick={() => setActiveTab("chonmau")}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                activeTab === "chonmau" 
+                  ? "bg-purple-600/15 text-purple-400 border border-purple-500/20" 
+                  : "text-gray-300 hover:bg-[#374151]/50 hover:text-white"
+              }`}
+            >
+              <Layers className="w-4 h-4 text-orange-400" /> 🎯 Chọn mẫu điều tra
+            </button>
+          </div>
 
             <button 
               onClick={() => setActiveTab("danhmucvsic")}
@@ -3610,7 +3623,7 @@ export default function App() {
             >
               <Database className="w-4 h-4 text-amber-400" /> 🗂️ Danh Mục Ngành VSIC
             </button>
-          </div>
+          
 
           {/* Footer Sidebar */}
           <div className="bg-[#111827]/80 rounded-xl p-3.5 border border-purple-950/40 text-[10px] text-gray-400 font-mono leading-relaxed space-y-1.5 shadow-inner">
@@ -5501,6 +5514,9 @@ export default function App() {
               <VsicCatalogExplorer />
             </div>
           )}
+
+          {/* 11. TAB CHỌN MẪU ĐIỀU TRA */}
+          {activeTab === "chonmau" && <SampleSelector />}          
 
         </main>
       </div>
