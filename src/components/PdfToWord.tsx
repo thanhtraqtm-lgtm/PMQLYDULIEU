@@ -3,11 +3,11 @@ import { Document, Packer, Paragraph, TextRun, AlignmentType, Footer } from "doc
 import { FileText, FileDown, Settings, Copy, Check, Sparkles, AlertCircle, Loader2, RefreshCw, Upload, Languages, AlignLeft, CheckSquare, HelpCircle } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 
-// === ĐOẠN ĐÃ SỬA: Thay thế import tĩnh bằng cấu hình chuỗi URL động để bịt mắt Rollup ===
+// === ĐOẠN ĐÃ ĐỒNG BỘ 100% VỚI PHIÊN BẢN VẬT LÝ MỚI 4.13.0 ===
 import * as pdfjsLib from "pdfjs-dist";
 
-// Sửa đuôi file từ .mjs?url sang .js để khớp hoàn toàn với cấu trúc node_modules trên Vercel
-import pdfWorker from "pdfjs-dist/build/pdf.worker.js?url";
+// Đổi chính xác sang đuôi tệp định dạng module .min.mjs để Rollup tìm thấy file vật lý trong node_modules
+import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface PageInfo {
