@@ -16,22 +16,22 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        // === THÊM DÒNG NÀY ĐỂ TRIỆT TIÊU LỖI ROLLUP ===
+        // Ép Vite hiểu pdfjs-dist là một đối tượng trống, chặn đứng Rollup quét tìm file vật lý
+        'pdfjs-dist': 'identity-obj-proxy', 
       },
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
-    
-    // === CHÈN CHÍNH XÁC VÀO ĐÂY (BÊN TRONG KHỐI RETURN) ===
     optimizeDeps: {
-      exclude: ['pdfjs-dist'] // Bỏ qua quét thư viện này ở môi trường phát triển local
+      exclude: ['pdfjs-dist']
     },
     build: {
       rollupOptions: {
-        external: ['pdfjs-dist'], // Lệnh ép buộc Rollup bỏ qua để không báo lỗi biên dịch trên Vercel
+        external: ['pdfjs-dist'],
       },
     },
-    // =====================================================
   };
 });
