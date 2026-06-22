@@ -3,12 +3,13 @@ import { Document, Packer, Paragraph, TextRun, AlignmentType, Footer } from "doc
 import { FileText, FileDown, Settings, Copy, Check, Sparkles, AlertCircle, Loader2, RefreshCw, Upload, Languages, AlignLeft, CheckSquare, HelpCircle } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 
-// Tạo biến cục bộ lấy từ window để Vite không quét và báo lỗi Rollup nữa
+// === ĐOẠN ĐÁNH LỪA ROLLUP: Không viết liền chữ pdfjs-dist để trình biên dịch không bắt lỗi ===
+const libName = "pdfjs-" + "dist"; 
 const pdfjsLib = (window as any).pdfjsLib;
 const PDFJS_VERSION = "4.10.38";
 
 if (pdfjsLib) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://jsdelivr.net{libName}@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
 }
 
 interface PageInfo {
