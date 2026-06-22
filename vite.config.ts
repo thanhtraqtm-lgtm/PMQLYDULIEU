@@ -1,10 +1,10 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
 import dotenv from 'dotenv';
 
-// Load environment variables from .env
+// Tải các biến môi trường từ tệp .env
 dotenv.config();
 
 export default defineConfig(() => {
@@ -16,22 +16,24 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
-        // === THÊM DÒNG NÀY ĐỂ TRIỆT TIÊU LỖI ROLLUP ===
-        // Ép Vite hiểu pdfjs-dist là một đối tượng trống, chặn đứng Rollup quét tìm file vật lý
-        'pdfjs-dist': 'identity-obj-proxy', 
       },
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
+    // === ĐOẠN 4: CẤU HÌNH BẮT BUỘC ĐỂ VITE 6 BIÊN DỊCH ĐƯỢC PDFJS-DIST ===
     optimizeDeps: {
-      exclude: ['pdfjs-dist']
+      include: ['pdfjs-dist'], 
+      esbuildOptions: {
+        supported: {
+          'top-level-await': true // Cho phép chạy tính năng await đặc thù của file worker pdfjs
+        }
+      }
     },
     build: {
-      rollupOptions: {
-        external: ['pdfjs-dist'],
-      },
-    },
+      target: 'es2022' // Nâng cấp chuẩn đầu ra biên dịch để tương thích với cấu trúc của pdfjs-dist
+    }
+    // ===================================================================
   };
 });
