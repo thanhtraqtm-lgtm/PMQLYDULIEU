@@ -3,18 +3,12 @@ import { Document, Packer, Paragraph, TextRun, AlignmentType, Footer } from "doc
 import { FileText, FileDown, Settings, Copy, Check, Sparkles, AlertCircle, Loader2, RefreshCw, Upload, Languages, AlignLeft, CheckSquare, HelpCircle } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 
-// === GIẢI PHÁP TRIỆT TIÊU LỖI ROLLUP: Sử dụng cửa sổ window để ẩn danh hoàn toàn thư viện ===
-const getPdfjsLibrary = () => {
-  const globalWindow = window as any;
-  const libName = "pdfjs-" + "dist"; 
-  const currentLib = globalWindow.pdfjsLib;
-  const PDFJS_VERSION = "4.10.38";
+// === ĐOẠN IMPORT CHUẨN CỦA VITE: Nạp thư viện gốc ===
+import * as pdfjsLib from "pdfjs-dist";
 
-  if (currentLib && !currentLib.GlobalWorkerOptions.workerSrc) {
-    currentLib.GlobalWorkerOptions.workerSrc = `https://jsdelivr.net{libName}@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
-  }
-  return currentLib;
-};
+// Ép Vite đóng gói tệp Worker chạy ngầm thành một URL tĩnh cục bộ, không dùng CDN ngoài nữa
+import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface PageInfo {
   pageNumber: number;
