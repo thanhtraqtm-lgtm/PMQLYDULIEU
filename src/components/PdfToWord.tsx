@@ -3,10 +3,10 @@ import { Document, Packer, Paragraph, TextRun, AlignmentType, Footer } from "doc
 import { FileText, FileDown, Settings, Copy, Check, Sparkles, AlertCircle, Loader2, RefreshCw, Upload, Languages, AlignLeft, CheckSquare, HelpCircle } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 
-// === ĐOẠN IMPORT CHUẨN CỦA VITE: Nạp thư viện gốc ===
+// Nạp thư viện vật lý trong máy
 import * as pdfjsLib from "pdfjs-dist";
 
-// Ép Vite đóng gói tệp Worker chạy ngầm thành một URL tĩnh cục bộ, không dùng CDN ngoài nữa
+// Ép Vite đóng gói tệp Worker chạy ngầm thành một URL tĩnh cục bộ
 import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -14,8 +14,7 @@ interface PageInfo {
   pageNumber: number;
   text: string;
 }
-
-const PdfToWord = React.memo(function PdfToWord() {
+  const PdfToWord = React.memo(function PdfToWord() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingStatus, setLoadingStatus] = useState<string>("");
