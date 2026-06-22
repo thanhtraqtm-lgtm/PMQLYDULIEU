@@ -3,11 +3,11 @@ import { Document, Packer, Paragraph, TextRun, AlignmentType, Footer } from "doc
 import { FileText, FileDown, Settings, Copy, Check, Sparkles, AlertCircle, Loader2, RefreshCw, Upload, Languages, AlignLeft, CheckSquare, HelpCircle } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 
-// === ĐOẠN ĐÃ ĐỒNG BỘ 100% VỚI PHIÊN BẢN VẬT LÝ MỚI 4.13.0 ===
+// === ĐỒNG BỘ CHUẨN ĐƯỜNG DẪN FILE VẬT LÝ VỚI BẢN 4.10.38 ===
 import * as pdfjsLib from "pdfjs-dist";
 
-// Đổi chính xác sang đuôi tệp định dạng module .min.mjs để Rollup tìm thấy file vật lý trong node_modules
-import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+// Sử dụng đuôi .mjs cho bản 4.10.38 để Vite 6 đóng gói trực tiếp thành URL
+import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface PageInfo {
