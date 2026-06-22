@@ -99,7 +99,6 @@ const PdfToWord = React.memo(function PdfToWord() {
       const arrayBuffer = await pdfFile.arrayBuffer();
       setLoadingStatus("Đang thiết lập cổng phân tích tài liệu...");
       
-      // Khởi tạo thư viện thông qua hàm ẩn danh để bịt mắt hoàn toàn bộ quét của Rollup
       const targetLib = getPdfjsLibrary();
       if (!targetLib) {
         throw new Error("Không thể kết nối tới cổng CDN của trình đọc thư viện PDF.");
@@ -118,7 +117,6 @@ const PdfToWord = React.memo(function PdfToWord() {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         
-        // Thuật toán căn chỉnh và bảo tồn xuống dòng dựa theo tọa độ translateY của từng dòng chữ
         const items = textContent.items as any[];
         let pageText = "";
         let lastY = -1;
@@ -127,11 +125,10 @@ const PdfToWord = React.memo(function PdfToWord() {
           if (item.str === undefined) continue;
           
           const currentY = item.transform ? item.transform[5] : -1;
-          // Nếu tọa độ Y thay đổi đáng kể, chứng tỏ có ngắt dòng chữ thực tế
           if (lastY !== -1 && Math.abs(currentY - lastY) > 5) {
             pageText += "\n";
           } else if (lastY !== -1) {
-            pageText += " "; // Thêm khoảng trắng phân tách giữa các cụm ký tự trên cùng một dòng
+            pageText += " ";
           }
           
           pageText += item.str;
@@ -155,7 +152,33 @@ const PdfToWord = React.memo(function PdfToWord() {
     }
   };
 
-  // Xử lý tạo và xuất File Word (.docx)
+  // Gọi bộ tích hợp trí tuệ nhân tạo Google Gemini AI để xử lý văn bản trích xuất
+  const handleRunAI = async () => {
+    if (!extractedText) return;
+    if (!aiApiKey) {
+      setErrorMsg("Vui lòng bổ sung mã cấu hình API Key của Gemini để kích hoạt tính năng AI.");
+      return;
+    }
+
+    setAiLoading(true);
+    setAiResult("");
+    try {
+      // Khởi tạo SDK mới theo thư viện gốc @google/genai bạn đang dùng
+      const ai = new GoogleGenAI({ apiKey: aiApiKey });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `${aiPrompt}\n\nNỘI DUNG TÀI LIỆU:\n${extractedText}`,
+      });
+      setAiResult(response.text || "Không có phản hồi dữ liệu từ mô hình AI.");
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg("Quá trình kết nối AI thất bại: " + (err.message || "Lỗi không xác định"));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Xử lý tạo và xuất File Word (.docx) hoàn chỉnh cấu trúc Section
   const handleExportWord = async () => {
     if (!extractedText) return;
     
@@ -163,10 +186,8 @@ const PdfToWord = React.memo(function PdfToWord() {
     setLoadingStatus("Đang biên dịch tệp Word...");
     
     try {
-      // Chia nhỏ văn bản theo các trang và dòng để tạo các đoạn văn (Paragraph) riêng biệt
       const documentParagraphs: Paragraph[] = [];
 
-      // Thêm tiêu đề chính tài liệu
       if (docTitle) {
         documentParagraphs.push(
           new Paragraph({
@@ -176,7 +197,7 @@ const PdfToWord = React.memo(function PdfToWord() {
               new TextRun({
                 text: docTitle.toUpperCase(),
                 bold: true,
-                size: (fontSize + 6) * 2, // docx size is measured in half-points (24 for 12pt)
+                size: (fontSize + 6) * 2,
                 font: fontFamily,
                 color: "111827"
               })
@@ -185,13 +206,11 @@ const PdfToWord = React.memo(function PdfToWord() {
         );
       }
 
-      // Duyệt qua văn bản gốc để giữ lại phân dòng
       const paragraphsList = extractedText.split("\n");
       
       paragraphsList.forEach((paraText) => {
         const text = paraText.trim();
         if (!text) {
-          // Thêm một đoạn trống để giữ khoảng cách nếu cần
           documentParagraphs.push(
             new Paragraph({
               spacing: { before: 120, after: 120 },
@@ -209,7 +228,7 @@ const PdfToWord = React.memo(function PdfToWord() {
             spacing: { 
               before: 140, 
               after: 140, 
-              line: lineSpacing * 240 // 240 là hệ số dòng mặc định trong docx
+              line: lineSpacing * 240
             },
             children: [
               new TextRun({
@@ -225,22 +244,57 @@ const PdfToWord = React.memo(function PdfToWord() {
         );
       });
 
-      // Đoạn mã tiếp theo xử lý Section và xuất Packer của bạn...
-      // (Đoạn dưới này đang bị cắt bớt ở yêu cầu, hệ thống sẽ tự chạy bình thường nếu bạn giữ phần giao diện cũ bên dưới)
+      const sectionOptions: any = {
+        properties: {
+          page: {
+            margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 }
+          }
+        },
+        children: documentParagraphs
+      };
+
+      if (addFooter && footerText) {
+        sectionOptions.footers = {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    text: footerText,
+                    font: fontFamily,
+                    size: 18,
+                    color: "6b7280"
+                  })
+                ]
+              })
+            ]
+          })
+        };
+      }
+
+      const doc = new Document({
+        sections: [sectionOptions]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${file ? file.name.replace(".pdf", "") : "tai-lieu"}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      setLoadingStatus("Tải xuống tệp Word thành công!");
     } catch (err: any) {
-       console.error(err);
+      console.error(err);
+      setErrorMsg("Không thể xuất file Word. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <FileText className="w-6 h-6 text-blue-500" />
-        <h1 className="text-xl font-bold">Chuyển đổi PDF sang Word</h1>
-      </div>
-      <p className="text-gray-600 mb-4">Hệ thống xử lý tệp tin an toàn đã được kích hoạt thành công qua CDN.</p>
-    </div>
-  );
-});
-
-export default PdfToWord;
+  const copyToClipboard = () => {
+    if (!extractedText) return;
