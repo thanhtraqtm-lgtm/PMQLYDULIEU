@@ -1,33 +1,10 @@
 import React, { useState, useRef } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-import { 
-  Document, 
-  Packer, 
-  Paragraph, 
-  TextRun, 
-  AlignmentType,
-  Footer
-} from "docx";
-import { 
-  FileText, 
-  FileDown, 
-  Settings, 
-  Copy, 
-  Check, 
-  Sparkles, 
-  AlertCircle, 
-  Loader2, 
-  RefreshCw, 
-  Upload, 
-  Languages, 
-  AlignLeft, 
-  CheckSquare,
-  HelpCircle
-} from "lucide-react";
+import { Document, Packer, Paragraph, TextRun, AlignmentType, Footer } from "docx";
+import { FileText, FileDown, Settings, Copy, Check, Sparkles, AlertCircle, Loader2, RefreshCw, Upload, Languages, AlignLeft, CheckSquare, HelpCircle } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
-
 // Cấu hình Worker cho PDFJS từ CDN jsdelivr để đảm bảo không bị lỗi bundle trong môi trường Vite
-const PDFJS_VERSION = pdfjsLib.version || "4.10.38";
+const PDFJS_VERSION = "4.10.38";
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
 
 interface PageInfo {
