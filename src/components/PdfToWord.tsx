@@ -291,3 +291,42 @@ interface PageInfo {
 
   const copyToClipboard = () => {
     if (!extractedText) return;
+    navigator.clipboard.writeText(extractedText)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((err) => {
+        console.error("Failed to copy:", err);
+      });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <FileText className="w-5 h-5" />
+          PDF to Word Converter
+        </h2>
+        <div className="text-gray-400 text-sm">
+          Upload a PDF file to extract text and convert to Word format
+        </div>
+      </div>
+      
+      {errorMsg && (
+        <div className="bg-red-900/20 border border-red-500 rounded-lg p-4 flex items-center gap-2 text-red-300">
+          <AlertCircle className="w-5 h-5" />
+          {errorMsg}
+        </div>
+      )}
+      
+      {file && (
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-300">{file.name}</div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+export default PdfToWord;

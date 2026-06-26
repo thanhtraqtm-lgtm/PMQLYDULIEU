@@ -41,6 +41,15 @@ interface Level1Summary {
   recordCount: number;
 }
 
+// Parse number from various formats (handles commas, spaces, etc.)
+export function parseRobustNumber(val: any): number {
+  if (val === null || val === undefined || val === "") return 0;
+  if (typeof val === "number") return val;
+  const str = String(val).replace(/[^0-9.-]/g, "");
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+
 export default function SectorRevenueChart({ mainData, columns, mapping }: SectorRevenueChartProps) {
   // Local state for configuration columns (fallback to mapped ones)
   const [selectedManganh, setSelectedManganh] = useState<string>(mapping.manganh || "");
