@@ -3,6 +3,9 @@ import { GoogleGenAI } from "@google/genai";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import SampleSelector from "./components/SampleSelector";
+// --- CHÈN THÊM 2 DÒNG NÀY ĐỂ KÍCH HOẠT VERCEL ANALYTICS ---
+import { inject } from '@vercel/analytics';
+inject();
 // --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) INTEGRATED DIRECTLY FOR RELIABLE PORTABILITY ---
 const DB_NAME = "VTongDatabase";
 const DB_VERSION = 1;
