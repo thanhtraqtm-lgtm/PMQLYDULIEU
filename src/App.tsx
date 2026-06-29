@@ -1324,7 +1324,7 @@ export default function App() {
 
     try {
       const ai = new GoogleGenAI({
-        apiKey: process.env.REACT_APP_GOOGLE_GENERATIVE_AI_API_KEY,
+        apiKey: import.meta.env.VITE_GEMINI_API_KEY,
         httpOptions: {
           headers: {
             "User-Agent": "aistudio-build"
@@ -4972,7 +4972,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
 
     try {
       const ai = new GoogleGenAI({
-        apiKey: process.env.REACT_APP_GOOGLE_GENERATIVE_AI_API_KEY,
+        apiKey: import.meta.env.VITE_GEMINI_API_KEY,
         httpOptions: { headers: { "User-Agent": "aistudio-build" } }
       });
 
@@ -5267,7 +5267,7 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
     
     try {
       const ai = new GoogleGenAI({
-        apiKey: process.env.REACT_APP_GOOGLE_GENERATIVE_AI_API_KEY,
+        apiKey: import.meta.env.VITE_GEMINI_API_KEY,
         httpOptions: { headers: { "User-Agent": "aistudio-build" } }
       });
 
@@ -6211,7 +6211,7 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
         setLearningColLogs(prev => [...prev, "📡 Gửi yêu cầu ánh xạ thông minh lên máy chủ mô hình bảo mật..."]);
         
         const ai = new GoogleGenAI({
-          apiKey: process.env.REACT_APP_GOOGLE_GENERATIVE_AI_API_KEY,
+          apiKey: import.meta.env.VITE_GEMINI_API_KEY,
           httpOptions: { headers: { "User-Agent": "aistudio-build" } }
         });
 
@@ -6895,7 +6895,7 @@ Hãy trả về một mảng JSON trực tiếp đại diện cho các trường
 
       if (!expression) {
         const ai = new GoogleGenAI({
-          apiKey: process.env.REACT_APP_GOOGLE_GENERATIVE_AI_API_KEY,
+          apiKey: import.meta.env.VITE_GEMINI_API_KEY,
           httpOptions: {
             headers: {
               "User-Agent": "aistudio-build"
