@@ -30,9 +30,9 @@ interface SectorRevenueChartProps {
     laodong: string;
     idCol: string;
   };
+  reportLevel?: number; // 0: Direct raw groupings, 1: VSIC level 1, 2: VSIC level 2
 }
 
-// Interface for Level 1 Sector summary
 interface Level1Summary {
   code: string;
   name: string;
@@ -41,85 +41,130 @@ interface Level1Summary {
   recordCount: number;
 }
 
-export default function SectorRevenueChart({ mainData, columns, mapping }: SectorRevenueChartProps) {
-  // Local state for configuration columns (fallback to mapped ones)
+export function parseRobustNumber(val: any): number {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === "number") return val;
+  let str = String(val).trim();
+  if (!str) return 0;
+
+  str = str.replace(/\s+/g, "").replace(/[đđVNDvnd]/g, "");
+
+  const hasComma = str.includes(",");
+  const hasDot = str.includes(".");
+
+  if (hasComma && hasDot) {
+    if (str.indexOf(".") < str.indexOf(",")) {
+      str = str.replace(/\./g, "").replace(/,/g, ".");
+    } else {
+      str = str.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    const commas = (str.match(/,/g) || []).length;
+    if (commas > 1) {
+      str = str.replace(/,/g, "");
+    } else {
+      const parts = str.split(",");
+      if (parts[1].length === 3) {
+        str = str.replace(/,/g, "");
+      } else {
+        str = str.replace(/,/g, ".");
+      }
+    }
+  } else if (hasDot) {
+    const dots = (str.match(/\./g) || []).length;
+    if (dots > 1) {
+      str = str.replace(/\./g, "");
+    } else {
+      const parts = str.split(".");
+      if (parts[1].length === 3) {
+        str = str.replace(/\./g, "");
+      }
+    }
+  }
+
+  const clean = str.replace(/[^0-9.\-]/g, "");
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+}
+
+const SectorRevenueChart = React.memo(function SectorRevenueChart({ mainData, columns, mapping, reportLevel = 1 }: SectorRevenueChartProps) {
   const [selectedManganh, setSelectedManganh] = useState<string>(mapping.manganh || "");
   const [selectedDoanhthu, setSelectedDoanhthu] = useState<string>(mapping.doanhthu || "");
-  
-  // Format Scale (Auto, Original, Million VND, Billion VND)
   const [scale, setScale] = useState<"auto" | "raw" | "million" | "billion">("auto");
-  // Chart orientation (horizontal = category on X, vertical = category on Y)
   const [layout, setLayout] = useState<"horizontal" | "vertical">("horizontal");
-  // Show labels on top of bars
   const [showLabels, setShowLabels] = useState<boolean>(true);
-  // Bar Color Theme
   const [colorTheme, setColorTheme] = useState<"violet" | "indigo" | "emerald" | "amber">("indigo");
 
-  // Reset local state if global mapping changes
-  React.useEffect(() => {
-    if (mapping.manganh && !selectedManganh) {
-      setSelectedManganh(mapping.manganh);
-    }
-    if (mapping.doanhthu && !selectedDoanhthu) {
-      setSelectedDoanhthu(mapping.doanhthu);
-    }
-  }, [mapping]);
+  useEffect(() => {
+    setSelectedManganh(mapping.manganh || "");
+    setSelectedDoanhthu(mapping.doanhthu || "");
+  }, [mapping.manganh, mapping.doanhthu]);
 
-  // Aggregate Data to Level 1
   const aggregatedData = useMemo(() => {
     if (mainData.length === 0 || !selectedManganh) return [];
 
     const map: { [code: string]: { revenue: number; records: number; communes: Set<string> } } = {};
 
     mainData.forEach(row => {
-      // Bỏ qua dòng tổng cộng/lũy kế của file Excel
       if (isSummaryRow(row)) return;
 
-      // Normalize raw sector code
       const rawMng = row[selectedManganh];
-      const mng = normalizeSectorCode(rawMng);
-
-      // Determine level 1 code (Letter)
-      let l1Code = "";
-      if (mng) {
-        if (/^[a-zA-Z]$/.test(mng)) {
-          l1Code = mng.toUpperCase();
+      let groupKey = "";
+      let groupName = "";
+      
+      if (reportLevel === 0) {
+        groupKey = String(rawMng || "Chưa xác định / Bỏ trống").trim();
+        groupName = groupKey;
+      } else {
+        const mng = normalizeSectorCode(rawMng);
+        if (reportLevel === 2) {
+          groupKey = mng ? mng.slice(0, 2) : "";
+          groupName = groupKey ? `${groupKey} - ${vsicRawData[groupKey] || "Ngành cấp 2 chưa định nghĩa"}` : "Chưa xác định";
         } else {
-          // Standard Level 2 and down - pass full normalized code so custom hierarchy maps correctly
-          l1Code = getParentSectorCode(mng) || "";
+          let l1Code = "";
+          if (mng) {
+            if (/^[a-zA-Z]$/.test(mng)) {
+              l1Code = mng.toUpperCase();
+            } else {
+              l1Code = getParentSectorCode(mng) || "";
+            }
+          }
+          groupKey = l1Code || "KHAC";
+          groupName = vsicRawData[groupKey] || vsicRawData[groupKey.toUpperCase()] || (groupKey === "KHAC" ? "Mã ngành chưa khớp VSIC / Khác" : `Ngành cấp 1 chưa định nghĩa (${groupKey})`);
         }
       }
 
-      if (!l1Code) {
-        l1Code = "KHAC"; // Unknown / Others
+      if (!groupKey) {
+        groupKey = "CHUA_XAC_DINH";
+        groupName = "Chưa xác định / Bỏ trống";
       }
 
-      // Parse Revenue
-      let revVal = 0;
+      let valNum = 0;
       if (selectedDoanhthu && row[selectedDoanhthu] !== undefined) {
-        const rawRev = row[selectedDoanhthu];
-        const num = parseFloat(String(rawRev).replace(/[^0-9.-]/g, ""));
-        if (!isNaN(num)) {
-          revVal = num;
-        }
+        valNum = parseRobustNumber(row[selectedDoanhthu]);
       }
 
-      // Track communes if available
       const communeVal = mapping.xa && row[mapping.xa] ? String(row[mapping.xa]).trim() : "Khác";
 
-      if (!map[l1Code]) {
-        map[l1Code] = { revenue: 0, records: 0, communes: new Set() };
+      if (!map[groupKey]) {
+        map[groupKey] = { revenue: 0, records: 0, communes: new Set() };
       }
-      map[l1Code].revenue += revVal;
-      map[l1Code].records += 1;
+      map[groupKey].revenue += valNum;
+      map[groupKey].records += 1;
       if (communeVal) {
-        map[l1Code].communes.add(communeVal);
+        map[groupKey].communes.add(communeVal);
       }
     });
 
-    // Form summary structure
     const results: Level1Summary[] = Object.keys(map).map(code => {
-      const name = vsicRawData[code] || vsicRawData[code.toUpperCase()] || (code === "KHAC" ? "Mã ngành chưa khớp VSIC / Khác" : `Ngành cấp 1 chưa định nghĩa (${code})`);
+      let name = code;
+      if (reportLevel === 2) {
+        name = code ? `${code} - ${vsicRawData[code] || "Ngành cấp 2 chưa định nghĩa"}` : "Chưa xác định";
+      } else if (reportLevel === 1) {
+        name = vsicRawData[code] || vsicRawData[code.toUpperCase()] || (code === "KHAC" ? "Mã ngành chưa khớp VSIC / Khác" : `Ngành cấp 1 chưa định nghĩa (${code})`);
+      } else {
+        name = code;
+      }
       return {
         code,
         name,
@@ -129,11 +174,9 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
       };
     });
 
-    // Sort by revenue descending
     return results.sort((a, b) => b.revenue - a.revenue);
-  }, [mainData, selectedManganh, selectedDoanhthu, mapping.xa]);
+  }, [mainData, selectedManganh, selectedDoanhthu, mapping.xa, reportLevel]);
 
-  // List of all unique Level 1 codes in aggregate data
   const allSectors = useMemo(() => {
     return aggregatedData.map(item => ({
       code: item.code,
@@ -142,12 +185,10 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
     }));
   }, [aggregatedData]);
 
-  // State for which sectors are selected to display in chart
   const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
-  // Keep selected sectors updated with all sectors initially
   const [hasInitializedSectors, setHasInitializedSectors] = useState<string>("");
 
-  const currentDatasetId = `${mainData.length}_${selectedManganh}_${selectedDoanhthu}`;
+  const currentDatasetId = `${mainData.length}_${selectedManganh}_${selectedDoanhthu}_${reportLevel}`;
   useEffect(() => {
     if (allSectors.length > 0 && hasInitializedSectors !== currentDatasetId) {
       setSelectedSectors(allSectors.map(s => s.code));
@@ -155,7 +196,6 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
     }
   }, [allSectors, hasInitializedSectors, currentDatasetId]);
 
-  // Handle Sector Checklist Toggles
   const handleToggleSector = (code: string) => {
     if (selectedSectors.includes(code)) {
       setSelectedSectors(selectedSectors.filter(c => c !== code));
@@ -172,7 +212,6 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
     setSelectedSectors([]);
   };
 
-  // Determine optimal scaling factor based on max revenue of selected items
   const activeSectorsData = useMemo(() => {
     return aggregatedData.filter(item => selectedSectors.includes(item.code));
   }, [aggregatedData, selectedSectors]);
@@ -181,7 +220,6 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
     if (activeSectorsData.length === 0) return { factor: 1, unit: "" };
     const maxVal = Math.max(...activeSectorsData.map(item => item.revenue));
     
-    // If maximum value is in millions (10^6) or billions (10^9)
     if (maxVal >= 1000000000) {
       return { factor: 1000000000, unit: "Tỷ" };
     } else if (maxVal >= 1000000) {
@@ -196,34 +234,31 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
     if (scale === "raw") return { factor: 1, unit: "" };
     if (scale === "million") return { factor: 1000000, unit: "Triệu" };
     if (scale === "billion") return { factor: 1000000000, unit: "Tỷ" };
-    return autoDetectedScale; // default auto
+    return autoDetectedScale;
   }, [scale, autoDetectedScale]);
 
-  // Scale data for graph rendering
   const chartData = useMemo(() => {
     return activeSectorsData.map(item => {
       const scaledRev = item.revenue / currentScaleInfo.factor;
       return {
         ...item,
         scaledRevenue: Math.round(scaledRev * 100) / 100,
-        codeLabel: item.code, // Letter e.g. A, B
-        fullName: `${item.code} - ${item.name}`,
+        codeLabel: item.code.length > 25 ? `${item.code.substring(0, 22)}...` : item.code,
+        fullName: item.name,
         rawRevenueFormatted: new Intl.NumberFormat("vi-VN").format(item.revenue)
       };
-    }).sort((a, b) => b.scaledRevenue - a.scaledRevenue); // Descending order for clean look
+    }).sort((a, b) => b.scaledRevenue - a.scaledRevenue);
   }, [activeSectorsData, currentScaleInfo]);
 
-  // Color map
   const colors = {
-    indigo: { bar: "#6366f1", barHover: "#4f46e5", gradient: ["#4f46e5", "#818cf8"] },
-    violet: { bar: "#8b5cf6", barHover: "#7c3aed", gradient: ["#7c3aed", "#a78bfa"] },
-    emerald: { bar: "#10b981", barHover: "#059669", gradient: ["#059669", "#34d399"] },
-    amber: { bar: "#f59e0b", barHover: "#d97706", gradient: ["#d97706", "#fbbf24"] }
+    indigo: { bar: "#4f46e5", barHover: "#4338ca", bgHover: "#f5f3ff" },
+    violet: { bar: "#7c3aed", barHover: "#6d28d9", bgHover: "#f5f3ff" },
+    emerald: { bar: "#059669", barHover: "#047857", bgHover: "#ecfdf5" },
+    amber: { bar: "#d97706", barHover: "#b45309", bgHover: "#fffbeb" }
   };
 
   const selectedColor = colors[colorTheme];
 
-  // Quick Stats
   const totalRevenueSelected = useMemo(() => {
     const total = activeSectorsData.reduce((sum, item) => sum + item.revenue, 0);
     return new Intl.NumberFormat("vi-VN").format(total);
@@ -240,61 +275,73 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
     return maxItem;
   }, [activeSectorsData]);
 
+  const chartTitle = useMemo(() => {
+    if (reportLevel === 0) return "BIỂU ĐỒ TRỰC QUAN THEO NHÓM THỜI GIAN/ĐẶC TÍNH";
+    if (reportLevel === 2) return "BIỂU ĐỒ TRỰC QUAN THEO NGÀNH CẤP 2 (VSIC 2018)";
+    return "BIỂU ĐỒ TRỰC QUAN THEO NGÀNH CẤP 1 (VSIC 2018)";
+  }, [reportLevel]);
+
+  const chartDesc = useMemo(() => {
+    if (reportLevel === 0) return `Phân tích gộp và so sánh chỉ tiêu [${selectedDoanhthu}] trực tiếp của các nhóm phân loại chính trong dữ liệu.`;
+    return `Tổng hợp và so sánh tự động đại lượng [${selectedDoanhthu}] quy nạp lên chuẩn ngành kinh tế tương ứng quốc gia.`;
+  }, [reportLevel, selectedDoanhthu]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in font-sans text-slate-800">
       {/* Configuration Header Panel */}
-      <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-5 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-amber-400" /> BIỂU ĐỒ TRỰC QUAN DOANH THU THEO NGÀNH CẤP 1
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-indigo-600" /> {chartTitle}
             </h3>
-            <p className="text-xs text-gray-400">
-              Tổng hợp và so sánh tự động tổng doanh thu của các doanh nghiệp được quy nạp lên Ngành Cấp 1 toàn quốc (Danh mục VSIC 2018).
+            <p className="text-[11px] text-slate-500 font-sans mt-0.5">
+              {chartDesc}
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2.5">
-            {/* Column selectors if users want to change setup dynamically */}
-            <div className="flex items-center gap-1.5 bg-[#111827] px-3 py-1.5 rounded-xl border border-gray-800">
-              <label className="text-[10px] uppercase font-bold text-gray-500 font-mono">Cột Mã Ngành:</label>
+          <div className="flex flex-wrap gap-2">
+            {/* Column selectors */}
+            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+              <label className="text-[10px] uppercase font-bold text-slate-500 font-mono">
+                {reportLevel === 0 ? "Cột Nhóm:" : "Cột Ngành:"}
+              </label>
               <select
                 value={selectedManganh}
                 onChange={(e) => setSelectedManganh(e.target.value)}
-                className="bg-transparent text-xs text-amber-400 font-bold border-none outline-none focus:ring-0 max-w-[130px]"
+                className="bg-transparent text-xs text-indigo-700 font-bold border-none outline-none focus:ring-0 max-w-[130px] cursor-pointer"
               >
                 <option value="">-- Chọn cột --</option>
                 {columns.map(col => (
-                  <option key={col} value={col} className="bg-[#1f2937] text-white">{col}</option>
+                  <option key={col} value={col} className="bg-white text-slate-800">{col}</option>
                 ))}
               </select>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-[#111827] px-3 py-1.5 rounded-xl border border-gray-800">
-              <label className="text-[10px] uppercase font-bold text-gray-500 font-mono">Cột Doanh Thu:</label>
+            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+              <label className="text-[10px] uppercase font-bold text-slate-500 font-mono">Cột Chỉ tiêu số:</label>
               <select
                 disabled={!columns.length}
                 value={selectedDoanhthu}
                 onChange={(e) => setSelectedDoanhthu(e.target.value)}
-                className="bg-transparent text-xs text-emerald-400 font-bold border-none outline-none focus:ring-0 max-w-[130px]"
+                className="bg-transparent text-xs text-emerald-700 font-bold border-none outline-none focus:ring-0 max-w-[130px] cursor-pointer"
               >
                 <option value="">-- Chọn cột --</option>
                 {columns.map(col => (
-                  <option key={col} value={col} className="bg-[#1f2937] text-white">{col}</option>
+                  <option key={col} value={col} className="bg-white text-slate-800">{col}</option>
                 ))}
               </select>
             </div>
           </div>
         </div>
 
-        {/* General Guidelines Warning */}
         {(!selectedManganh || !selectedDoanhthu) && (
-          <div className="bg-amber-950/25 border border-amber-500/20 rounded-xl p-4 flex gap-3 text-xs text-amber-300">
-            <AlertCircle className="w-5 h-5 shrink-0 text-amber-400" />
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 text-xs text-amber-800">
+            <AlertCircle className="w-5 h-5 shrink-0 text-amber-600" />
             <div>
-              <p className="font-semibold">Chưa khớp hoặc thiếu cấu hình Mapping gốc!</p>
-              <p className="mt-1 text-[11px] text-gray-400">
-                Hãy lựa chọn cột Mã Ngành và cột Doanh Thu thích hợp từ bảng dữ liệu nguồn tải lên ở góc phải để hệ thống tự lọc quy nạp cột và vẽ đồ thị.
+              <p className="font-semibold">Chưa khớp hoặc thiếu cấu hình mapping chỉ tiêu số!</p>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Hãy lựa chọn Cột phân nhóm và Cột giá trị số cộng gộp thích hợp ở biểu đồ để kích hoạt vẽ trực quan tức thì.
               </p>
             </div>
           </div>
@@ -305,27 +352,29 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           
           {/* LEFT: Checklist filter sidebar */}
-          <div className="xl:col-span-1 bg-[#1f2937]/50 border border-[#374151] rounded-2xl p-4 flex flex-col space-y-4 max-h-[640px] overflow-hidden">
+          <div className="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col space-y-4 max-h-[640px] overflow-hidden shadow-md">
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <span className="text-xs font-bold text-gray-300 uppercase tracking-wider font-mono">Chọn Ngành Cấp 1 ({selectedSectors.length}/{allSectors.length})</span>
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider font-mono">
+                  {reportLevel === 0 ? "BỘ LỌC CÁC NHÓM" : "BỘ LỌC NGÀNH KINH TẾ"} ({selectedSectors.length}/{allSectors.length})
+                </span>
               </div>
-              <p className="text-[10px] text-gray-400 leading-relaxed">
-                Tích chọn các ngành kinh tế muốn hiển thị đối sánh trực tiếp trên biểu đồ:
+              <p className="text-[10px] text-slate-500 leading-relaxed font-sans">
+                Tích chọn các hạng mục muốn hiển thị so sánh trực tiếp trên đồ thị cột:
               </p>
             </div>
 
             {/* Quick multi-select buttons */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               <button
                 onClick={handleSelectAll}
-                className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold text-[10px] py-1.5 rounded-lg border border-gray-700 hover:text-white transition-all cursor-pointer"
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] py-1.5 rounded-lg border border-slate-200 transition-all cursor-pointer"
               >
                 Chọn tất cả
               </button>
               <button
                 onClick={handleDeselectAll}
-                className="flex-1 bg-gray-900/40 hover:bg-gray-800 text-gray-400 font-semibold text-[10px] py-1.5 rounded-lg border border-gray-800 hover:text-gray-300 transition-all cursor-pointer"
+                className="flex-1 bg-white hover:bg-slate-50 text-slate-500 font-bold text-[10px] py-1.5 rounded-lg border border-slate-200 transition-all cursor-pointer"
               >
                 Bỏ chọn hết
               </button>
@@ -334,8 +383,8 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
             {/* Sector list display inside a scrollbar */}
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 text-xs">
               {allSectors.length === 0 ? (
-                <div className="text-center italic text-gray-500 py-8">
-                  Không quét được mã ngành cấp 1 nào hợp lệ trong cột dữ liệu chính.
+                <div className="text-center italic text-slate-400 py-8 font-sans">
+                  Không quét được dữ liệu giá trị nào hợp lệ trong cột đã chọn.
                 </div>
               ) : (
                 allSectors.map(sector => {
@@ -346,24 +395,25 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
                       key={sector.code}
                       className={`flex items-start gap-2.5 p-2 rounded-xl border transition-all cursor-pointer ${
                         isChecked
-                          ? "bg-purple-600/10 border-purple-500/20 text-purple-200"
-                          : "bg-transparent border-transparent text-gray-400 hover:bg-gray-800/40"
+                          ? "bg-indigo-50/50 border-indigo-200 text-indigo-900"
+                          : "bg-transparent border-transparent text-slate-500 hover:bg-slate-50"
                       }`}
                     >
                       <input
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => handleToggleSector(sector.code)}
-                        className="mt-0.5 rounded border-gray-600 text-purple-600 focus:ring-purple-600 focus:ring-offset-[#111827] bg-gray-900 h-3.5 w-3.5 cursor-pointer"
+                        className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 bg-white border-slate-300 cursor-pointer"
                       />
-                      <div className="space-y-0.5 min-w-0">
-                        <div className="font-bold flex items-center gap-1.5">
-                          <span className="text-amber-400 font-mono">{sector.code}</span>
-                          <span className="truncate text-gray-300 group-hover:text-white transition-all text-[11px] block">{sector.name}</span>
+                      <div className="flex-1 min-w-0 font-sans">
+                        <div className="font-bold flex items-center gap-1.5 shrink-0 text-slate-800">
+                          {sector.code.length > 25 ? `${sector.code.substring(0,22)}...` : sector.code}
                         </div>
-                        <div className="text-[10px] text-gray-500 font-mono flex justify-between">
-                          <span>Doanh thu:</span>
-                          <span className="font-semibold text-emerald-400">{formattedRev}</span>
+                        <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-2 truncate-2-lines" title={sector.name}>
+                          {sector.name}
+                        </div>
+                        <div className="text-[10px] text-emerald-700 font-mono font-bold mt-0.5">
+                          Giá trị: {formattedRev}
                         </div>
                       </div>
                     </label>
@@ -373,174 +423,170 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
             </div>
           </div>
 
-          {/* RIGHT: Visual charts panel & tool toggles */}
-          <div className="xl:col-span-3 space-y-6 flex flex-col">
+          {/* RIGHT: Actual chart visualization canvas */}
+          <div className="xl:col-span-3 bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-xl relative min-h-[500px]">
             
-            {/* Visual control options */}
-            <div className="bg-[#1f2937]/40 border border-[#374151]/60 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              
-              {/* Scale config */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Đơn vị đo lường</label>
-                <select
-                  value={scale}
-                  onChange={(e) => setScale(e.target.value as any)}
-                  className="bg-[#111827] border border-[#374151] rounded-xl px-3 py-1.5 text-xs text-white w-full font-bold focus:ring-purple-500"
-                >
-                  <option value="auto">Tự động (Khuyên dùng)</option>
-                  <option value="raw">Đồng (VND gốc)</option>
-                  <option value="million">Triệu đồng (1.000.000đ)</option>
-                  <option value="billion">Tỷ đồng (1.000.000.000đ)</option>
-                </select>
-              </div>
+            {/* Control panel for graphs */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex flex-wrap items-center gap-4 text-xs">
+                {/* Scale selection */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10.5px] font-bold text-slate-500 font-mono">ĐƠN VỊ TỶ LỆ:</span>
+                  <div className="bg-slate-100 border border-slate-200 rounded-lg p-0.5 flex gap-0.5">
+                    {(["auto", "raw", "million", "billion"] as const).map(u => (
+                      <button
+                        key={u}
+                        onClick={() => setScale(u)}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                          scale === u
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "text-slate-600 hover:text-slate-800 hover:bg-slate-200"
+                        }`}
+                      >
+                        {u === "auto" ? "Tự động" : u === "raw" ? "Nguyên bản" : u === "million" ? "Triệu đ" : "Tỷ đ"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-              {/* Layout Config */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Hướng biểu đồ</label>
-                <div className="grid grid-cols-2 gap-1 bg-[#111827] border border-[#374151] rounded-xl p-1">
-                  <button
-                    onClick={() => setLayout("horizontal")}
-                    className={`text-xs py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                      layout === "horizontal" ? "bg-purple-600 text-white shadow" : "text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Cột đứng
-                  </button>
-                  <button
-                    onClick={() => setLayout("vertical")}
-                    className={`text-xs py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                      layout === "vertical" ? "bg-purple-600 text-white shadow" : "text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Thanh ngang
-                  </button>
+                {/* Orientation switch */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10.5px] font-bold text-slate-500 font-mono">HƯỚNG BIỂU ĐỒ:</span>
+                  <div className="bg-slate-100 border border-slate-200 rounded-lg p-0.5 flex gap-0.5">
+                    <button
+                      onClick={() => setLayout("horizontal")}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                        layout === "horizontal" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-800 hover:bg-slate-200"
+                      }`}
+                    >
+                      Xếp đứng
+                    </button>
+                    <button
+                      onClick={() => setLayout("vertical")}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                        layout === "vertical" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-800 hover:bg-slate-200"
+                      }`}
+                    >
+                      Xếp ngang
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Labels on top */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Hiện số liệu trực tiếp</label>
-                <div className="grid grid-cols-2 gap-1 bg-[#111827] border border-[#374151] rounded-xl p-1">
-                  <button
-                    onClick={() => setShowLabels(true)}
-                    className={`text-xs py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                      showLabels ? "bg-emerald-600 text-white shadow" : "text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Bật
-                  </button>
-                  <button
-                    onClick={() => setShowLabels(false)}
-                    className={`text-xs py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                      !showLabels ? "bg-emerald-600 text-white shadow" : "text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Tắt
-                  </button>
+              {/* Extras layout */}
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-slate-650 hover:text-slate-800 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showLabels}
+                    onChange={(e) => setShowLabels(e.target.checked)}
+                    className="rounded text-indigo-600 bg-white border-slate-300"
+                  />
+                  <span>Hiện số liệu dòng cột</span>
+                </label>
+
+                {/* Color Scheme selector */}
+                <div className="flex items-center gap-1">
+                  {(["indigo", "violet", "emerald", "amber"] as const).map(colorThemeName => (
+                    <button
+                      key={colorThemeName}
+                      onClick={() => setColorTheme(colorThemeName)}
+                      className={`w-3.5 h-3.5 rounded-full transition-all border cursor-pointer ${
+                        colorTheme === colorThemeName
+                          ? "border-slate-800 scale-125 ring-2 ring-indigo-600/20"
+                          : "border-transparent opacity-60 hover:opacity-100"
+                      }`}
+                      style={{
+                        backgroundColor: 
+                          colorThemeName === "indigo" ? "#4f46e5" :
+                          colorThemeName === "violet" ? "#7c3aed" :
+                          colorThemeName === "emerald" ? "#059669" : "#d97706"
+                      }}
+                      title={`Tông màu ${colorThemeName}`}
+                    />
+                  ))}
                 </div>
               </div>
-
-              {/* Color themes */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Tông màu chủ đạo</label>
-                <select
-                  value={colorTheme}
-                  onChange={(e) => setColorTheme(e.target.value as any)}
-                  className="bg-[#111827] border border-[#374151] rounded-xl px-3 py-1.5 text-xs text-white w-full font-bold focus:ring-purple-500"
-                >
-                  <option value="indigo">🌌 Twilight Indigo</option>
-                  <option value="violet">🔮 Galactic Violet</option>
-                  <option value="emerald">💚 Forest Emerald</option>
-                  <option value="amber">💛 Honey Amber</option>
-                </select>
-              </div>
-
             </div>
 
-            {/* CHART DISPLAY CORE CONTAINER */}
-            <div className="bg-[#111827] border border-purple-950/15 rounded-2xl p-5 shadow-2xl relative flex-1 flex flex-col justify-center min-h-[420px]">
+            {/* Recharts Render Stage */}
+            <div className="flex-1 min-h-[360px] flex items-center justify-center bg-slate-50/50 rounded-xl border border-slate-100 p-2">
               {chartData.length === 0 ? (
-                <div className="text-center space-y-2 py-20 z-10">
-                  <span className="p-3 bg-gray-800/60 rounded-full inline-block text-amber-400 border border-amber-950/40">
-                    <AlertCircle className="w-6 h-6 animate-pulse" />
-                  </span>
-                  <div className="text-sm font-semibold text-gray-300">Biểu đồ trống!</div>
-                  <p className="text-xs text-gray-500 max-w-sm mx-auto">Vui lòng tích chọn ít nhất một ngành cấp 1 ở bảng điều khiển bên trái để bắt đầu lập biểu đồ.</p>
+                <div className="text-slate-400 italic text-xs py-16 text-center font-sans">
+                  ⚠️ Không có hạng mục dư liệu phân loại nào đang được chọn hiển thị. Vui lòng tick chọn hộp bên trái.
                 </div>
               ) : (
                 <div className="w-full h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={chartData}
                       layout={layout}
-                      margin={{ top: 20, right: 35, left: 15, bottom: layout === "horizontal" ? 10 : 5 }}
+                      data={chartData}
+                      margin={layout === "horizontal" 
+                        ? { top: 20, right: 10, left: 10, bottom: 25 }
+                        : { top: 10, right: 30, left: 40, bottom: 10 }
+                      }
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={layout === "vertical"} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.6} />
                       
                       {layout === "horizontal" ? (
                         <>
                           <XAxis 
                             dataKey="codeLabel" 
-                            stroke="#9ca3af" 
-                            fontSize={11} 
-                            tickLine={false}
-                            axisLine={false} 
-                            dy={5}
+                            stroke="#475569" 
+                            fontSize={10} 
+                            tickLine={false} 
+                            dy={10}
+                            fontFamily="monospace"
                           />
                           <YAxis 
-                            stroke="#9ca3af" 
+                            stroke="#475569" 
                             fontSize={10} 
                             tickLine={false}
-                            axisLine={false} 
-                            unit={` ${currentScaleInfo.unit}`}
+                            dx={-5}
+                            fontFamily="monospace"
+                            unit={currentScaleInfo.unit}
                           />
                         </>
                       ) : (
                         <>
                           <XAxis 
-                            type="number"
-                            stroke="#9ca3af" 
+                            type="number" 
+                            stroke="#475569" 
                             fontSize={10} 
                             tickLine={false}
-                            axisLine={false} 
-                            unit={` ${currentScaleInfo.unit}`}
+                            fontFamily="monospace"
+                            unit={currentScaleInfo.unit}
                           />
                           <YAxis 
                             type="category"
                             dataKey="codeLabel" 
-                            stroke="#9ca3af" 
-                            fontSize={11} 
+                            stroke="#475569" 
+                            fontSize={10} 
                             tickLine={false}
-                            axisLine={false} 
                             dx={-5}
+                            fontFamily="monospace"
                           />
                         </>
                       )}
 
                       <Tooltip
-                        cursor={{ fill: '#374151', opacity: 0.2 }}
+                        cursor={{ fill: "#f1f5f9", opacity: 0.4 }}
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div className="bg-[#1f2937] border border-purple-500/30 rounded-xl p-3.5 shadow-xl max-w-[280px] font-sans leading-relaxed text-xs">
-                                <div className="font-bold flex items-center gap-1.5 border-b border-gray-700/60 pb-1.5 mb-1.5">
-                                  <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-400 font-mono text-[10px] rounded border border-amber-500/20">{data.code}</span>
-                                  <span className="truncate text-gray-200">{data.name}</span>
+                              <div className="bg-white border border-slate-250 rounded-xl p-3 shadow-xl space-y-1.5 text-xs max-w-sm font-sans z-50 text-slate-800">
+                                <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                  <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono text-[9px] px-1.5 py-0.5 rounded">
+                                    {data.code}
+                                  </span>
+                                  {data.fullName}
                                 </div>
-                                <div className="space-y-1">
-                                  <div className="flex justify-between gap-4 text-gray-400">
-                                    <span>Doanh thu:</span>
-                                    <span className="font-mono text-emerald-400 font-semibold">{data.rawRevenueFormatted} đ</span>
-                                  </div>
-                                  <div className="flex justify-between gap-4 text-gray-400">
-                                    <span>Bản ghi nguồn:</span>
-                                    <span className="font-mono text-indigo-300 font-medium">{data.recordCount} dòng</span>
-                                  </div>
-                                  <div className="flex justify-between gap-4 text-gray-400">
-                                    <span>Hơn:</span>
-                                    <span className="font-mono text-pink-300 font-medium">{data.communeCount} địa bàn xã</span>
-                                  </div>
+                                <div className="text-[10px] text-slate-600">
+                                  Giá trị thực tế: <strong className="text-emerald-700 font-mono">{data.rawRevenueFormatted} đ</strong>
+                                </div>
+                                <div className="text-[10px] text-slate-600">
+                                  Số lượng nguồn: <span className="font-semibold text-purple-700 font-mono">{data.recordCount} dòng</span> / <span className="font-semibold text-blue-700 font-mono">{data.communeCount} địa bàn xã</span>
                                 </div>
                               </div>
                             );
@@ -549,8 +595,9 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
                         }}
                       />
 
-                      <Bar
-                        dataKey="scaledRevenue"
+                      <Bar 
+                        dataKey="scaledRevenue" 
+                        fill={selectedColor.bar} 
                         radius={layout === "horizontal" ? [6, 6, 0, 0] : [0, 6, 6, 0]}
                         animationDuration={1000}
                       >
@@ -558,16 +605,17 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
                           <Cell 
                             key={`cell-${index}`} 
                             fill={selectedColor.bar} 
-                            className="transition-all duration-300 hover:opacity-85"
+                            className="transition-all duration-300 hover:opacity-85 cursor-pointer"
                           />
                         ))}
                         {showLabels && (
                           <LabelList 
                             dataKey="scaledRevenue" 
                             position={layout === "horizontal" ? "top" : "right"} 
-                            fill="#cbd5e1" 
+                            fill="#0f172a" 
                             fontSize={10}
                             fontFamily="monospace"
+                            fontWeight="bold"
                             formatter={(value: any) => `${value} ${currentScaleInfo.unit || "đ"}`}
                           />
                         )}
@@ -580,40 +628,44 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
 
             {/* Quick Metrics and analytics footer */}
             {chartData.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0 font-sans">
                 
                 {/* Metric 1 */}
-                <div className="bg-[#1f2937]/30 border border-[#374151]/40 rounded-xl p-4 space-y-1 flex flex-col justify-center">
-                  <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider font-mono">TỔNG DOANH THU ĐANG CHỌN</div>
-                  <div className="text-lg font-extrabold text-emerald-400 font-mono truncate">{totalRevenueSelected} <span className="text-xs text-gray-400 font-semibold font-sans">đồng</span></div>
-                  <div className="text-[10px] text-gray-400">Quy nạp từ {selectedSectors.length} ngành chính</div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1 flex flex-col justify-center">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">TỔNG CHỈ TIÊU ĐANG CHỌN</div>
+                  <div className="text-lg font-extrabold text-emerald-700 font-mono truncate">
+                    {totalRevenueSelected} <span className="text-xs text-slate-500 font-semibold font-sans">đơn vị</span>
+                  </div>
+                  <div className="text-[10px] text-slate-500">Quy nạp từ {selectedSectors.length} nhóm phân loại</div>
                 </div>
 
                 {/* Metric 2 */}
-                <div className="bg-[#1f2937]/30 border border-[#374151]/40 rounded-xl p-4 space-y-1 flex flex-col justify-center">
-                  <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider font-mono">NGÀNH CÓ DOANH THU LỚN NHẤT</div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1 flex flex-col justify-center">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">NHÓM CO' GIÁ TRỊ LỚN NHẤT</div>
                   {maxRevenueSector ? (
                     <>
-                      <div className="text-sm font-bold text-amber-400 truncate flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.2 bg-amber-500/15 text-amber-400 text-[10px] font-mono rounded">{maxRevenueSector.code}</span>
-                        <span className="text-gray-200">{maxRevenueSector.name}</span>
+                      <div className="text-xs font-bold text-amber-800 truncate flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[10px] font-mono rounded shrink-0">{maxRevenueSector.code}</span>
+                        <span className="text-slate-800 truncate font-semibold">{maxRevenueSector.name}</span>
                       </div>
-                      <div className="text-[10px] text-gray-400 font-mono">
-                        Số tiền: <span className="font-semibold text-emerald-400">{new Intl.NumberFormat("vi-VN").format(maxRevenueSector.revenue)}đ</span>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                        Giá trị: <span className="font-bold text-emerald-700">{new Intl.NumberFormat("vi-VN").format(maxRevenueSector.revenue)}đ</span>
                       </div>
                     </>
                   ) : (
-                    <div className="text-xs text-gray-500 italic">Chưa xác định</div>
+                    <div className="text-xs text-slate-400 italic">Chưa xác định</div>
                   )}
                 </div>
 
                 {/* Metric 3 */}
-                <div className="bg-[#1f2937]/30 border border-[#374151]/40 rounded-xl p-4 space-y-1 flex flex-col justify-center">
-                  <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider font-mono">PHÂN PHỐI LƯỢNG MẪU NGUỒN</div>
-                  <div className="text-xs text-gray-300 font-mono">
-                    <span className="text-base font-bold text-purple-400">{activeSectorsData.reduce((sum, i) => sum + i.recordCount, 0)}</span> dòng / ghi chép gốc
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1 flex flex-col justify-center">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">PHÂN PHỐI LƯỢNG MẪU NGUỒN</div>
+                  <div className="text-xs text-slate-700 font-mono">
+                    <span className="text-base font-bold text-indigo-700">{activeSectorsData.reduce((sum, i) => sum + i.recordCount, 0)}</span> dòng / ghi chép gốc
                   </div>
-                  <div className="text-[10px] text-gray-400">Tương thích phân lớp chuẩn VSIC 2018</div>
+                  <div className="text-[10px] text-slate-500">
+                    {reportLevel === 0 ? "Phân tích theo đặc tính phân nhóm trực tiếp" : "Tương thích phân lớp chuẩn VSIC 2018"}
+                  </div>
                 </div>
 
               </div>
@@ -623,16 +675,20 @@ export default function SectorRevenueChart({ mainData, columns, mapping }: Secto
 
         </div>
       ) : (
-        <div className="bg-[#111827]/50 rounded-2xl p-16 text-center border border-[#1f2937]/60 space-y-3">
-          <div className="p-4 bg-gray-800/40 rounded-full inline-block text-amber-400 border border-amber-950/40">
-            <AlertCircle className="w-8 h-8 animate-bounce" />
+        <div className="bg-white rounded-2xl p-16 text-center border border-slate-200 space-y-3 shadow-xl">
+          <div className="p-4 bg-amber-50 rounded-full inline-block text-amber-600 border border-amber-200">
+            <AlertCircle className="w-8 h-8" />
           </div>
-          <div className="text-base font-bold text-white">Yêu cầu hoàn tất nạp và cấu hình dữ liệu</div>
-          <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
-            Biểu đồ trực quan yêu cầu tệp dữ liệu chính của bạn đã được tải lên thành công, và các cột <b>Mã Ngành</b>, <b>Doanh Thu</b> phải được chọn cấu hình khớp nối ở menu phía trên.
+          <div className="text-base font-bold text-slate-800">Yêu cầu chọn cấu hình và chỉ tiêu số</div>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+            Biểu đồ trực quan yêu cầu tệp dữ liệu chính của bạn đã được tải lên thành công, và các cột <b>Nhóm/Mã Ngành</b>, <b>Chỉ tiêu số</b> phải được chỉ định khớp nối.
           </p>
         </div>
       )}
     </div>
   );
-}
+});
+
+SectorRevenueChart.displayName = "SectorRevenueChart";
+
+export default SectorRevenueChart;

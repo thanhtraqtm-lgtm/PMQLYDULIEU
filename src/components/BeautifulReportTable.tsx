@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Search, Eye, EyeOff, LayoutGrid, ListFilter, Download, ChevronRight, ChevronDown, CheckCircle } from "lucide-react";
+import { Search, Eye, EyeOff, Download, ChevronRight, ChevronDown, CheckCircle } from "lucide-react";
 
 interface BeautifulReportTableProps {
   rows: any[];
@@ -9,7 +9,7 @@ interface BeautifulReportTableProps {
   onExport: () => void;
 }
 
-export const BeautifulReportTable: React.FC<BeautifulReportTableProps> = ({
+export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
   rows,
   cols,
   level,
@@ -26,68 +26,118 @@ export const BeautifulReportTable: React.FC<BeautifulReportTableProps> = ({
     const term = searchTerm.toLowerCase();
     return rows.filter((row) => {
       const commune = String(row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "").toLowerCase();
-      const sector = String(row[`Ngành_Cấp_${level}`] || "").toLowerCase();
+      const sectorKey = level === 0 ? "Nhóm_Phân_Loại" : `Ngành_Cấp_${level}`;
+      const sector = String(row[sectorKey] || "").toLowerCase();
       return commune.includes(term) || sector.includes(term);
     });
   }, [rows, searchTerm, level]);
 
-  // If report type is Pivot, we can extract the active sectors and check if they are all zeros
+  // Extract sectors and indicators dynamically from column list
   const pivotAnalysis = useMemo(() => {
     if (reportType !== "pivot" || rows.length === 0) {
-      return { sectors: [], activeSectors: [] };
+      return { sectors: [], indicators: [], activeSectors: [] };
     }
 
-    // Find all unique sectors in columns
-    // Columns are structured as: `"${sector} - Tổng Doanh Thu"` and `"${sector} - Tổng Lao Động"`
     const sectorSet = new Set<string>();
+    const indicatorSet = new Set<string>();
+
     cols.forEach((col) => {
-      if (col.includes(" - Tổng Doanh Thu")) {
-        const sectorName = col.replace(" - Tổng Doanh Thu", "");
-        sectorSet.add(sectorName);
+      if (col.includes(" - Tổng ")) {
+        const parts = col.split(" - Tổng ");
+        if (parts.length === 2) {
+          sectorSet.add(parts[0]);
+          indicatorSet.add(parts[1]);
+        }
       }
     });
 
     const sectors = Array.from(sectorSet).sort();
+    const indicators = Array.from(indicatorSet); // Keep their selection order!
 
-    // Determine which sectors have non-zero values in at least one row
+    // Determine which sectors have non-zero values in at least one row for at least one indicator
     const activeSectors = sectors.filter((sector) => {
       return rows.some((row) => {
-        const rev = row[`${sector} - Tổng Doanh Thu`] || 0;
-        const lab = row[`${sector} - Tổng Lao Động`] || 0;
-        return rev > 0 || lab > 0;
+        return indicators.some((ind) => {
+          const val = row[`${sector} - Tổng ${ind}`] || 0;
+          return val > 0;
+        });
       });
     });
 
-    return { sectors, activeSectors };
+    return { sectors, indicators, activeSectors };
   }, [rows, cols, reportType]);
 
-  // Columns to display based on toggles
+  // Columns to display based on toggle
   const visibleSectors = useMemo(() => {
     if (reportType !== "pivot") return [];
     return hideZeroColumns ? pivotAnalysis.activeSectors : pivotAnalysis.sectors;
   }, [pivotAnalysis, hideZeroColumns, reportType]);
 
-  // Clean values for nice representation (0 -> -)
+  // Calculate dynamic totals across all columns
+  const overallTotals = useMemo(() => {
+    let grandDN = 0;
+    const totalsByIndicator: { [ind: string]: number } = {};
+    const sectorStats: { [sector: string]: { [ind: string]: number } } = {};
+    
+    rows.forEach((row) => {
+      if (reportType === "pivot") {
+        grandDN += row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"] ?? 0;
+        
+        pivotAnalysis.indicators.forEach((ind) => {
+          if (totalsByIndicator[ind] === undefined) totalsByIndicator[ind] = 0;
+          totalsByIndicator[ind] += row[`Tổng_Cộng_${ind}_Toàn_Xã`] ?? row[`Tổng_Cộng_Toàn_Xã_${ind}`] ?? 0;
+        });
+
+        pivotAnalysis.sectors.forEach((sector) => {
+          if (!sectorStats[sector]) {
+            sectorStats[sector] = {};
+          }
+          pivotAnalysis.indicators.forEach((ind) => {
+            if (sectorStats[sector][ind] === undefined) sectorStats[sector][ind] = 0;
+            sectorStats[sector][ind] += row[`${sector} - Tổng ${ind}`] || 0;
+          });
+        });
+      } else {
+        // Flat mode
+        grandDN += row["Số_Lượng_Bản_Ghi"] ?? row["Số_Lượng_Doanh_Nghiệp"] ?? 0;
+        cols.forEach((col) => {
+          if (col.startsWith("Tổng_")) {
+            const ind = col.replace("Tổng_", "");
+            if (totalsByIndicator[ind] === undefined) totalsByIndicator[ind] = 0;
+            totalsByIndicator[ind] += row[col] || 0;
+          }
+        });
+      }
+    });
+
+    return {
+      dn: grandDN,
+      totalsByIndicator,
+      sectorStats
+    };
+  }, [rows, reportType, pivotAnalysis.sectors, pivotAnalysis.indicators, cols]);
+
+  // Cell representation formatting (0 -> -)
   const formatCellValue = (val: any, isNumeric: boolean) => {
     if (isNumeric) {
       if (val === undefined || val === null || val === 0) {
-        return <span className="text-gray-600 font-normal">—</span>;
+        return <span className="text-slate-400 font-normal">—</span>;
       }
-      return <span className="font-mono text-emerald-400 font-bold">{val.toLocaleString("en-US")}</span>;
+      return <span className="font-mono text-emerald-700 font-bold">{Math.round(val * 100) / 100 ? val.toLocaleString("vi-VN") : "—"}</span>;
     }
     return String(val ?? "");
   };
 
   return (
-    <div className="bg-[#111827]/80 rounded-2xl border border-gray-800 shadow-xl overflow-hidden animate-fade-in space-y-4 p-5" id="beautiful_report_container">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden space-y-4 p-5" id="beautiful_report_container">
       {/* HEADER BAR */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#1f2937]/50 p-4 rounded-xl border border-gray-800">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 font-sans">
         <div>
-          <span className="text-xs font-bold text-amber-400 font-mono tracking-widest uppercase block mb-1">
-            📊 KẾT QUẢ TỔNG HỢP KINH TẾ (NGÀNH CẤP {level} × ĐỊA BÀN XÃ/PHƯỜNG)
+          <span className="text-xs font-black text-slate-800 font-mono tracking-widest uppercase block mb-1">
+            📊 KẾT QUẢ TỔNG HỢP {level === 0 ? "PHÂN NHÓM" : `DANH MỤC NGÀNH CẤP ${level}`} × ĐỊA BÀN
           </span>
-          <span className="text-xs text-gray-400 font-sans block leading-normal">
-            Bản hợp nhất từ danh mục ngành khớp trực tiếp trong bộ nhớ. Đã chạy đối soát dữ liệu thực tế.
+          <span className="text-xs text-slate-600 block leading-normal">
+            Bản hợp nhất động từ các tiêu chí và cột hạch toán do bạn tùy chỉnh. Đã tổng cộng dồn lũy kế tự động.
           </span>
         </div>
 
@@ -95,14 +145,14 @@ export const BeautifulReportTable: React.FC<BeautifulReportTableProps> = ({
           {/* SEARCH BAR */}
           <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <Search className="h-3.5 w-3.5 text-gray-400" />
+              <Search className="h-3.5 w-3.5 text-slate-400" />
             </span>
             <input
               type="text"
               placeholder="Tìm kiếm địa bàn xã..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-[#0f172a] border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 w-52"
+              className="bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-52 font-medium"
             />
           </div>
 
@@ -112,12 +162,12 @@ export const BeautifulReportTable: React.FC<BeautifulReportTableProps> = ({
               onClick={() => setHideZeroColumns(!hideZeroColumns)}
               className={`text-xs font-bold py-1.5 px-3 rounded-lg border transition-all flex items-center gap-1.5 select-none md:w-auto w-full justify-center cursor-pointer ${
                 hideZeroColumns
-                  ? "bg-amber-950/40 text-amber-300 border-amber-800 hover:bg-amber-900/30"
-                  : "bg-gray-800 text-gray-300 border-gray-750 hover:bg-gray-700"
+                  ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100/60"
+                  : "bg-slate-100 text-slate-700 border-slate-250 hover:bg-slate-200"
               }`}
-              title="Nhấn để ẩn/hiện các cột ngành không có số liệu phát sinh trên địa bàn"
+              title="Nhấn để ẩn/hiện các cột ngành không phát sinh dữ liệu"
             >
-              {hideZeroColumns ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {hideZeroColumns ? <EyeOff className="w-3.5 h-3.5 text-amber-700" /> : <Eye className="w-3.5 h-3.5 text-slate-600" />}
               {hideZeroColumns ? `Đang ẩn cột rỗng (${pivotAnalysis.sectors.length - pivotAnalysis.activeSectors.length})` : "Hiện tất cả cột ngành"}
             </button>
           )}
@@ -132,172 +182,271 @@ export const BeautifulReportTable: React.FC<BeautifulReportTableProps> = ({
         </div>
       </div>
 
-      {/* DETAILED INSIGHTS / STATS CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider font-mono">Tổng Số Địa Bàn Xã</div>
-          <div className="text-xl font-bold text-white mt-0.5">{rows.length} <span className="text-xs font-normal text-gray-500">địa phương</span></div>
-        </div>
-        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider font-mono">Phát Sinh Hoạt Động</div>
-          <div className="text-xl font-bold text-emerald-400 mt-0.5">
-            {reportType === "pivot" ? pivotAnalysis.activeSectors.length : "Nhiều Nhóm"} 
-            <span className="text-xs font-normal text-gray-500"> nhóm ngành có phát sinh số liệu</span>
+      {/* DYNAMIC INSIGHTS / STATS CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-sans">
+        {pivotAnalysis.indicators.slice(0, 2).map((ind, idx) => {
+          const totalVal = overallTotals.totalsByIndicator[ind] || 0;
+          return (
+            <div 
+              key={ind} 
+              className={`p-4 rounded-xl border space-y-1 bg-gradient-to-br ${
+                idx === 0 
+                  ? "from-emerald-50/50 to-emerald-50/20 border-emerald-100" 
+                  : "from-indigo-50/50 to-indigo-50/20 border-indigo-100"
+              }`}
+            >
+              <div className={`text-[10px] uppercase tracking-wider font-mono font-bold flex items-center gap-1 ${idx === 0 ? "text-emerald-700" : "text-indigo-700"}`}>
+                {idx === 0 ? "💰" : "👥"} TỔNG CỘNG: {ind}
+              </div>
+              <div className="text-lg font-black text-slate-900 mt-0.5 font-mono">
+                {totalVal.toLocaleString("vi-VN")} <span className="text-xs font-normal text-slate-500 font-sans">tổng cộng</span>
+              </div>
+              <div className="text-[10px] text-slate-500">Tổng quy nạp lũy kế trên toàn bộ {rows.length} địa bàn</div>
+            </div>
+          );
+        })}
+
+        {/* Fallback cards if less than 2 indicators selected */}
+        {pivotAnalysis.indicators.length === 0 && (
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
+            <div className="text-[10px] text-slate-500 uppercase font-mono font-bold">💰 CHƯA CÓ CHỈ TIÊU SỐ</div>
+            <div className="text-lg font-bold text-slate-450">0</div>
+            <div className="text-[10px] text-slate-400">Tick chọn chỉ tiêu ở bảng cấu hình</div>
           </div>
-        </div>
-        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider font-mono">Ý nghĩa thiết kế</div>
-          <div className="text-xs text-amber-300 mt-1 leading-normal font-sans">
-            Màn hình thông minh đã được nén gọn lại. Bấm trực tiếp vào từng dòng để xem báo cáo dọc chi tiết của Xã đó.
+        )}
+
+        {pivotAnalysis.indicators.length < 2 && pivotAnalysis.indicators.length > 0 && (
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
+            <div className="text-[10px] text-slate-500 uppercase font-mono font-bold">ℹ️ CHỈ TIÊU PHỤ</div>
+            <div className="text-sm font-semibold text-slate-500 italic">Bổ sung chỉ tiêu số ở bảng gộp</div>
+            <div className="text-[10px] text-slate-400">Chỉ chọn duy nhất 1 cột chỉ tiêu chính</div>
           </div>
+        )}
+
+        <div className="bg-gradient-to-br from-teal-50/60 to-teal-50/20 p-4 rounded-xl border border-teal-100 space-y-1">
+          <div className="text-[10px] text-teal-700 uppercase tracking-wider font-mono font-bold flex items-center gap-1">
+            🏢 TỔNG LƯỢNG MẪU NGUỒN
+          </div>
+          <div className="text-lg font-black text-slate-900 mt-0.5 font-mono">
+            {overallTotals.dn.toLocaleString("vi-VN")} <span className="text-xs font-normal text-slate-500 font-sans">cơ sở/dòng d.liệu</span>
+          </div>
+          <div className="text-[10px] text-slate-500">Ghi nhận đại diện cho các địa bàn đã nạp</div>
         </div>
       </div>
 
       {/* THE MAIN TABLE CORES */}
-      <div className="relative">
+      <div className="relative font-sans">
         {filteredRows.length === 0 ? (
-          <div className="text-center py-10 bg-gray-900/20 border border-gray-800 rounded-xl text-gray-400 text-xs">
+          <div className="text-center py-10 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 text-xs">
             Không tìm thấy địa bàn nào khớp với từ khóa tìm kiếm.
           </div>
         ) : reportType === "pivot" ? (
-          /* ================== PIVOT MATRIX LAYOUT (HIGHLY POLISHED) ================== */
-          <div className="overflow-x-auto border border-gray-800 rounded-xl bg-gray-950/40 max-h-[480px]">
+          /* ================== PIVOT MATRIX LAYOUT (DYNAMIC & HIGHLY POLISHED) ================== */
+          <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[500px]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 {/* FIRST HEADER ROW: GROUPED SECTORS */}
-                <tr className="bg-gray-900 border-b border-gray-800 text-gray-300 font-mono text-[10.5px] sticky top-0 z-20">
-                  <th rowSpan={2} className="p-3 font-bold whitespace-nowrap bg-gray-900 border-r border-gray-800 align-middle text-center sticky left-0 z-30">
+                <tr className="bg-slate-100 border-b border-slate-200 text-slate-800 font-mono text-[10.5px] sticky top-0 z-20">
+                  <th rowSpan={2} className="p-3 font-bold whitespace-nowrap bg-slate-100 border-r border-slate-200 align-middle text-center sticky left-0 z-30">
                     Địa Bàn Xã/Phường
                   </th>
                   {visibleSectors.map((sector) => (
-                    <th key={sector} colSpan={2} className="p-2 font-bold whitespace-nowrap text-center border-r border-b border-gray-800 bg-[#1e293b]/70 font-sans text-[11px] text-yellow-300">
+                    <th 
+                      key={sector} 
+                      colSpan={pivotAnalysis.indicators.length} 
+                      className="p-2 font-bold whitespace-nowrap text-center border-r border-b border-slate-200 bg-slate-50 font-sans text-[11px] text-slate-800"
+                    >
                       {sector}
                     </th>
                   ))}
-                  <th colSpan={3} className="p-2 font-bold whitespace-nowrap text-center bg-teal-950/70 text-teal-300 align-middle border-b border-gray-800">
+                  <th 
+                    colSpan={1 + pivotAnalysis.indicators.length} 
+                    className="p-2 font-bold whitespace-nowrap text-center bg-teal-50 text-teal-900 align-middle border-b border-slate-200"
+                  >
                     TỔNG HỢP ĐỊA PHƯƠNG
                   </th>
                 </tr>
 
                 {/* SECOND HEADER ROW: INDICATORS */}
-                <tr className="bg-[#1f2937]/90 border-b border-gray-800 text-gray-400 font-mono text-[9px] sticky top-[31px] z-20 uppercase">
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 font-mono text-[9px] sticky top-[31px] z-20 uppercase">
                   {visibleSectors.map((sector) => (
                     <React.Fragment key={`sub-${sector}`}>
-                      <th className="p-2 font-medium text-right border-r border-gray-800/50 bg-[#1f2937]/50 whitespace-nowrap w-24">Doanh Thu</th>
-                      <th className="p-2 font-medium text-right border-r border-gray-850 bg-[#1f2937]/50 whitespace-nowrap w-20">Lao Động</th>
+                      {pivotAnalysis.indicators.map((ind, indIdx) => (
+                        <th 
+                          key={ind} 
+                          className="p-2 font-medium text-right border-r bg-slate-50/55 whitespace-nowrap"
+                          style={{ 
+                            borderColor: indIdx === pivotAnalysis.indicators.length - 1 ? '#e2e8f0' : '#f1f5f9',
+                            width: pivotAnalysis.indicators.length > 2 ? '80px' : '96px'
+                          }}
+                        >
+                          {ind}
+                        </th>
+                      ))}
                     </React.Fragment>
                   ))}
-                  <th className="p-2 font-semibold text-right border-r border-gray-800/50 bg-teal-900/20 text-teal-400 whitespace-nowrap w-16">Số DN</th>
-                  <th className="p-2 font-semibold text-right border-r border-gray-800/50 bg-teal-900/20 text-teal-400 whitespace-nowrap w-28">Tổng D.Thu</th>
-                  <th className="p-2 font-semibold text-right bg-teal-900/20 text-teal-400 whitespace-nowrap w-24">Tổng L.Động</th>
+                  <th className="p-2 font-semibold text-right border-r border-slate-200 bg-teal-50/40 text-teal-800 whitespace-nowrap w-20">
+                    Số mẫu
+                  </th>
+                  {pivotAnalysis.indicators.map((ind) => (
+                    <th key={`hdr-tot-${ind}`} className="p-2 font-semibold text-right border-r border-slate-200 bg-teal-50/40 text-teal-800 whitespace-nowrap">
+                      {ind}
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-gray-800/50 text-gray-200 font-sans text-[11.5px]">
+              <tbody className="divide-y divide-slate-100 text-slate-800 font-sans text-[11.5px]">
                 {filteredRows.map((row, rIdx) => {
                   const isSelected = selectedRowIndex === rIdx;
+                  const communeName = row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "Khác";
                   return (
                     <React.Fragment key={`row-${rIdx}`}>
                       <tr
                         onClick={() => setSelectedRowIndex(isSelected ? null : rIdx)}
-                        className={`hover:bg-slate-800/40 transition-colors cursor-pointer ${
-                          isSelected ? "bg-slate-800/60 font-semibold border-l-4 border-amber-500" : rIdx % 2 === 1 ? "bg-gray-900/10" : ""
+                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${
+                          isSelected ? "bg-amber-50/60 font-semibold border-l-4 border-amber-500" : rIdx % 2 === 1 ? "bg-slate-50/40" : ""
                         }`}
                       >
                         {/* Commune Name */}
-                        <td className="p-3 whitespace-nowrap font-sans font-medium text-gray-100 bg-gray-950/90 border-r border-gray-800 sticky left-0 z-10 flex items-center gap-1.5 shadow-md">
-                          {isSelected ? <ChevronDown className="w-3 h-3 text-amber-400" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
-                          {row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "Khác"}
+                        <td className="p-3 whitespace-nowrap font-sans font-medium text-slate-900 bg-white border-r border-slate-200 sticky left-0 z-10 flex items-center gap-1.5 shadow-sm">
+                          {isSelected ? <ChevronDown className="w-3 h-3 text-amber-600" /> : <ChevronRight className="w-3 h-3 text-slate-400" />}
+                          {communeName}
                         </td>
 
                         {/* Sector Values */}
                         {visibleSectors.map((sector) => {
-                          const valRev = row[`${sector} - Tổng Doanh Thu`];
-                          const valLab = row[`${sector} - Tổng Lao Động`];
-                          const isHl = (valRev > 0 || valLab > 0);
-
                           return (
                             <React.Fragment key={`val-${sector}`}>
-                              <td className={`p-2.5 text-right border-r border-gray-800/40 whitespace-nowrap ${isHl ? "bg-emerald-950/20" : ""}`}>
-                                {formatCellValue(valRev, true)}
-                              </td>
-                              <td className={`p-2.5 text-right border-r border-gray-850 whitespace-nowrap ${isHl ? "bg-emerald-950/25" : ""}`}>
-                                {formatCellValue(valLab, true)}
-                              </td>
+                              {pivotAnalysis.indicators.map((ind, indIdx) => {
+                                const val = row[`${sector} - Tổng ${ind}`];
+                                const isHl = val > 0;
+                                return (
+                                  <td 
+                                    key={ind} 
+                                    className={`p-2.5 text-right border-r whitespace-nowrap ${isHl ? "bg-emerald-50/20 font-bold" : ""}`}
+                                    style={{ borderColor: indIdx === pivotAnalysis.indicators.length - 1 ? '#e2e8f0' : '#f1f5f9' }}
+                                  >
+                                    {formatCellValue(val, true)}
+                                  </td>
+                                );
+                              })}
                             </React.Fragment>
                           );
                         })}
 
                         {/* Summary Columns */}
-                        <td className="p-2.5 text-right font-semibold text-teal-300 border-r border-gray-800 bg-teal-950/20 whitespace-nowrap">
-                          {row["Số_DN_Địa_Phương"] !== undefined ? row["Số_DN_Địa_Phương"].toLocaleString() : "—"}
+                        <td className="p-2.5 text-right font-semibold text-indigo-700 border-r border-slate-200 bg-teal-50/20 whitespace-nowrap">
+                          {formatCellValue(row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"], false)}
                         </td>
-                        <td className="p-2.5 text-right font-bold text-teal-400 border-r border-gray-800 bg-teal-950/25 whitespace-nowrap font-mono">
-                          {row["Tổng_Doanh_Thu_Địa_Phương"] !== undefined ? row["Tổng_Doanh_Thu_Địa_Phương"].toLocaleString() : "—"}
-                        </td>
-                        <td className="p-2.5 text-right font-bold text-teal-400 bg-teal-950/30 whitespace-nowrap font-mono">
-                          {row["Tổng_Lao_Động_Địa_Phương"] !== undefined ? row["Tổng_Lao_Động_Địa_Phương"].toLocaleString() : "—"}
-                        </td>
+                        {pivotAnalysis.indicators.map((ind, indIdx) => {
+                          const totVal = row[`Tổng_Cộng_${ind}_Toàn_Xã`] ?? row[`Tổng_Cộng_Toàn_Xã_${ind}`] ?? row["Tổng_Doanh_Thu_Địa_Phương"];
+                          return (
+                            <td 
+                              key={`overall-${ind}`} 
+                              className="p-2.5 text-right font-bold text-teal-800 border-r border-slate-200 bg-teal-50/30 whitespace-nowrap font-mono"
+                              style={{ borderRightColor: indIdx === pivotAnalysis.indicators.length - 1 ? '#e2e8f0' : '#f1f5f9' }}
+                            >
+                              {formatCellValue(totVal, true)}
+                            </td>
+                          );
+                        })}
                       </tr>
 
                       {/* EXPANDED PANEL VIEW FOR THIS ROW */}
                       {isSelected && (
                         <tr>
-                          <td colSpan={visibleSectors.length * 2 + 4} className="bg-[#0f172a] p-4 border-y border-amber-950/45 animate-fade-in">
-                            <div className="max-w-4xl mx-auto space-y-3 font-sans">
-                              <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                                  <CheckCircle className="w-4 h-4 text-emerald-400" /> BÁO CÁO PHÂN TÍCH THEO NGÀNH CỦA ĐỊA BÀN: {row["Địa_Bàn_Xã"] || "Khác"}
+                          <td colSpan={visibleSectors.length * pivotAnalysis.indicators.length + 2 + pivotAnalysis.indicators.length} className="bg-slate-50 p-4 border-y border-amber-200/50 animate-fade-in">
+                            <div className="max-w-4xl mx-auto space-y-3 font-sans text-slate-800">
+                              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                                <span className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                                  <CheckCircle className="w-4 h-4 text-emerald-600" /> phân tích tỉ trọng địa bàn: {communeName}
                                 </span>
-                                <span className="text-[10px] text-gray-500 font-mono">Ấn dòng tiêu đề lần nữa để thu gọn</span>
+                                <span className="text-[10px] text-slate-500 font-mono">Click vào hàng xã một lần nữa để thu gọn</span>
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Left stats list */}
                                 <div className="space-y-2">
-                                  <div className="bg-[#1e293b]/70 p-3 rounded-lg border border-gray-800 space-y-1.5">
-                                    <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Số liệu tổng kết sơ bộ tại địa bàn</h5>
-                                    <div className="grid grid-cols-3 gap-2">
-                                      <div className="text-center p-1.5 bg-slate-950/50 rounded">
-                                        <p className="text-[9px] text-gray-500 uppercase">Doanh Nghiệp</p>
-                                        <p className="text-sm font-bold text-cyan-400">{row["Số_DN_Địa_Phương"] || 0}</p>
+                                  <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-3">
+                                    <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cơ cấu đóng góp của Xã vào tổng thể</h5>
+                                    
+                                    <div className="space-y-3">
+                                      {/* Record count percentage */}
+                                      <div className="space-y-1">
+                                        <div className="flex justify-between text-xs text-slate-700">
+                                          <span>🏢 Số dòng mẫu:</span>
+                                          <strong className="text-cyan-700 font-mono">
+                                            {(row["Số_Dòng_Tổng_Hợp"] ?? 0).toLocaleString()} / {overallTotals.dn.toLocaleString()} dòng ({overallTotals.dn > 0 ? (((row["Số_Dòng_Tổng_Hợp"] ?? 0) / overallTotals.dn) * 100).toFixed(2) : 0}%)
+                                          </strong>
+                                        </div>
+                                        <div className="bg-slate-100 h-1 rounded overflow-hidden">
+                                          <div className="bg-cyan-500 h-full text-xs" style={{ width: `${overallTotals.dn > 0 ? (((row["Số_Dòng_Tổng_Hợp"] ?? 0) / overallTotals.dn) * 100) : 0}%` }} />
+                                        </div>
                                       </div>
-                                      <div className="text-center p-1.5 bg-slate-950/50 rounded">
-                                        <p className="text-[9px] text-gray-500 uppercase">T.Doanh Thu</p>
-                                        <p className="text-sm font-bold text-emerald-400 font-mono">{row["Tổng_Doanh_Thu_Địa_Phương"]?.toLocaleString() || 0}</p>
-                                      </div>
-                                      <div className="text-center p-1.5 bg-slate-950/50 rounded">
-                                        <p className="text-[9px] text-gray-500 uppercase">T.Lao Động</p>
-                                        <p className="text-sm font-bold text-yellow-500 font-mono">{row["Tổng_Lao_Động_Địa_Phương"]?.toLocaleString() || 0}</p>
-                                      </div>
+
+                                      {/* Dynamic indicators percentage */}
+                                      {pivotAnalysis.indicators.map((ind) => {
+                                        const totVal = row[`Tổng_Cộng_${ind}_Toàn_Xã`] ?? row[`Tổng_Cộng_Toàn_Xã_${ind}`] ?? 0;
+                                        const overallVal = overallTotals.totalsByIndicator[ind] || 1;
+                                        const pct = (totVal / overallVal) * 100;
+                                        return (
+                                          <div key={ind} className="space-y-1">
+                                            <div className="flex justify-between text-xs text-slate-700">
+                                              <span>📊 Chỉ tiêu {ind}:</span>
+                                              <strong className="text-emerald-700 font-mono">
+                                                {totVal.toLocaleString("vi-VN")} ({pct.toFixed(2)}%)
+                                              </strong>
+                                            </div>
+                                            <div className="bg-slate-100 h-1 rounded overflow-hidden">
+                                              <div className="bg-emerald-600 h-full text-xs" style={{ width: `${pct}%` }} />
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 </div>
 
                                 {/* Right: Detailed actual list of sectors with value > 0 */}
-                                <div className="space-y-1.5 bg-[#1e293b]/30 p-3 rounded-lg border border-gray-800 max-h-[160px] overflow-y-auto">
-                                  <h5 className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">Danh sách chi tiết các ngành thực chi phát sinh</h5>
-                                  <div className="divide-y divide-gray-800">
+                                <div className="space-y-1.5 bg-white p-3 rounded-lg border border-slate-200 max-h-[190px] overflow-y-auto">
+                                  <h5 className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Cơ cấu đóng góp của ngành trong địa bàn</h5>
+                                  <div className="divide-y divide-slate-100">
                                     {pivotAnalysis.sectors.map((sec) => {
-                                      const dt = row[`${sec} - Tổng Doanh Thu`] || 0;
-                                      const ld = row[`${sec} - Tổng Lao Động`] || 0;
-                                      if (dt === 0 && ld === 0) return null;
+                                      const hasActiveIndicator = pivotAnalysis.indicators.some(
+                                        (ind) => (row[`${sec} - Tổng ${ind}`] || 0) > 0
+                                      );
+                                      if (!hasActiveIndicator) return null;
 
                                       return (
-                                        <div key={sec} className="py-2 flex items-center justify-between text-xs gap-3">
-                                          <span className="text-white font-medium break-all pr-2 max-w-[200px] leading-tight">
-                                            🏢 {sec}
+                                        <div key={sec} className="py-2 flex flex-col text-xs gap-1.5">
+                                          <span className="text-slate-900 font-semibold leading-tight text-[11px] font-mono text-purple-700">
+                                            🏢 NGÀNH: {sec}
                                           </span>
-                                          <div className="flex gap-4 font-mono shrink-0">
-                                            <span className="text-emerald-400 text-right"><span className="text-[9px] text-gray-500 block">D.Thu</span>{dt.toLocaleString()}</span>
-                                            <span className="text-yellow-400 text-right"><span className="text-[9px] text-gray-500 block">L.Động</span>{ld.toLocaleString()}</span>
+                                          <div className={`grid grid-cols-2 gap-3 text-[10.5px]`}>
+                                            {pivotAnalysis.indicators.map((ind) => {
+                                              const val = row[`${sec} - Tổng ${ind}`] || 0;
+                                              const communeTotal = row[`Tổng_Cộng_${ind}_Toàn_Xã`] ?? row[`Tổng_Cộng_Toàn_Xã_${ind}`] ?? 1;
+                                              const overallTotal = overallTotals.totalsByIndicator[ind] || 1;
+                                              const propOfCommune = (val / communeTotal) * 100;
+                                              const propOfGrand = (val / overallTotal) * 100;
+                                              return (
+                                                <div key={ind} className="bg-slate-50 p-1.5 rounded border border-slate-200 font-mono">
+                                                  <span className="text-slate-500 block text-[9px] uppercase">{ind}:</span>
+                                                  <strong className="text-emerald-700 font-bold block">{val.toLocaleString("vi-VN")}</strong>
+                                                  <span className="text-slate-450 block text-[8px] mt-0.5">
+                                                    Nhóm: {propOfCommune.toFixed(1)}% xã / {propOfGrand.toFixed(2)}% tổng
+                                                  </span>
+                                                </div>
+                                              );
+                                            })}
                                           </div>
                                         </div>
                                       );
                                     })}
                                     {/* Safeguard if no sector is active */}
-                                    {pivotAnalysis.sectors.every(sec => (row[`${sec} - Tổng Doanh Thu`] || 0) === 0 && (row[`${sec} - Tổng Lao Động`] || 0) === 0) && (
-                                      <p className="text-[11px] text-gray-500 italic">Không ghi nhận hoạt động phát sinh.</p>
+                                    {pivotAnalysis.sectors.every(sec => pivotAnalysis.indicators.every(ind => (row[`${sec} - Tổng ${ind}`] || 0) === 0)) && (
+                                      <p className="text-[11px] text-slate-400 italic py-2">Không ghi nhận hoạt động phát sinh.</p>
                                     )}
                                   </div>
                                 </div>
@@ -310,49 +459,169 @@ export const BeautifulReportTable: React.FC<BeautifulReportTableProps> = ({
                   );
                 })}
               </tbody>
+
+              {/* TFOOT FOR PIVOT */}
+              <tfoot>
+                {/* DÒNG 1: TỔNG CỘNG TRỊ SỐ LŨY KẾ TOÀN BỘ PHÁT SINH */}
+                <tr className="bg-slate-100 border-t border-slate-300 text-slate-900 font-bold text-[11px] font-mono sticky bottom-0 z-20 uppercase">
+                  <td className="p-3 text-center bg-slate-100 border-r border-slate-200 sticky left-0 z-20 shadow-lg">
+                    TỔNG CỘNG TOÀN HUYỆN
+                  </td>
+                  {visibleSectors.map((sector) => {
+                    return (
+                      <React.Fragment key={`tot-${sector}`}>
+                        {pivotAnalysis.indicators.map((ind) => {
+                          const sumVal = overallTotals.sectorStats[sector]?.[ind] || 0;
+                          return (
+                            <td key={ind} className="p-2.5 text-right border-r border-slate-200 bg-emerald-50/35 text-emerald-800 font-bold font-mono">
+                              {sumVal > 0 ? sumVal.toLocaleString("vi-VN") : "—"}
+                            </td>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                  <td className="p-2.5 text-right font-bold text-teal-800 border-r border-slate-200 bg-teal-50/40">
+                    {overallTotals.dn.toLocaleString("vi-VN")}
+                  </td>
+                  {pivotAnalysis.indicators.map((ind) => {
+                    const grandVal = overallTotals.totalsByIndicator[ind] || 0;
+                    return (
+                      <td key={`grand-tot-${ind}`} className="p-2.5 text-right font-extrabold text-teal-950 border-r border-slate-200 bg-teal-50/50 font-mono">
+                        {grandVal.toLocaleString("vi-VN")}
+                      </td>
+                    );
+                  })}
+                </tr>
+
+                {/* DÒNG 2: TỈ TRỌNG (%) CỦA TỪNG NGÀNH TRÊN TỔNG THỂ */}
+                <tr className="bg-slate-50 text-amber-800 font-bold text-[10px] font-mono uppercase border-t border-slate-200">
+                  <td className="p-3 text-center bg-slate-50 border-r border-slate-200 sticky left-0 z-20 shadow-lg">
+                    TỈ TRỌNG CƠ CẤU (%)
+                  </td>
+                  {visibleSectors.map((sector) => {
+                    return (
+                      <React.Fragment key={`pct-${sector}`}>
+                        {pivotAnalysis.indicators.map((ind) => {
+                          const val = overallTotals.sectorStats[sector]?.[ind] || 0;
+                          const overallTotal = overallTotals.totalsByIndicator[ind] || 0;
+                          const pct = overallTotal > 0 ? (val / overallTotal) * 100 : 0;
+                          return (
+                            <td key={ind} className="p-2.5 text-right border-r border-slate-200 bg-amber-50/15 text-amber-700 font-semibold">
+                              {pct > 0 ? `${pct.toFixed(2)}%` : "—"}
+                            </td>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                  <td className="p-2.5 text-right border-r border-slate-200 bg-teal-50/20 text-slate-500 font-normal">
+                    100.0%
+                  </td>
+                  {pivotAnalysis.indicators.map((ind) => (
+                    <td key={`pct-grand-${ind}`} className="p-2.5 text-right border-r border-slate-200 bg-teal-50/25 text-slate-500 font-normal font-mono">
+                      100.0%
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
             </table>
           </div>
         ) : (
           /* ================== STANDARD FLAT TABLE LAYOUT ================== */
-          <div className="overflow-x-auto border border-gray-800 rounded-xl bg-gray-950/40 max-h-[480px]">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[500px]">
+            <table className="w-full text-left text-xs border-collapse font-sans">
               <thead>
-                <tr className="bg-gray-900 border-b border-gray-800 text-gray-300 font-mono text-[11px] sticky top-0 z-10 uppercase">
-                  <th className="p-3 w-12 text-center text-gray-500">STT</th>
+                <tr className="bg-slate-100 border-b border-slate-200 text-slate-800 font-mono text-[11px] sticky top-0 z-10 uppercase">
+                  <th className="p-3 w-12 text-center text-slate-400 font-sans">STT</th>
                   {cols.map((col) => (
                     <th key={col} className="p-3 font-semibold whitespace-nowrap">{col}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800/50 text-gray-200 font-sans text-[11.5px]">
+              <tbody className="divide-y divide-slate-100 text-slate-800 text-[11.5px]">
                 {filteredRows.map((row, rIdx) => (
-                  <tr key={rIdx} className={`hover:bg-slate-800/30 transition-colors ${rIdx % 2 === 1 ? "bg-gray-900/10" : ""}`}>
-                    <td className="p-3 text-center text-gray-500 font-mono">{rIdx + 1}</td>
+                  <tr key={rIdx} className={`hover:bg-slate-50 transition-colors ${rIdx % 2 === 1 ? "bg-slate-50/30" : ""}`}>
+                    <td className="p-3 text-center text-slate-400 font-mono">{rIdx + 1}</td>
                     {cols.map((col) => {
                       const val = row[col];
                       const isNumeric = typeof val === "number";
+                      let proportionStr = "";
+
+                      if (isNumeric) {
+                        if (col.startsWith("Tổng_")) {
+                          const indName = col.replace("Tổng_", "");
+                          const overallVal = overallTotals.totalsByIndicator[indName] || 0;
+                          if (overallVal > 0) {
+                            proportionStr = ` (${((val / overallVal) * 100).toFixed(2)}%)`;
+                          }
+                        } else if (col === "Số_Lượng_Bản_Ghi") {
+                          const overallVal = overallTotals.dn || 0;
+                          if (overallVal > 0) {
+                            proportionStr = ` (${((val / overallVal) * 100).toFixed(2)}%)`;
+                          }
+                        }
+                      }
+
                       return (
                         <td
                           key={col}
                           className={`p-3 whitespace-nowrap ${
                             isNumeric
-                              ? "font-mono text-emerald-400 font-bold text-right"
-                              : col.includes("Địa_Bàn_Xã")
-                              ? "font-semibold text-gray-100"
+                              ? "font-mono text-emerald-700 font-bold text-right"
+                              : col === "Địa_Bàn_Xã" || col === "Địa_bàn_Xã"
+                              ? "font-semibold text-slate-900"
                               : ""
                           }`}
                         >
-                          {isNumeric ? val.toLocaleString("en-US") : String(val ?? "")}
+                          {isNumeric ? (
+                            <>
+                              {val.toLocaleString("vi-VN")}
+                              {proportionStr && <span className="text-[10px] text-slate-500 font-normal ml-1 bg-slate-50 border border-slate-200 px-1.2 py-0.5 rounded">{proportionStr}</span>}
+                            </>
+                          ) : String(val ?? "")}
                         </td>
                       );
                     })}
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="bg-slate-100 border-t-2 border-slate-300 text-slate-900 font-bold text-[11.5px] font-mono uppercase">
+                  <td className="p-3 text-center text-slate-400">∑</td>
+                  {cols.map((col, cIdx) => {
+                    if (cIdx === 0) {
+                      return <td key={col} colSpan={2} className="p-3 text-left">TỔNG CỘNG TOÀN BẢNG</td>;
+                    }
+                    if (col === "Địa_Bàn_Xã" || col === "Địa_bàn_Xã") {
+                      return null;
+                    }
+                    if (col === "Số_Lượng_Bản_Ghi") {
+                      return (
+                        <td key={col} className="p-3 text-right font-semibold text-teal-800 bg-teal-50/20">
+                          {overallTotals.dn.toLocaleString("vi-VN")} (100%)
+                        </td>
+                      );
+                    }
+                    if (col.startsWith("Tổng_")) {
+                      const ind = col.replace("Tổng_", "");
+                      const totalVal = overallTotals.totalsByIndicator[ind] || 0;
+                      return (
+                        <td key={col} className="p-3 text-right font-bold text-teal-900 bg-teal-50/30 font-mono">
+                          {totalVal.toLocaleString("vi-VN")} (100%)
+                        </td>
+                      );
+                    }
+                    return <td key={col} className="p-3 bg-slate-50" />;
+                  })}
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
       </div>
     </div>
   );
-};
+});
+
+BeautifulReportTable.displayName = "BeautifulReportTable";

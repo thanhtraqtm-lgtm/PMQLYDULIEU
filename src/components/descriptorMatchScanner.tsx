@@ -17,11 +17,9 @@ import {
 import * as XLSX from "xlsx";
 import { vsicRawData, normalizeSectorCode } from "../data/vsic";
 
-// Helper to clean and normalize text for simple comparison
 function normalizeTextToCompare(text: string): string {
   if (!text) return "";
   let clean = text.toString().toLowerCase().trim();
-  // Remove Vietnamese tones to make spelling mismatch checks robust
   clean = clean.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
   clean = clean.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
   clean = clean.replace(/ì|í|ị|ỉ|ĩ/g, "i");
@@ -46,28 +44,22 @@ interface DescriptorMatchScannerProps {
   };
 }
 
-export default function DescriptorMatchScanner({ mainData, columns, mapping }: DescriptorMatchScannerProps) {
-  // Column Selection States (no guessing)
+const DescriptorMatchScanner = React.memo(function DescriptorMatchScanner({ mainData, columns, mapping }: DescriptorMatchScannerProps) {
   const [colManganh, setColManganh] = useState<string>("");
   const [colMotaDtv, setColMotaDtv] = useState<string>("");
 
-  // UI Error/Notification states to avoid iframe-blocking window.alert()
   const [uiError, setUiError] = useState<string | null>(null);
   const [uiSuccess, setUiSuccess] = useState<string | null>(null);
 
-  // Filter states
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
-  // Output analysis results
   const [scanResults, setScanResults] = useState<any[]>([]);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [hasScanned, setHasScanned] = useState<boolean>(false);
 
-  // Initialize columns cleanly without guessing
   useEffect(() => {
     if (columns && columns.length > 0) {
-      // Prioritize previous user mappings if matching, otherwise keep empty
       if (mapping && mapping.manganh && columns.includes(mapping.manganh)) {
         setColManganh(mapping.manganh);
       } else {
@@ -82,7 +74,6 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
     }
   }, [columns, mapping]);
 
-  // Execute lookup and comparison natively
   const handleRunMatchScan = () => {
     setUiError(null);
     setUiSuccess(null);
@@ -99,7 +90,6 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
     setIsScanning(true);
     setHasScanned(false);
 
-    // Run within a brief timeout so that React updates UI smoothly first
     setTimeout(() => {
       try {
         const analyzed = mainData.map((row, index) => {
@@ -119,10 +109,7 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
           const codeVal = String(row[colManganh] || "").trim();
           const descDtv = String(row[colMotaDtv] || "").trim();
 
-          // Prepare normalized lookup key
           const normalizedCode = normalizeSectorCode(codeVal);
-          
-          // Look up in the standard catalog that was uploaded
           const standardName = vsicRawData[normalizedCode] || "";
 
           let status: "SAFE" | "CRITICAL" = "SAFE";
@@ -142,7 +129,6 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
               compareResult = "Trùng khớp hoàn toàn ngữ nghĩa";
               isMatch = true;
             } else {
-              // Detailed visual breakdown of the difference
               status = "CRITICAL";
               isMatch = false;
 
@@ -177,7 +163,6 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
     }, 100);
   };
 
-  // Compute live metrics
   const stats = useMemo(() => {
     if (!hasScanned) return { total: 0, safe: 0, critical: 0 };
     const total = scanResults.length;
@@ -186,7 +171,6 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
     return { total, safe, critical };
   }, [scanResults, hasScanned]);
 
-  // Handle Search and Filter logic
   const filteredScanItems = useMemo(() => {
     if (!hasScanned) return [];
     
@@ -211,7 +195,6 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
   const displayLimit = 250;
   const displayedScanItems = filteredScanItems.slice(0, displayLimit);
 
-  // Export comparison results safely without crashing alert
   const handleExportMatchReport = () => {
     setUiError(null);
     setUiSuccess(null);
@@ -246,36 +229,36 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
   };
 
   return (
-    <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-6 space-y-6">
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-xl font-sans text-slate-800">
       
       {/* Tab Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div className="space-y-1">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <ArrowRightLeft className="w-5 h-5 text-purple-400" /> KHỚP NGÀNH & SO SÁNH ĐÁNH DẤU SAI LỆCH
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <ArrowRightLeft className="w-5 h-5 text-indigo-600" /> KHỚP NGÀNH & SO SÁNH ĐÁNH DẤU SAI LỆCH
           </h3>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-slate-500">
             Hệ thống đối chiếu mã ngành trong tệp với Danh mục bạn đã nạp, tự động đặt Tên ngành chuẩn cạnh Tên mô tả của ĐTV nhập để chỉ ra điểm sai khác.
           </p>
         </div>
       </div>
 
       {/* Configuration Card */}
-      <div className="bg-[#111827] rounded-xl p-5 border border-purple-950/20 space-y-4">
-        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5 pb-2 border-b border-gray-800">
-          <Sliders className="w-4 h-4 text-purple-400" /> THIẾT LẬP CỘT ĐỐI CHIẾU
+      <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 space-y-4">
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5 pb-2 border-b border-slate-200">
+          <Sliders className="w-4 h-4 text-indigo-600" /> THIẾT LẬP CỘT ĐỐI CHIẾU
         </h4>
 
-        {/* UI Notices (replaced alert) */}
+        {/* UI Notices */}
         {uiError && (
-          <div className="p-3.5 rounded-lg bg-rose-950/30 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
-            <XCircle className="w-4.5 h-4.5 shrink-0" />
+          <div className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 font-medium">
+            <XCircle className="w-4.5 h-4.5 shrink-0 text-rose-600" />
             <span>{uiError}</span>
           </div>
         )}
         {uiSuccess && (
-          <div className="p-3.5 rounded-lg bg-emerald-950/30 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
-            <CheckCircle2 className="w-4.5 h-4.5 shrink-0" />
+          <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-medium">
+            <CheckCircle2 className="w-4.5 h-4.5 shrink-0 text-emerald-600" />
             <span>{uiSuccess}</span>
           </div>
         )}
@@ -284,40 +267,40 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
           
           {/* Code Selection */}
           <div className="space-y-1.5">
-            <label className="text-xs text-gray-300 font-semibold flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+            <label className="text-xs text-slate-700 font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
               Chọn Cột chứa Mã Ngành cần tra cứu:
             </label>
             <select
               value={colManganh}
               onChange={(e) => setColManganh(e.target.value)}
-              className="w-full bg-[#1f2937] border border-[#374151] rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-purple-500 placeholder-gray-400"
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
             >
               <option value="">-- Chọn cột --</option>
               {columns.map(col => (
                 <option key={col} value={col}>{col}</option>
               ))}
             </select>
-            <p className="text-[10px] text-gray-500">Mã ngành trong file Excel sẽ dùng để so khớp trực tiếp với Danh mục chuẩn đã nạp.</p>
+            <p className="text-[10px] text-slate-500">Mã ngành trong file Excel sẽ dùng để so khớp trực tiếp với Danh mục chuẩn đã nạp.</p>
           </div>
 
           {/* DTV Description Selection */}
           <div className="space-y-1.5">
-            <label className="text-xs text-gray-300 font-semibold flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <label className="text-xs text-slate-700 font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               Chọn Cột chứa Mô tả/Tên ngành thực tế của ĐTV:
             </label>
             <select
               value={colMotaDtv}
               onChange={(e) => setColMotaDtv(e.target.value)}
-              className="w-full bg-[#1f2937] border border-[#374151] rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-purple-500 placeholder-gray-400"
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
             >
               <option value="">-- Chọn cột --</option>
               {columns.map(col => (
                 <option key={col} value={col}>{col}</option>
               ))}
             </select>
-            <p className="text-[10px] text-gray-500">Chữ mô tả thực tế của điều tra viên dùng để so sánh chênh lệch với tên ngành chuẩn.</p>
+            <p className="text-[10px] text-slate-500">Chữ mô tả thực tế của điều tra viên dùng để so sánh chênh lệch với tên ngành chuẩn.</p>
           </div>
 
         </div>
@@ -327,7 +310,7 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
           <button
             onClick={handleRunMatchScan}
             disabled={isScanning}
-            className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs py-3 px-6 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-xs py-3 px-6 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isScanning ? (
               <>
@@ -335,7 +318,7 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
               </>
             ) : (
               <>
-                <CheckSquare className="w-4 h-4 text-purple-200" /> CHẠY KHỚP NGÀNH & SO SÁNH CHÊNH LỆCH
+                <CheckSquare className="w-4 h-4 text-indigo-200" /> CHẠY KHỚP NGÀNH & SO SÁNH CHÊNH LỆCH
               </>
             )}
           </button>
@@ -355,39 +338,39 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
       {hasScanned && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           
-          <div className="bg-[#111827] border border-gray-800 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
             <div className="space-y-0.5">
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Tổng số dòng</span>
-              <p className="text-xl font-black text-white font-mono">{stats.total.toLocaleString()}</p>
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Tổng số dòng</span>
+              <p className="text-xl font-black text-slate-900 font-mono">{stats.total.toLocaleString()}</p>
             </div>
-            <div className="bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20">
-              <Info className="w-5 h-5 text-blue-400" />
+            <div className="bg-indigo-50 p-2.5 rounded-xl border border-indigo-100">
+              <Info className="w-5 h-5 text-indigo-650" />
             </div>
           </div>
 
-          <div className="bg-[#111827] border border-gray-800 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
             <div className="space-y-0.5">
-              <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Trùng khớp hoàn toàn</span>
-              <p className="text-xl font-black text-emerald-400 font-mono">
+              <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Trùng khớp hoàn toàn</span>
+              <p className="text-xl font-black text-emerald-800 font-mono">
                 {stats.safe.toLocaleString()} 
-                <span className="text-xs text-gray-500 ml-1 font-normal">({stats.total > 0 ? Math.round(stats.safe / stats.total * 100) : 0}%)</span>
+                <span className="text-xs text-slate-500 ml-1 font-normal">({stats.total > 0 ? Math.round(stats.safe / stats.total * 100) : 0}%)</span>
               </p>
             </div>
-            <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
             </div>
           </div>
 
-          <div className="bg-[#111827] border border-gray-800 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
             <div className="space-y-0.5">
-              <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider">Có Sự Sai Lệch / Chưa tìm thấy</span>
-              <p className="text-xl font-black text-rose-400 font-mono">
+              <span className="text-[10px] text-rose-700 font-bold uppercase tracking-wider">Có Sự Sai Lệch / Chưa tìm thấy</span>
+              <p className="text-xl font-black text-rose-800 font-mono">
                 {stats.critical.toLocaleString()} 
-                <span className="text-xs text-gray-500 ml-1 font-normal">({stats.total > 0 ? Math.round(stats.critical / stats.total * 100) : 0}%)</span>
+                <span className="text-xs text-slate-500 ml-1 font-normal">({stats.total > 0 ? Math.round(stats.critical / stats.total * 100) : 0}%)</span>
               </p>
             </div>
-            <div className="bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
-              <XCircle className="w-5 h-5 text-rose-400" />
+            <div className="bg-rose-50 p-2.5 rounded-xl border border-rose-100">
+              <XCircle className="w-5 h-5 text-rose-600" />
             </div>
           </div>
 
@@ -401,11 +384,11 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             
             {/* Status Tabs */}
-            <div className="flex flex-wrap items-center gap-1.5 bg-[#111827] p-1.5 rounded-xl border border-gray-800">
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
               <button
                 onClick={() => setStatusFilter("ALL")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  statusFilter === "ALL" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"
+                  statusFilter === "ALL" ? "bg-indigo-650 text-white shadow-sm" : "text-slate-600 hover:text-slate-800"
                 }`}
               >
                 Tất cả ({stats.total})
@@ -413,24 +396,24 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
               <button
                 onClick={() => setStatusFilter("SAFE")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  statusFilter === "SAFE" ? "bg-emerald-600 text-white" : "text-gray-400 hover:text-emerald-400"
+                  statusFilter === "SAFE" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:text-emerald-700"
                 }`}
               >
-                💚 Trùng khớp ({stats.safe})
+                ✓ Trùng khớp ({stats.safe})
               </button>
               <button
                 onClick={() => setStatusFilter("CRITICAL")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  statusFilter === "CRITICAL" ? "bg-rose-600 text-white" : "text-gray-400 hover:text-rose-400"
+                  statusFilter === "CRITICAL" ? "bg-rose-600 text-white shadow-sm" : "text-slate-600 hover:text-rose-700"
                 }`}
               >
-                💔 Sai lệch / Không tìm thấy ({stats.critical})
+                ✗ Sai lệch / Không tìm thấy ({stats.critical})
               </button>
             </div>
 
             {/* Quick Filter Search */}
             <div className="relative w-full md:w-[280px]">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                 <Search className="w-4 h-4" />
               </span>
               <input
@@ -438,18 +421,18 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Tìm mã hoặc tên ngành..."
-                className="w-full bg-[#111827] border border-gray-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-gray-500 outline-none"
+                className="w-full bg-slate-50 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 placeholder-slate-450 outline-none font-medium"
               />
             </div>
 
           </div>
 
           {/* Results Table */}
-          <div className="border border-gray-800 rounded-2xl overflow-hidden bg-[#111827]/60">
+          <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
             <div className="max-h-[550px] overflow-y-auto w-full">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#111827] border-b border-gray-800 sticky top-0 z-10 text-gray-400 font-mono text-[10px] tracking-wider uppercase">
+                  <tr className="bg-slate-100 border-b border-slate-250 sticky top-0 z-10 text-slate-700 font-mono text-[10px] tracking-wider uppercase font-bold">
                     <th className="p-3.5 text-center w-[75px]">STT</th>
                     <th className="p-3.5 w-[110px] text-center">MÃ NGÀNH</th>
                     <th className="p-3.5 min-w-[220px]">TÊN MÔ TẢ NGÀNH THỰC TẾ (ĐTV)</th>
@@ -458,42 +441,42 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
                     <th className="p-3.5 min-w-[200px]">CHI TIẾT ĐỐI CHIẾU</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-850/40 text-xs">
+                <tbody className="divide-y divide-slate-100 text-xs text-slate-800">
                   {displayedScanItems.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-10 text-center text-gray-500 italic">
+                      <td colSpan={6} className="p-10 text-center text-slate-400 italic">
                         Không tìm thấy bất kỳ dòng đối sánh hay sai lỗi nào khớp với bộ lọc hiện thời.
                       </td>
                     </tr>
                   ) : (
                     displayedScanItems.map((item) => {
-                      const trBg = item.status === "SAFE" ? "" : "bg-rose-950/5 hover:bg-rose-950/10";
+                      const trBg = item.status === "SAFE" ? "" : "bg-rose-50/40 hover:bg-rose-100/30";
                       return (
-                        <tr key={item.index} className={`${trBg} transition-colors hover:bg-gray-850/30`}>
-                          <td className="p-3.5 text-center font-mono font-bold text-gray-500">
+                        <tr key={item.index} className={`${trBg} transition-colors hover:bg-slate-50 border-b border-slate-100`}>
+                          <td className="p-3.5 text-center font-mono font-bold text-slate-400">
                             {item.index}
                           </td>
-                          <td className="p-3.5 text-center font-mono font-bold text-amber-500">
+                          <td className="p-3.5 text-center font-mono font-bold text-amber-850">
                             {item.codeVal}
                           </td>
-                          <td className="p-3.5 font-medium text-gray-300">
+                          <td className="p-3.5 font-semibold text-slate-800">
                             {item.descDtv}
                           </td>
-                          <td className="p-3.5 font-medium text-emerald-400">
+                          <td className="p-3.5 font-semibold text-emerald-800">
                             {item.standardName}
                           </td>
                           <td className="p-3.5 text-center">
                             {item.isMatch ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-950/40 text-emerald-400 border border-emerald-500/10 rounded-lg text-[9px] font-bold">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[9px] font-bold">
                                 ✓ TRÙNG KHỚP
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-950/40 text-rose-400 border border-rose-500/10 rounded-lg text-[9px] font-bold">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-[9px] font-bold">
                                 ✗ SAI LỆCH
                               </span>
                             )}
                           </td>
-                          <td className="p-3.5 text-gray-400 text-[11px]">
+                          <td className="p-3.5 text-slate-500 text-[11px] font-medium">
                             {item.compareResult}
                           </td>
                         </tr>
@@ -505,7 +488,7 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
             </div>
             
             {filteredScanItems.length > displayLimit && (
-              <div className="p-4 bg-[#111827] border-t border-gray-800 text-center text-xs text-gray-500 italic">
+              <div className="p-4 bg-slate-50 border-t border-slate-200 text-center text-xs text-slate-400 italic font-semibold">
                 Đã giới hạn hiển thị tối đa {displayLimit} trên trình duyệt để tránh lag. Bản Excel sẽ xuất đầy đủ {filteredScanItems.length} dòng dữ liệu đối kết.
               </div>
             )}
@@ -516,34 +499,34 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
 
       {/* Guide details when not scanned */}
       {!hasScanned && (
-        <div className="bg-[#111827] rounded-xl p-6 border border-purple-500/15 space-y-4">
+        <div className="bg-indigo-50/50 rounded-xl p-6 border border-indigo-100 space-y-4">
           <div className="flex items-center gap-2">
-            <HelpCircle className="w-5 h-5 text-purple-400" />
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider">Nguyên lý hoạt động đối sánh & Chênh lệch tên ngành:</h4>
+            <HelpCircle className="w-5 h-5 text-indigo-650" />
+            <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Nguyên lý hoạt động đối sánh & Chênh lệch tên ngành:</h4>
           </div>
           
-          <div className="space-y-4 text-xs text-gray-300 leading-relaxed">
-            <p className="text-gray-400">
+          <div className="space-y-4 text-xs text-slate-700 leading-relaxed">
+            <p className="text-slate-650">
               Quy trình đối sánh hoạt động trực tiếp dựa trên tệp Danh mục Chuẩn được bạn cấu hình/nạp tại tab <strong>Tra Cứu / Nạp Danh Mục</strong>:
             </p>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#192130]/60 p-4 rounded-xl border border-gray-800">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-xl border border-indigo-100/50 shadow-sm">
               <div>
-                <span className="text-emerald-400 font-bold">1. Lục tìm mã trùng khớp:</span>
-                <p className="mt-1 text-gray-400">
-                  Hệ thống lấy mã ngành trong mỗi hàng, gỡ các ký hiệu phân cách rỗng, tra cứu chính xác mã số đó trong Catalog. Sau đó lấy tên chuẩn bê đặt bên cạnh tên mô tả khai báo thực tế của ĐTV.
+                <span className="text-emerald-800 font-bold">1. Lục tìm mã trùng khớp:</span>
+                <p className="mt-1 text-slate-500">
+                  Hệ thống lấy mã ngành trong mỗi hàng, gỡ các ký hiệu phân cách rỗng, tra cứu chính xác mã số đó trong Catalog. Sau đó lấy tên chuẩn bê đặt bên cạnh tên mô tả khai báo thực tế của ĐTV nhập để chỉ ra điểm sai khác.
                 </p>
               </div>
               
               <div>
-                <span className="text-amber-400 font-bold">2. Nhận diện chênh lệch chữ:</span>
-                <p className="mt-1 text-gray-400">
-                  Phần mềm so sánh nguyên mẫu chuỗi ký tự không dấu (đã loại bỏ khoảng trắng rỗng và chữ in hoa thường) giữa 2 cột. Nếu có sự khác biệt về nội dung hoặc mục đích đăng ký, phần mềm sẽ đánh dấu <span className="text-rose-400 font-bold">SAI LỆCH</span> ngay lập tức để bôi đỏ.
+                <span className="text-amber-800 font-bold">2. Nhận diện chênh lệch chữ:</span>
+                <p className="mt-1 text-slate-500">
+                  Phần mềm so sánh nguyên mẫu chuỗi ký tự không dấu (đã loại bỏ khoảng trắng rỗng và chữ in hoa thường) giữa 2 cột. Nếu có sự khác biệt về nội dung hoặc mục đích đăng ký, phần mềm sẽ đánh dấu <span className="text-rose-700 font-bold">SAI LỆCH</span> ngay lập tức để bôi đỏ.
                 </p>
               </div>
             </div>
 
-            <p className="font-mono text-[10px] text-purple-400/80 italic">
+            <p className="font-mono text-[10px] text-indigo-700 font-bold italic">
               * Không sử dụng AI hay các giả thuyết phỏng đoán ngẫu nhiên. Mọi kết quả khớp đều đối chiếu cơ sở dữ liệu gốc do bạn trực tiếp kiểm soát!
             </p>
           </div>
@@ -552,4 +535,8 @@ export default function DescriptorMatchScanner({ mainData, columns, mapping }: D
 
     </div>
   );
-}
+});
+
+DescriptorMatchScanner.displayName = "DescriptorMatchScanner";
+
+export default DescriptorMatchScanner;
