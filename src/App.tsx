@@ -426,7 +426,7 @@ export default function App() {
       setUserRole("admin");
       setIsAuthorized(true);
       setPasswordError("");
-    } else if (cleanTyped === "user123") { // Mật khẩu tài khoản dùng chung cố định, không thể đổi từ UI
+    } else if (cleanTyped === "123") { // Mật khẩu tài khoản dùng chung cố định, không thể đổi từ UI
       localStorage.setItem("vsic_app_authorized", "true");
       localStorage.setItem("vsic_app_user_role", "shared");
       setUserRole("shared");
