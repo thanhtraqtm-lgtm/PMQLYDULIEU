@@ -1,23 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Saira+Condensed:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
-
 @theme {
-  --font-sans: "Inter", system-ui, sans-serif;
-  --text-base: 1.125rem;
-  --leading-relaxed: 1.75;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-condensed: "Saira Condensed", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
-@layer base {
-  body { @apply bg-[#111827] text-white; }
-  p { @apply mt-4 text-gray-400; }
-  h2 { @apply leading-tight; }
+/* Custom premium scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-/* Hiệu ứng chữ chạy - Dùng trực tiếp không cần config */
-.shimmer-text { 
-  @apply bg-clip-text text-transparent bg-[linear-gradient(90deg,#fff_0%,#a78bfa_50%,#fff_100%)] bg-[length:200%_auto] animate-[shimmer_3s_linear_infinite]; 
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 999px;
 }
 
-@keyframes shimmer { 
-  to { background-position: -200% center; } 
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.25);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
 }
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.45);
+}
+
+/* Glassmorphism card premium styling */
+.glass-card {
+  background: rgba(17, 24, 39, 0.55);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card-hover:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 10px 30px -15px rgba(99, 102, 241, 0.2);
+}
+
+/* Animation presets */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Pulse soft neon indicator */
+.neon-pulse-emerald {
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.4);
+}
+.neon-pulse-indigo {
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+
