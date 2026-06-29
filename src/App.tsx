@@ -7289,7 +7289,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             <div className="mx-auto w-14 h-14 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-900/10">
               <Lock className="w-7 h-7 text-white animate-pulse" />
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-900 pt-2">CỔNG BẢO MẬT TRUY CẬP</h2>
+            <h2 className="text-xl font-bold tracking-tight text-slate-900 pt-2">MÀN HÌNH ĐĂNG NHẬP</h2>
             <p className="text-xs text-slate-500">Vui lòng nhập mật khẩu nội bộ để sử dụng hệ thống VSIC</p>
           </div>
 
@@ -7315,7 +7315,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               type="submit"
               className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-650 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              🔐 Xác Nhận Trạm Làm Việc
+              🔐 Đăng nhập
             </button>
           </form>
 
