@@ -60,10 +60,7 @@ export const normalizeSectorCode = (code: any): string => {
       digits = "0" + digits;
     }
 
-    // Truncate to first 5 digits for standard level 5 industry comparison
-    if (digits.length > 5) {
-      digits = digits.substring(0, 5);
-    }
+    const is8DigitCode = digits.length === 8;
     
     // 1. Direct check in dictionary
     if (vsicRawData[digits]) {
@@ -219,48 +216,87 @@ export const vsicHierarchyMap: { [key: string]: string[] } = {};
  */
 export const getParentSectorCode = (code: string): string => {
     if (!code) return "";
-    
-    // 1. Kiểm tra ánh xạ cha con tùy chỉnh trực tiếp tuyệt đối (vd: "01", "011", "01110" v.v.)
-    const cleanKey = code.trim().toUpperCase();
-    if (vsicParentMap[cleanKey]) {
-      return vsicParentMap[cleanKey];
+    let cleanKey = code.trim().toUpperCase();
+
+    // 0. Nếu bản thân nó đã là mã cấp 1 (A-U) thì trả về luôn
+    if (/^[A-U]$/.test(cleanKey)) {
+      return cleanKey;
     }
 
-    // 2. Kiểm tra nếu mã cha có chiều dài lớn và có thể cắt nhỏ dần để tìm
+    // 1. Đi lên theo sơ đồ cha con vsicParentMap cho đến khi đạt chữ cái cấp 1
+    let current = cleanKey;
+    let visited = new Set<string>();
+    while (current && !/^[A-U]$/.test(current) && !visited.has(current)) {
+      visited.add(current);
+      const parent = vsicParentMap[current];
+      if (parent) {
+        current = parent.trim().toUpperCase();
+      } else {
+        break;
+      }
+    }
+
+    if (/^[A-U]$/.test(current)) {
+      return current;
+    }
+
+    // 2. Nếu không tìm thấy bằng bản đồ cha con, nhưng mã bắt đầu bằng chữ cái từ A đến U
+    if (/^[A-U]/.test(cleanKey)) {
+      return cleanKey[0];
+    }
+
+    // 3. Trích xuất tiền tố dạng số và đối chiếu theo quy ước VSIC chuẩn của Việt Nam
+    const digitsOnly = cleanKey.replace(/[^\d]/g, "");
+    if (digitsOnly.length >= 2) {
+      const prefix = parseInt(digitsOnly.slice(0, 2), 10);
+      if (prefix >= 1 && prefix <= 3) return "A";
+      if (prefix >= 5 && prefix <= 9) return "B";
+      if (prefix >= 10 && prefix <= 33) return "C";
+      if (prefix === 35) return "D";
+      if (prefix >= 36 && prefix <= 39) return "E";
+      if (prefix >= 41 && prefix <= 43) return "F";
+      if (prefix >= 45 && prefix <= 47) return "G";
+      if (prefix >= 49 && prefix <= 53) return "H";
+      if (prefix >= 55 && prefix <= 56) return "I";
+      if (prefix >= 58 && prefix <= 63) return "J";
+      if (prefix >= 64 && prefix <= 66) return "K";
+      if (prefix === 68) return "L";
+      if (prefix >= 69 && prefix <= 75) return "M";
+      if (prefix >= 77 && prefix <= 82) return "N";
+      if (prefix === 84) return "O";
+      if (prefix === 85) return "P";
+      if (prefix >= 86 && prefix <= 88) return "Q";
+      if (prefix >= 90 && prefix <= 93) return "R";
+      if (prefix >= 94 && prefix <= 96) return "S";
+      if (prefix >= 97 && prefix <= 98) return "T";
+      if (prefix === 99) return "U";
+    }
+
+    // 4. Các giải pháp cắt giảm tiền tố dự phòng
     if (cleanKey.length > 1) {
       for (let len = cleanKey.length - 1; len >= 1; len--) {
         const sub = cleanKey.substring(0, len);
         if (vsicParentMap[sub]) {
-          return vsicParentMap[sub];
+          let subCurrent = vsicParentMap[sub].toUpperCase();
+          let subVisited = new Set<string>();
+          while (subCurrent && !/^[A-U]$/.test(subCurrent) && !subVisited.has(subCurrent)) {
+            subVisited.add(subCurrent);
+            const subParent = vsicParentMap[subCurrent];
+            if (subParent) {
+              subCurrent = subParent.toUpperCase();
+            } else {
+              break;
+            }
+          }
+          if (/^[A-U]$/.test(subCurrent)) {
+            return subCurrent;
+          }
         }
       }
     }
 
-    // 3. Nếu không có ánh xạ, xác định mã cha theo quy ước tiền tố xuất hiện sớm nhất trong Danh mục nạp của người dùng
-    if (/^[A-Z]/.test(cleanKey)) {
-      return cleanKey[0];
-    }
-
-    const keys = Object.keys(vsicRawData);
-    let shortestParent = "";
-    keys.forEach(k => {
-      if (cleanKey.startsWith(k) && k !== cleanKey) {
-        if (!shortestParent || k.length < shortestParent.length) {
-          shortestParent = k;
-        }
-      }
-    });
-
-    if (shortestParent) {
-      return shortestParent;
-    }
-
-    // Fallback: Lấy 2 ký số đầu cho nhóm cấp 2 tiêu chuẩn hoặc toàn bộ nếu ngắn dưới 2 ký tự
-    if (cleanKey.length >= 2) {
-      return cleanKey.substring(0, 2);
-    }
-  
-    return cleanKey;
+    // Fallback cuối cùng
+    return "C";
 };
 
 /**
@@ -292,8 +328,8 @@ export const smartSuggestSectorByDescription = (description: string): { ma: stri
 
   // Scan all sectors in the loaded VSIC data
   for (const [code, name] of Object.entries(vsicRawData)) {
-    // We target Level 5 codes (typically 5 digits) for specific mapping suggestions
-    if (code.length !== 5) continue;
+    // Prioritize codes of any length from the standard catalog.
+    // (We also give a tiny weight to longer codes of length 4 or 5 as tie-breakers)
 
     const nameClean = removeAccentsAndPunctuation(name);
     const nameWords = nameClean.split(" ").filter(w => w.length >= 2);
@@ -312,7 +348,10 @@ export const smartSuggestSectorByDescription = (description: string): { ma: stri
 
     if (matchedWordsCount > 0) {
       // Calculate score based on intersection over union of word tokens
-      const score = (matchedWordsCount / nameWords.length) * (matchedWordsCount / descWords.length);
+      let score = (matchedWordsCount / nameWords.length) * (matchedWordsCount / descWords.length);
+      // Tiny adjustment to favor more specific codes (longer is more specify)
+      score += (code.length * 0.0001);
+
       if (score > bestMatch.diem) {
         bestMatch = {
           ma: code,
