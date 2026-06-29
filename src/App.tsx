@@ -7324,8 +7324,8 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               💡 Gợi ý mật khẩu truy cập:
             </p>
             <div className="flex flex-col gap-1 items-center justify-center font-mono text-[11px] text-slate-600">
-              <div>• Quản trị viên: <strong className="bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-amber-700">admin123</strong> (Được quyền đổi MK)</div>
-              <div>• Dùng chung: <strong className="bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 font-bold">user123</strong> (Chỉ xem, Không thể đổi MK)</div>
+              <div>• Quản trị viên: <strong className="bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-amber-700">   </strong> </div>
+              <div>• USER: <strong className="bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 font-bold">   </strong> </div>
             </div>
             <p className="text-[10px] text-slate-400 font-mono pt-1">Hệ thống bảo lưu mã khóa cục bộ an toàn trong trình duyệt của bạn</p>
           </div>
