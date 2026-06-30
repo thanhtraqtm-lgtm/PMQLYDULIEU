@@ -7315,7 +7315,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               type="submit"
               className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-650 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-            🔐 Đăng nhập
+            🔐 XÁC NHẬN ĐĂNG NHẬP
         </button>
       </form>
 
@@ -7327,7 +7327,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 }
 
   const renderAiMacroCognitiveCenter = () => {
-    // Chỉ hiển thị các lệnh học tương ứng với tab phân hệ đang thiết lập để tránh làm loãng hoặc xung đột giao diện
+    //Hiển thị các quy tắc tương ứng với tab đang thiết lập 
     const displayedMacros = aiMacros.filter(macro => macro.module === activeTab);
 
     return (
@@ -8483,24 +8483,24 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => setAiColLearnPrompt("Đổi tên cột MaST thành Mã Số Thuế gán vai trò idCol, cột Xa thành Địa bàn Xã vai trò xa, MoTa thành Mô Tả Hoạt Động vai trò mota.")}
+                          onClick={() => setAiColLearnPrompt("Căn cứ vào cột bên trái hãy đổi tên các cột thành Tiếng Việt cho rõ ràng và chỉ giữ lại các cột sau: Mã số thuế, Tên Doanh Nghiệp, Địa chỉ, Mã Xã, Doanh Thu Thuần, Lao động cuối năm, mã ngành.")}
                           className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-200/50 transition-all cursor-pointer font-bold"
                         >
-                          📌 Cú pháp thuế chuẩn
+                          📌 Lệnh mẫu DN
                         </button>
                         <button
                           type="button"
-                          onClick={() => setAiColLearnPrompt("Chỉ giữ lại cột Mã Số Thuế và Mô tả hoạt động kinh doanh, loại bỏ tất cả các cột dư thừa khác ra khỏi file mới.")}
+                          onClick={() => setAiColLearnPrompt("Chỉ giữ lại cột mã ngành hoặc mã sản phẩm và Mô tả ngành(sản phẩm), mã xã, mã TKCS, Doanh Thu năm, Tổng lao động, loại bỏ tất cả các cột khác ra khỏi file mới.")}
                           className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-200/50 transition-all cursor-pointer font-bold"
                         >
-                          📌 Rút gọn giữ MST & Mô tả
+                          📌 Lệnh rút gọn CT
                         </button>
                         <button
                           type="button"
-                          onClick={() => setAiColLearnPrompt("Việt hóa có dấu thật gọn cho mọi tiêu đề cột, gán đúng vai trò số cho DoanhThu và LaoDong.")}
+                          onClick={() => setAiColLearnPrompt("Đổi tên tiêu đề tất cả các cột thành tiếng Việt có dấu.")}
                           className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-200/50 transition-all cursor-pointer font-bold"
                         >
-                          📌 Việt hóa gọn gàng tự động
+                          📌 Việt hóa tự động
                         </button>
                       </div>
 
@@ -8520,7 +8520,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                           ) : (
                             <>
                               <BrainCircuit className="w-4 h-4 text-white" />
-                              <span>🧠 HUẤN LUYỆN QUA AI (GEMINI)</span>
+                              <span>🧠 LỆNH QUA AI (GEMINI)</span>
                             </>
                           )}
                         </button>
@@ -8531,14 +8531,14 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                           className={`bg-slate-200 hover:bg-slate-300 text-slate-800 disabled:opacity-50 disabled:bg-slate-100 disabled:text-slate-400 font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-slate-300 shadow-sm ${
                             isLearningColAi ? "opacity-60" : ""
                           }`}
-                          title="Học lệnh tức thì bằng bộ phân tích từ khóa tiếng Việt không cần API key"
+                          title="Đặt quy tác bằng bộ phân tích từ khóa tiếng Việt"
                         >
                           {isLearningColAi ? (
                             <Loader2 className="w-4 h-4 text-slate-500 animate-spin" />
                           ) : (
                             <Zap className="w-4 h-4 text-amber-600" />
                           )}
-                          <span>HỌC ĐỊNH DẠNG TRỰC TIẾP</span>
+                          <span>QUY TẮC TRỰC TIẾP</span>
                         </button>
                       </div>
 
@@ -8551,15 +8551,15 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         </div>
                       )}
 
-                      {/* Nút chạy áp dụng trực tiếp sau khi học */}
+                      {/* Ấn chạy trực tiếp sau khi học */}
                       <div className="pt-3 border-t border-slate-200 space-y-2">
                         <button
                           onClick={handleApplyColumnRedefinition}
                           className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-950/10 border-0"
-                          title="Áp dụng ngay các cột đã định nghĩa để đổi tên và lọc dữ liệu chính"
+                          title="Áp dụng ngay cột đã được đổi tên"
                         >
                           <FileCheck className="w-4 h-4 text-emerald-100" />
-                          ⚡ CHẠY ÁP DỤNG LỆNH & TẠO FILE SẠCH NGAY LẬP TỨC
+                          ⚡ CHẠY ÁP DỤNG & TẠO FILE MỚI NGAY
                         </button>
                         <p className="text-[10px] text-slate-500 text-center leading-relaxed">
                           (Nhấn nút này để thực thi việc đổi tên, khớp nối lọc cột và chuyển kết quả sang tab <span className="text-indigo-600 font-bold">Xem Dữ Liệu</span>)
@@ -8567,12 +8567,12 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                       </div>
                     </div>
 
-                    {/* Cột 2: Thư viện Lệnh học đã tích lũy */}
+                    {/* Cột 2: Thư viện quy tắc đã lưu */}
                     <div className="xl:col-span-5 space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
                       <div className="space-y-3">
                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                           <label className="text-xs font-bold text-slate-800 block uppercase font-mono">
-                            🎓 THƯ VIỆN LỆNH HỌC TÍCH LŨY ({colLearnedCommands.length}):
+                            🎓 THƯ VIỆN QUY TẮC LỆNH ({colLearnedCommands.length}):
                           </label>
                         </div>
 
@@ -8588,7 +8588,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                                   type="button"
                                   onClick={() => applyLearnedCommand(cmd)}
                                   className="bg-indigo-50 hover:bg-indigo-100 text-[10px] text-indigo-700 font-bold px-2 py-1 rounded cursor-pointer transition-all border border-indigo-200/40"
-                                  title="Áp dụng mẫu gán nhãn cột này lên bảng tính hiện thời"
+                                  title="Áp dụng mẫu đặt tên cột này lên bảng tính hiện thời"
                                 >
                                   Áp dụng
                                 </button>
@@ -8597,7 +8597,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                                     type="button"
                                     onClick={() => handleDeleteCommand(cmd.id)}
                                     className="text-[10px] hover:text-red-600 text-slate-400 font-bold px-1.5 py-1 rounded cursor-pointer transition-all"
-                                    title="Xóa lệnh học này khỏi máy tính"
+                                    title="Xóa quy tắc này khỏi máy tính"
                                   >
                                     Xóa
                                   </button>
@@ -8608,17 +8608,17 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         </div>
                       </div>
 
-                      {/* Lưu lệnh học mới */}
+                      {/* Lưu quy tắc mới */}
                       <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-2 mt-2 shadow-sm">
                         <label className="text-[11px] font-bold text-slate-800 block uppercase font-mono">
-                          💾 Lưu cấu hình bảng hiện tại thành lệnh học mới:
+                          💾 Lưu quy tắc bảng hiện tại thành quy tắc mới:
                         </label>
                         <div className="flex gap-2 font-sans">
                           <input
                             type="text"
                             value={newColCommandName}
                             onChange={(e) => setNewColCommandName(e.target.value)}
-                            placeholder="Tên lệnh học, vd: Cấu hình bảng xã Tân Bình..."
+                            placeholder="Tên quy tắc, vd: quy tắc đặt tên bảng cá thể..."
                             className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono shadow-inner"
                           />
                           <button
@@ -8626,7 +8626,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                             onClick={handleSaveCurrentAsCommand}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 border-0"
                           >
-                            <Save className="w-3.5 h-3.5" /> Lưu Lệnh
+                            <Save className="w-3.5 h-3.5" /> Lưu Quy Tắc
                           </button>
                         </div>
                       </div>
@@ -8635,7 +8635,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 </div>
               )}
 
-              {/* Phần cấu hình định nghĩa lại tên cột theo phong cách của người dùng (CUSTOM RE-DEFINITION GRID) */}
+              {/* Phần cấu hình định nghĩa lại tên cột theo cách người dùng (CUSTOM RE-DEFINITION GRID) */}
               {rawImportedData.length > 0 && (
                   <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-5 shadow-sm">
                     
@@ -8645,7 +8645,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                           <Database className="w-5 h-5 text-indigo-600 animate-pulse" /> ĐỊNH NGHĨA LẠI TÊN CỘT DỄ NHỚ & LỌC CỘT THỪA {isConfigExpanded ? "▼" : "▲"}
                         </div>
                         <p className="text-xs text-slate-500 mt-1">
-                          Sửa đổi các từ viết tắt khó nhớ thành tiếng Việt rõ ràng. Cột nào chưa chọn sẽ bị loại khỏi bảng để giữ bộ dữ liệu sạch nhất.
+                          Sửa đổi các từ viết tắt khó nhớ thành tiếng Việt rõ ràng. Cột nào chưa chọn sẽ bị loại khỏi bảng.
                         </p>
                       </div>
                       
@@ -8669,7 +8669,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                                 setCustomColConfigs(resetConfigs);
                               }}
                               className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[11px] px-3 py-1.5 rounded-lg transition-all border border-slate-300 cursor-pointer shadow-sm"
-                              title="Hoàn tác tất cả tên cột về tên gốc"
+                              title="Khôi phục tất cả tên cột về tên gốc"
                             >
                               Khôi Phục Tên Gốc
                             </button>
@@ -8868,13 +8868,13 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                             onClick={handleApplyColumnRedefinition}
                             className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer border border-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
                           >
-                            <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC GỌN NHẸ TỔ TẠO FILE MỚI
+                            <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC CỘT TẠO FILE MỚI
                           </button>
                         </div>
                       </>
                     ) : (
                       <div className="flex items-center justify-between text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-150 shadow-inner">
-                        <span>💡 Bảng cấu hình định nghĩa tên cột đang được thu gọn để nhường lại không gian biểu diễn danh sách dữ liệu.</span>
+                        <span>💡 Bảng cấu hình định nghĩa tên cột đang được thu gọn để hiển thị danh sách dữ liệu.</span>
                         <button
                           onClick={() => setIsConfigExpanded(true)}
                           className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs px-3.5 py-1.5 rounded-lg border border-indigo-200 cursor-pointer transition-all shadow-sm"
@@ -9092,7 +9092,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                             </div>
                             <div>
                               <h4 className="text-xs font-extrabold tracking-wider text-slate-800 uppercase font-mono">AI Command Bar v4.0</h4>
-                              <p className="text-[10px] text-slate-500 mt-0.5">Thực thi lệnh rà soát, điền khuyết, lọc và tính toán thống kê tức thì trên các cột.</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">Thực thi lệnh rà soát, lọc và tính các phép tính trên các cột.</p>
                             </div>
                           </div>
                           <div className="text-[10px] text-indigo-700 font-mono bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-md shrink-0 font-bold">
