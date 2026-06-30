@@ -7695,10 +7695,10 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             <button
               onClick={handleLogout}
               className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
-              title="Khóa trạm làm việc ngay"
+              title="Đăng xuất hệ thống"
             >
               <LogOut className="w-3.5 h-3.5" />
-              Khóa
+              Đăng Xuất
             </button>
           </div>
 
