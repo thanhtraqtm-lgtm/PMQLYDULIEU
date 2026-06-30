@@ -7641,7 +7641,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               </span>
             </h1>
             <p className="text-[11.5px] text-slate-500 font-semibold font-sans mt-0.5">
-              Vụ Thống kê Phương pháp Chế độ — Đơn vị thích ứng dải cột linh hoạt ngoại tuyến
+              Thống kê tỉnh Hưng Yên
             </p>
           </div>
         </div>
@@ -7836,7 +7836,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                     }`}
                   >
                     <Sliders className="w-3.5 h-3.5 text-current" />
-                    TẦN SUẤT XUẤT HIỆN
+                    THỐNG KÊ TẦN XUẤT
                   </button>
 
                   <button
@@ -7848,7 +7848,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                     }`}
                   >
                     <Activity className="w-3.5 h-3.5 text-current" />
-                    PHÂN TÍCH TƯƠNG QUAN
+                    THỐNG KÊ TƯƠNG QUAN
                   </button>
                 </div>
               )}
