@@ -7315,24 +7315,16 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               type="submit"
               className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-650 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              🔐 Đăng nhập
-            </button>
-          </form>
+            🔐 Đăng nhập
+        </button>
+      </form>
 
-          <div className="border-t border-slate-200 pt-4 text-center space-y-2">
-            <p className="text-[11px] text-amber-600 italic font-semibold">
-              💡 Gợi ý mật khẩu truy cập:
-            </p>
-            <div className="flex flex-col gap-1 items-center justify-center font-mono text-[11px] text-slate-600">
-              <div>• Quản trị viên: <strong className="bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-amber-700">   </strong> </div>
-              <div>• USER: <strong className="bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 font-bold">   </strong> </div>
-            </div>
-            <p className="text-[10px] text-slate-400 font-mono pt-1">Hệ thống bảo lưu mã khóa cục bộ an toàn trong trình duyệt của bạn</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+      {/* Đã xóa phần gợi ý mật khẩu ở đây */}
+
+    </div>
+  </div>
+);
+}
 
   const renderAiMacroCognitiveCenter = () => {
     // Chỉ hiển thị các lệnh học tương ứng với tab phân hệ đang thiết lập để tránh làm loãng hoặc xung đột giao diện
