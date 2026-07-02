@@ -1922,6 +1922,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
             });
             setCustomColConfigs(initConfigs);
             });
+            setActiveTab("xemdulieu");
               setCustomColConfigs(initConfigs);
           
               // CHÈN VÀO ĐÂY: Nếu muốn tự động vào phòng họp sau khi ghép nối
@@ -1932,7 +1933,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
               // HOẶC nếu muốn vẫn xem dữ liệu nhưng có thông báo:
               // alert("Ghép nối xong! Bạn có thể vào phòng họp ở menu bên trái.");
           
-              setActiveTab("xemdulieu");
+              
             
             setActiveTab("xemdulieu");
 
