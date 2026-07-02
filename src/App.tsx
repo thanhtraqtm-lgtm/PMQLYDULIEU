@@ -7901,7 +7901,27 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               }`}
             >
               <FileText className={`w-3.5 h-3.5 ${activeTab === "pdf2word" ? "text-white" : "text-slate-500"}`} /> ĐỌC PDF &amp; SANG WORD
+            </button
+            
+            // ... code nút ĐỌC PDF & SANG WORD hiện tại ...
+              <FileText className={`w-3.5 h-3.5 ${activeTab === "pdf2word" ? "text-white" : "text-slate-500"}`} /> ĐỌC PDF & SANG WORD
             </button>
+
+            {/* CHÈN NÚT MỚI VÀO ĐÂY */}
+            <button 
+              onClick={() => setActiveTab("meetingroom")}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] ${
+                activeTab === "meetingroom" 
+                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md border-b-4 border-blue-700" 
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-slate-100 bg-white shadow-sm"
+              }`}
+            >
+              <Video className={`w-3.5 h-3.5 ${activeTab === "meetingroom" ? "text-white" : "text-blue-500"}`} /> 
+              PHÒNG HỌP TRỰC TUYẾN
+            </button>
+
+             </div>
+              
           </div>
 
           {/* Footer Sidebar */}
