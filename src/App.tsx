@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { GoogleGenAI } from "@google/genai";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
+import VideoRoom from './components/VideoRoom'; // Đảm bảo đường dẫn đúng
 // --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) INTEGRATED DIRECTLY FOR RELIABLE PORTABILITY ---
 const DB_NAME = "VTongDatabase";
 const DB_VERSION = 1;
@@ -1920,7 +1921,19 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
               };
             });
             setCustomColConfigs(initConfigs);
-
+            });
+              setCustomColConfigs(initConfigs);
+          
+              // CHÈN VÀO ĐÂY: Nếu muốn tự động vào phòng họp sau khi ghép nối
+              // Ví dụ: 
+              // setActiveTab("meetingroom"); 
+              // return; // Dừng lại ở đây, không xuống dòng setActiveTab("xemdulieu") nữa
+              
+              // HOẶC nếu muốn vẫn xem dữ liệu nhưng có thông báo:
+              // alert("Ghép nối xong! Bạn có thể vào phòng họp ở menu bên trái.");
+          
+              setActiveTab("xemdulieu");
+            
             setActiveTab("xemdulieu");
 
             // Lưu vĩnh viễn vào IndexedDB để không bị mất khi F5 hoặc đóng tab
