@@ -2049,7 +2049,15 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
             });
             setCustomColConfigs(initConfigs);
 
+            
             setActiveTab("xemdulieu");
+
+            setCustomColConfigs(initConfigs);
+    
+            // Lệnh chuyển thẳng sang phòng họp
+            setActiveTab("meetingroom");
+            
+            // KHÔNG viết setActiveTab("xemdulieu") ở phía dưới nữa
 
             // Lưu vĩnh viễn vào IndexedDB để không bị mất khi F5 hoặc đóng tab
             autoSaveSession(data, data, cols, file.name, autoMap, initConfigs);
