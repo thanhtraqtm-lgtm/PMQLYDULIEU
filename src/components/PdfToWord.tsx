@@ -298,7 +298,7 @@ const PdfToWord = React.memo(function PdfToWord() {
     
     try {
       const ai = new GoogleGenAI({
-        apiKey: import.meta.env.VITE_GEMINI_API_KEY,
+        apiKey: aiApiKey,
         httpOptions: {
           headers: {
             "User-Agent": "aistudio-build"

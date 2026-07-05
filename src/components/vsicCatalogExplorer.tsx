@@ -34,9 +34,9 @@ const VsicCatalogExplorer = React.memo(function VsicCatalogExplorer() {
   const [pureMode, setPureMode] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem("custom_vsic_is_pure");
-      return stored !== "false";
+      return stored === "true";
     } catch {
-      return true;
+      return false;
     }
   });
 

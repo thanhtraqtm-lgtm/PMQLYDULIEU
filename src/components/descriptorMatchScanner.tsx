@@ -15,7 +15,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { vsicRawData, normalizeSectorCode } from "../data/vsic";
+import { vsicRawData, normalizeSectorCode, smartSuggestSectorByDescription } from "../data/vsic";
 
 function normalizeTextToCompare(text: string): string {
   if (!text) return "";
@@ -53,6 +53,9 @@ const DescriptorMatchScanner = React.memo(function DescriptorMatchScanner({ main
 
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  const [smartFuzzyMode, setSmartFuzzyMode] = useState<boolean>(true);
+  const [fuzzyThreshold, setFuzzyThreshold] = useState<number>(35);
 
   const [scanResults, setScanResults] = useState<any[]>([]);
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -115,13 +118,17 @@ const DescriptorMatchScanner = React.memo(function DescriptorMatchScanner({ main
           let status: "SAFE" | "CRITICAL" = "SAFE";
           let compareResult = "";
           let isMatch = false;
+          let suggestedCode = "";
+          let suggestedName = "";
+          let suggestedScore = 0;
+
+          const dtvNorm = normalizeTextToCompare(descDtv);
 
           if (!standardName) {
             status = "CRITICAL";
             compareResult = `Không tìm thấy mã ngành '${normalizedCode}' trong danh mục đã nạp!`;
             isMatch = false;
           } else {
-            const dtvNorm = normalizeTextToCompare(descDtv);
             const stdNorm = normalizeTextToCompare(standardName);
 
             if (dtvNorm === stdNorm) {
@@ -129,13 +136,59 @@ const DescriptorMatchScanner = React.memo(function DescriptorMatchScanner({ main
               compareResult = "Trùng khớp hoàn toàn ngữ nghĩa";
               isMatch = true;
             } else {
-              status = "CRITICAL";
-              isMatch = false;
+              if (smartFuzzyMode) {
+                const dtvWords = dtvNorm.split(" ").filter(w => w.length >= 2);
+                const stdWords = stdNorm.split(" ").filter(w => w.length >= 2);
+                let similarity = 0;
+                if (dtvWords.length > 0 && stdWords.length > 0) {
+                  let overlapCount = 0;
+                  const matchedSet = new Set<string>();
+                  stdWords.forEach(w => {
+                    if (dtvWords.includes(w) && !matchedSet.has(w)) {
+                      overlapCount++;
+                      matchedSet.add(w);
+                    }
+                  });
+                  similarity = Math.round((2 * overlapCount) / (dtvWords.length + stdWords.length) * 100);
+                }
 
-              if (!dtvNorm) {
-                compareResult = "Tên ngành thực tế ĐTV mô tả bị để trống hoàn toàn";
+                if (similarity >= fuzzyThreshold) {
+                  status = "SAFE";
+                  compareResult = `Khớp từ khóa thông minh (Tương đồng: ${similarity}%)`;
+                  isMatch = true;
+                } else {
+                  status = "CRITICAL";
+                  isMatch = false;
+                  if (!dtvNorm) {
+                    compareResult = "Tên ngành thực tế ĐTV mô tả bị để trống hoàn toàn";
+                  } else {
+                    compareResult = `Sai lệch chữ (Chỉ trùng: ${similarity}%). Khác biệt câu từ quá lớn.`;
+                  }
+                }
               } else {
-                compareResult = "Có sự khác khác biệt về mặt câu chữ giữa mô tả ĐTV và tên ngành chuẩn";
+                status = "CRITICAL";
+                isMatch = false;
+                if (!dtvNorm) {
+                  compareResult = "Tên ngành thực tế ĐTV mô tả bị để trống hoàn toàn";
+                } else {
+                  compareResult = "Có sự khác khác biệt về mặt câu chữ giữa mô tả ĐTV và tên ngành chuẩn";
+                }
+              }
+            }
+          }
+
+          // If not a perfect/fuzzy match or code doesn't exist, search the whole VSIC memory for a better matching code recommendation
+          if (!isMatch && dtvNorm) {
+            const suggestion = smartSuggestSectorByDescription(descDtv);
+            if (suggestion) {
+              suggestedCode = suggestion.ma;
+              suggestedName = suggestion.ten;
+              suggestedScore = Math.round(Math.min(100, Math.sqrt(suggestion.diem) * 100));
+              
+              if (!standardName) {
+                compareResult = `Mã '${normalizedCode}' không tồn tại. Gợi ý mã đúng: [${suggestedCode}] - ${suggestedName} (Tin cậy: ${suggestedScore}%)`;
+              } else {
+                compareResult = `${compareResult} Gợi ý thay thế: [${suggestedCode}] - ${suggestedName} (Tin cậy: ${suggestedScore}%)`;
               }
             }
           }
@@ -148,7 +201,10 @@ const DescriptorMatchScanner = React.memo(function DescriptorMatchScanner({ main
             standardName: standardName || "(Không tìm thấy tên ngành chuẩn)",
             isMatch,
             compareResult,
-            status
+            status,
+            suggestedCode,
+            suggestedName,
+            suggestedScore
           };
         });
 
@@ -214,7 +270,10 @@ const DescriptorMatchScanner = React.memo(function DescriptorMatchScanner({ main
           "Mô tả ngành của ĐTV": item.descDtv,
           "Tên ngành chuẩn VSIC": item.standardName,
           "Kết quả so sánh đối chiếu": item.isMatch ? "TRÙNG KHỚP" : "CÓ SAI LỆCH",
-          "Chi tiết chênh lệch": item.compareResult
+          "Chi tiết chênh lệch": item.compareResult,
+          "Mã ngành gợi ý thay thế (AI)": item.suggestedCode || "",
+          "Tên ngành gợi ý thay thế (AI)": item.suggestedName || "",
+          "Độ tin cậy gợi ý (%)": item.suggestedScore || ""
         };
       });
 
@@ -301,6 +360,57 @@ const DescriptorMatchScanner = React.memo(function DescriptorMatchScanner({ main
               ))}
             </select>
             <p className="text-[10px] text-slate-500">Chữ mô tả thực tế của điều tra viên dùng để so sánh chênh lệch với tên ngành chuẩn.</p>
+          </div>
+
+        </div>
+
+        {/* Smart Match Parameters Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200/80">
+          
+          {/* Smart Fuzzy Match Toggle */}
+          <div className="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+            <div className="space-y-0.5">
+              <label className="text-xs text-slate-800 font-bold block">
+                🧠 So khớp từ vựng tương tự thông minh
+              </label>
+              <span className="text-[10px] text-slate-500 block leading-relaxed max-w-[280px]">
+                Tự động bỏ qua lỗi chính tả nhỏ, dấu câu, hoa thường để giảm tải lỗi ảo đối chiếu chéo.
+              </span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer select-none ml-4 shrink-0">
+              <input 
+                type="checkbox" 
+                checked={smartFuzzyMode} 
+                onChange={(e) => setSmartFuzzyMode(e.target.checked)} 
+                className="sr-only peer" 
+              />
+              <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          {/* Similarity Threshold Slider */}
+          <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm flex flex-col justify-between space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-slate-800 font-bold">
+                🎯 Ngưỡng tương đồng tối thiểu
+              </label>
+              <span className="font-mono text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-150 rounded px-1.5 py-0.5 shrink-0">
+                {fuzzyThreshold}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min="10"
+              max="90"
+              step="5"
+              value={fuzzyThreshold}
+              disabled={!smartFuzzyMode}
+              onChange={(e) => setFuzzyThreshold(parseInt(e.target.value, 10))}
+              className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-650 disabled:opacity-40"
+            />
+            <span className="text-[9px] text-slate-400 block leading-none">
+              Duyệt là ĐẠT nếu tỷ lệ số lượng từ trùng khớp giữa ĐTV viết và tên VSIC &ge; {fuzzyThreshold}%.
+            </span>
           </div>
 
         </div>

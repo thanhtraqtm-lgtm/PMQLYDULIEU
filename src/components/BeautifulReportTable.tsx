@@ -1,12 +1,12 @@
-import React, { useState, useMemo } from "react";
-import { Search, Eye, EyeOff, Download, ChevronRight, ChevronDown, CheckCircle } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { Search, Eye, EyeOff, Download, ChevronRight, ChevronDown, CheckCircle, Settings, Edit, Columns } from "lucide-react";
 
 interface BeautifulReportTableProps {
   rows: any[];
   cols: string[];
   level: number;
   reportType: "pivot" | "flat";
-  onExport: () => void;
+  onExport: (exportRows?: any[], exportCols?: string[]) => void;
 }
 
 export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
@@ -17,24 +17,20 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
   onExport,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [hideZeroColumns, setHideZeroColumns] = useState(true);
+  const [hideZeroColumns, setHideZeroColumns] = useState(false);
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null);
+  
+  // State for editable rows
+  const [localRows, setLocalRows] = useState<any[]>([]);
 
-  // Filter rows based on search term
-  const filteredRows = useMemo(() => {
-    if (!searchTerm.trim()) return rows;
-    const term = searchTerm.toLowerCase();
-    return rows.filter((row) => {
-      const commune = String(row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "").toLowerCase();
-      const sectorKey = level === 0 ? "Nhóm_Phân_Loại" : `Ngành_Cấp_${level}`;
-      const sector = String(row[sectorKey] || "").toLowerCase();
-      return commune.includes(term) || sector.includes(term);
-    });
-  }, [rows, searchTerm, level]);
+  // Synchronize localRows with incoming rows prop
+  useEffect(() => {
+    setLocalRows(JSON.parse(JSON.stringify(rows)));
+  }, [rows]);
 
-  // Extract sectors and indicators dynamically from column list
+  // Extract sectors and indicators dynamically from column list based on localRows
   const pivotAnalysis = useMemo(() => {
-    if (reportType !== "pivot" || rows.length === 0) {
+    if (reportType !== "pivot" || localRows.length === 0) {
       return { sectors: [], indicators: [], activeSectors: [] };
     }
 
@@ -56,22 +52,60 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
 
     // Determine which sectors have non-zero values in at least one row for at least one indicator
     const activeSectors = sectors.filter((sector) => {
-      return rows.some((row) => {
+      return localRows.some((row) => {
         return indicators.some((ind) => {
           const val = row[`${sector} - Tổng ${ind}`] || 0;
-          return val > 0;
+          return val !== 0;
         });
       });
     });
 
     return { sectors, indicators, activeSectors };
-  }, [rows, cols, reportType]);
+  }, [localRows, cols, reportType]);
 
-  // Columns to display based on toggle
+  // Sector selection state for "Chỉ để lại các cột cần thiết" (Column Visibility Manager)
+  const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
+  const [selectedFlatCols, setSelectedFlatCols] = useState<string[]>([]);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+
+  // Initialize selected columns when pivotAnalysis sectors or flat cols change
+  useEffect(() => {
+    if (pivotAnalysis.sectors.length > 0) {
+      setSelectedSectors(pivotAnalysis.sectors);
+    }
+  }, [pivotAnalysis.sectors]);
+
+  useEffect(() => {
+    setSelectedFlatCols(cols);
+  }, [cols]);
+
+  // Columns to display based on toggle & visibility checklist
   const visibleSectors = useMemo(() => {
     if (reportType !== "pivot") return [];
-    return hideZeroColumns ? pivotAnalysis.activeSectors : pivotAnalysis.sectors;
-  }, [pivotAnalysis, hideZeroColumns, reportType]);
+    const baseList = hideZeroColumns ? pivotAnalysis.activeSectors : pivotAnalysis.sectors;
+    // Filter baseList to only keep the selected/necessary columns
+    const filtered = baseList.filter(s => selectedSectors.includes(s));
+    if (filtered.length === 0 && selectedSectors.length > 0) return selectedSectors;
+    if (filtered.length === 0) return baseList; // Fallback
+    return filtered;
+  }, [pivotAnalysis, hideZeroColumns, selectedSectors, reportType]);
+
+  const visibleFlatCols = useMemo(() => {
+    if (reportType !== "flat") return [];
+    return cols.filter(c => selectedFlatCols.includes(c));
+  }, [cols, selectedFlatCols, reportType]);
+
+  // Filter localRows based on search term
+  const filteredRows = useMemo(() => {
+    if (!searchTerm.trim()) return localRows;
+    const term = searchTerm.toLowerCase();
+    return localRows.filter((row) => {
+      const commune = String(row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "").toLowerCase();
+      const sectorKey = level === 0 ? "Nhóm_Phân_Loại" : `Ngành_Cấp_${level}`;
+      const sector = String(row[sectorKey] || "").toLowerCase();
+      return commune.includes(term) || sector.includes(term);
+    });
+  }, [localRows, searchTerm, level]);
 
   // Calculate dynamic totals across all columns
   const overallTotals = useMemo(() => {
@@ -79,7 +113,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
     const totalsByIndicator: { [ind: string]: number } = {};
     const sectorStats: { [sector: string]: { [ind: string]: number } } = {};
     
-    rows.forEach((row) => {
+    localRows.forEach((row) => {
       if (reportType === "pivot") {
         grandDN += row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"] ?? 0;
         
@@ -115,17 +149,48 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
       totalsByIndicator,
       sectorStats
     };
-  }, [rows, reportType, pivotAnalysis.sectors, pivotAnalysis.indicators, cols]);
+  }, [localRows, reportType, pivotAnalysis.sectors, pivotAnalysis.indicators, cols]);
 
-  // Cell representation formatting (0 -> -)
-  const formatCellValue = (val: any, isNumeric: boolean) => {
-    if (isNumeric) {
-      if (val === undefined || val === null || val === 0) {
-        return <span className="text-slate-400 font-normal">—</span>;
+  // Handle direct numeric input cell updates with instant calculations
+  const handleCellChange = (rIdx: number, field: string, newValue: string) => {
+    const cleanNumStr = newValue.replace(/[^0-9.\-]/g, "");
+    const numericVal = cleanNumStr === "" ? 0 : parseFloat(cleanNumStr) || 0;
+    
+    setLocalRows(prev => {
+      const updated = [...prev];
+      const row = { ...updated[rIdx] };
+      row[field] = numericVal;
+      
+      // Auto recalculate row summary indicators in pivot mode
+      if (reportType === "pivot") {
+        pivotAnalysis.indicators.forEach(ind => {
+          if (field.includes(` - Tổng ${ind}`)) {
+            let sum = 0;
+            pivotAnalysis.sectors.forEach(sec => {
+              const key = `${sec} - Tổng ${ind}`;
+              const v = key === field ? numericVal : (row[key] || 0);
+              sum += v;
+            });
+            row[`Tổng_Cộng_${ind}_Toàn_Xã`] = Math.round(sum * 100) / 100;
+            row[`Tổng_Cộng_Toàn_Xã_${ind}`] = Math.round(sum * 100) / 100;
+          }
+        });
       }
-      return <span className="font-mono text-emerald-700 font-bold">{Math.round(val * 100) / 100 ? val.toLocaleString("vi-VN") : "—"}</span>;
-    }
-    return String(val ?? "");
+      
+      updated[rIdx] = row;
+      return updated;
+    });
+  };
+
+  // Handle text edits (e.g. commune name)
+  const handleCellChangeText = (rIdx: number, field: string, newValue: string) => {
+    setLocalRows(prev => {
+      const updated = [...prev];
+      const row = { ...updated[rIdx] };
+      row[field] = newValue;
+      updated[rIdx] = row;
+      return updated;
+    });
   };
 
   return (
@@ -137,7 +202,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
             📊 KẾT QUẢ TỔNG HỢP {level === 0 ? "PHÂN NHÓM" : `DANH MỤC NGÀNH CẤP ${level}`} × ĐỊA BÀN
           </span>
           <span className="text-xs text-slate-600 block leading-normal">
-            Bản hợp nhất động từ các tiêu chí và cột hạch toán do bạn tùy chỉnh. Đã tổng cộng dồn lũy kế tự động.
+            Nhấp chuột trực tiếp vào bất kỳ ô số liệu nào để <strong>chỉnh sửa số lại</strong>. Hệ thống sẽ tự động cộng dồn và cập nhật biểu mẫu toàn bảng.
           </span>
         </div>
 
@@ -156,6 +221,20 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
             />
           </div>
 
+          {/* CHOOSE NECESSARY COLUMNS MANAGER */}
+          <button
+            onClick={() => setShowColumnSelector(!showColumnSelector)}
+            className={`text-xs font-bold py-1.5 px-3 rounded-lg border transition-all flex items-center gap-1.5 select-none md:w-auto w-full justify-center cursor-pointer ${
+              showColumnSelector
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-sm"
+            }`}
+            title="Nhấn để chọn và chỉ giữ lại các cột cần thiết"
+          >
+            <Columns className="w-3.5 h-3.5" />
+            {showColumnSelector ? "Đóng bộ lọc cột" : "⚙️ Chỉ giữ lại cột cần thiết"}
+          </button>
+
           {/* HIDE EMPTY COLUMNS TOGGLE (ONLY FOR PIVOT) */}
           {reportType === "pivot" && pivotAnalysis.sectors.length > 0 && (
             <button
@@ -168,19 +247,141 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               title="Nhấn để ẩn/hiện các cột ngành không phát sinh dữ liệu"
             >
               {hideZeroColumns ? <EyeOff className="w-3.5 h-3.5 text-amber-700" /> : <Eye className="w-3.5 h-3.5 text-slate-600" />}
-              {hideZeroColumns ? `Đang ẩn cột rỗng (${pivotAnalysis.sectors.length - pivotAnalysis.activeSectors.length})` : "Hiện tất cả cột ngành"}
+              {hideZeroColumns ? `Đang ẩn cột rỗng` : "Hiện tất cả cột ngành"}
             </button>
           )}
 
-          {/* EXCEL EXPORT BUTTON */}
+          {/* EXCEL EXPORT BUTTON WITH CLEAN FILTERED DATA */}
           <button
-            onClick={onExport}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-md inline-flex justify-center"
+            onClick={() => {
+              const exportRowsClean = localRows.map(row => {
+                const cleanRow: any = {};
+                if (reportType === "pivot") {
+                  cleanRow["Địa_Bàn_Xã"] = row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "";
+                  visibleSectors.forEach(sector => {
+                    pivotAnalysis.indicators.forEach(ind => {
+                      cleanRow[`${sector} - Tổng ${ind}`] = row[`${sector} - Tổng ${ind}`] || 0;
+                    });
+                  });
+                  cleanRow["Số_Dòng_Tổng_Hợp"] = row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"] ?? 0;
+                  pivotAnalysis.indicators.forEach(ind => {
+                    const key = row[`Tổng_Cộng_${ind}_Toàn_Xã`] !== undefined ? `Tổng_Cộng_${ind}_Toàn_Xã` : `Tổng_Cộng_Toàn_Xã_${ind}`;
+                    cleanRow[key] = row[key] || 0;
+                  });
+                } else {
+                  visibleFlatCols.forEach(col => {
+                    cleanRow[col] = row[col];
+                  });
+                }
+                return cleanRow;
+              });
+              onExport(exportRowsClean, reportType === "pivot" ? Object.keys(exportRowsClean[0] || {}) : visibleFlatCols);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-md inline-flex justify-center border-0"
           >
-            <Download className="w-3.5 h-3.5" /> Xuất Excel (.xlsx)
+            <Download className="w-3.5 h-3.5" /> Xuất Excel đã sửa (.xlsx)
           </button>
         </div>
       </div>
+
+      {/* COLUMN visibility CONTROLLER */}
+      {showColumnSelector && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 font-sans animate-fade-in text-slate-800">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-2 border-b border-slate-200">
+            <div>
+              <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider font-mono block">
+                ⚙️ Bộ chọn cột hiển thị (Chỉ lưu lại các cột cần thiết)
+              </span>
+              <span className="text-[10.5px] text-slate-500 block">Tích chọn các cột/ngành cần thiết để giữ lại trên bảng hiển thị và tệp xuất Excel.</span>
+            </div>
+            <div className="flex gap-2 self-start sm:self-auto">
+              <button
+                onClick={() => {
+                  if (reportType === "pivot") {
+                    setSelectedSectors(pivotAnalysis.sectors);
+                  } else {
+                    setSelectedFlatCols(cols);
+                  }
+                }}
+                className="bg-white border border-slate-300 text-slate-700 font-bold text-[10px] px-2.5 py-1 rounded hover:bg-slate-100 cursor-pointer"
+              >
+                Chọn tất cả
+              </button>
+              <button
+                onClick={() => {
+                  if (reportType === "pivot") {
+                    setSelectedSectors([]);
+                  } else {
+                    setSelectedFlatCols([]);
+                  }
+                }}
+                className="bg-white border border-slate-300 text-slate-500 font-bold text-[10px] px-2.5 py-1 rounded hover:bg-slate-100 cursor-pointer"
+              >
+                Bỏ chọn hết
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[140px] overflow-y-auto pr-1">
+            {reportType === "pivot" ? (
+              pivotAnalysis.sectors.map((sec) => {
+                const isChecked = selectedSectors.includes(sec);
+                return (
+                  <label 
+                    key={sec} 
+                    className={`flex items-center gap-1.5 p-1.5 rounded border text-[11px] cursor-pointer transition-all select-none ${
+                      isChecked 
+                        ? "bg-indigo-50/70 border-indigo-200 text-indigo-900 font-bold" 
+                        : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {
+                        if (isChecked) {
+                          setSelectedSectors(prev => prev.filter(s => s !== sec));
+                        } else {
+                          setSelectedSectors(prev => [...prev, sec]);
+                        }
+                      }}
+                      className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span className="truncate" title={sec}>{sec}</span>
+                  </label>
+                );
+              })
+            ) : (
+              cols.map((col) => {
+                const isChecked = selectedFlatCols.includes(col);
+                return (
+                  <label 
+                    key={col} 
+                    className={`flex items-center gap-1.5 p-1.5 rounded border text-[11px] cursor-pointer transition-all select-none ${
+                      isChecked 
+                        ? "bg-indigo-50/70 border-indigo-200 text-indigo-900 font-bold" 
+                        : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {
+                        if (isChecked) {
+                          setSelectedFlatCols(prev => prev.filter(c => c !== col));
+                        } else {
+                          setSelectedFlatCols(prev => [...prev, col]);
+                        }
+                      }}
+                      className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span className="truncate" title={col}>{col}</span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* DYNAMIC INSIGHTS / STATS CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-sans">
@@ -201,7 +402,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               <div className="text-lg font-black text-slate-900 mt-0.5 font-mono">
                 {totalVal.toLocaleString("vi-VN")} <span className="text-xs font-normal text-slate-500 font-sans">tổng cộng</span>
               </div>
-              <div className="text-[10px] text-slate-500">Tổng quy nạp lũy kế trên toàn bộ {rows.length} địa bàn</div>
+              <div className="text-[10px] text-slate-500">Tổng quy nạp lũy kế trên toàn bộ {localRows.length} địa bàn</div>
             </div>
           );
         })}
@@ -303,18 +504,29 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                   return (
                     <React.Fragment key={`row-${rIdx}`}>
                       <tr
-                        onClick={() => setSelectedRowIndex(isSelected ? null : rIdx)}
-                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${
+                        className={`hover:bg-slate-50 transition-colors ${
                           isSelected ? "bg-amber-50/60 font-semibold border-l-4 border-amber-500" : rIdx % 2 === 1 ? "bg-slate-50/40" : ""
                         }`}
                       >
-                        {/* Commune Name */}
-                        <td className="p-3 whitespace-nowrap font-sans font-medium text-slate-900 bg-white border-r border-slate-200 sticky left-0 z-10 flex items-center gap-1.5 shadow-sm">
-                          {isSelected ? <ChevronDown className="w-3 h-3 text-amber-600" /> : <ChevronRight className="w-3 h-3 text-slate-400" />}
-                          {communeName}
+                        {/* Commune Name (Editable text) */}
+                        <td className="p-1 whitespace-nowrap font-sans font-medium text-slate-900 bg-white border-r border-slate-200 sticky left-0 z-10 flex items-center gap-1 shadow-sm">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRowIndex(isSelected ? null : rIdx)}
+                            className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-all shrink-0 cursor-pointer"
+                          >
+                            {isSelected ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                          </button>
+                          <input
+                            type="text"
+                            value={communeName}
+                            onChange={(e) => handleCellChangeText(rIdx, row["Địa_Bàn_Xã"] ? "Địa_Bàn_Xã" : "Địa_bàn_Xã", e.target.value)}
+                            className="bg-transparent font-medium text-slate-900 outline-none focus:bg-amber-100/80 focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-1 text-xs border-0 w-28 font-sans"
+                            title="Nhấp đúp chuột để đổi tên địa bàn"
+                          />
                         </td>
 
-                        {/* Sector Values */}
+                        {/* Sector Values (Directly Editable inputs) */}
                         {visibleSectors.map((sector) => {
                           return (
                             <React.Fragment key={`val-${sector}`}>
@@ -324,10 +536,16 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                                 return (
                                   <td 
                                     key={ind} 
-                                    className={`p-2.5 text-right border-r whitespace-nowrap ${isHl ? "bg-emerald-50/20 font-bold" : ""}`}
+                                    className={`p-1 text-right border-r whitespace-nowrap ${isHl ? "bg-emerald-50/10" : ""}`}
                                     style={{ borderColor: indIdx === pivotAnalysis.indicators.length - 1 ? '#e2e8f0' : '#f1f5f9' }}
                                   >
-                                    {formatCellValue(val, true)}
+                                    <input
+                                      type="text"
+                                      value={val !== undefined && val !== null ? val : ""}
+                                      onChange={(e) => handleCellChange(rIdx, `${sector} - Tổng ${ind}`, e.target.value)}
+                                      className="w-full bg-transparent text-right font-mono font-bold text-emerald-700 outline-none focus:bg-amber-100/70 focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-1 text-xs border-0 transition-all"
+                                      title="Click để sửa số của ngành này"
+                                    />
                                   </td>
                                 );
                               })}
@@ -335,19 +553,32 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                           );
                         })}
 
-                        {/* Summary Columns */}
-                        <td className="p-2.5 text-right font-semibold text-indigo-700 border-r border-slate-200 bg-teal-50/20 whitespace-nowrap">
-                          {formatCellValue(row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"], false)}
+                        {/* Summary Columns (Editable overrides) */}
+                        <td className="p-1 text-right font-semibold text-indigo-700 border-r border-slate-200 bg-teal-50/10 whitespace-nowrap">
+                          <input
+                            type="text"
+                            value={row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"] ?? ""}
+                            onChange={(e) => handleCellChange(rIdx, row["Số_Dòng_Tổng_Hợp"] !== undefined ? "Số_Dòng_Tổng_Hợp" : "Số_DN_Địa_Phương", e.target.value)}
+                            className="w-full bg-transparent text-right font-sans font-bold text-indigo-700 outline-none focus:bg-amber-100/70 focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-1 text-xs border-0"
+                            title="Sửa số lượng mẫu địa phương"
+                          />
                         </td>
                         {pivotAnalysis.indicators.map((ind, indIdx) => {
-                          const totVal = row[`Tổng_Cộng_${ind}_Toàn_Xã`] ?? row[`Tổng_Cộng_Toàn_Xã_${ind}`] ?? row["Tổng_Doanh_Thu_Địa_Phương"];
+                          const key = row[`Tổng_Cộng_${ind}_Toàn_Xã`] !== undefined ? `Tổng_Cộng_${ind}_Toàn_Xã` : `Tổng_Cộng_Toàn_Xã_${ind}`;
+                          const totVal = row[key];
                           return (
                             <td 
                               key={`overall-${ind}`} 
-                              className="p-2.5 text-right font-bold text-teal-800 border-r border-slate-200 bg-teal-50/30 whitespace-nowrap font-mono"
+                              className="p-1 text-right font-bold text-teal-850 border-r border-slate-200 bg-teal-50/20 whitespace-nowrap font-mono"
                               style={{ borderRightColor: indIdx === pivotAnalysis.indicators.length - 1 ? '#e2e8f0' : '#f1f5f9' }}
                             >
-                              {formatCellValue(totVal, true)}
+                              <input
+                                type="text"
+                                value={totVal !== undefined && totVal !== null ? totVal : ""}
+                                onChange={(e) => handleCellChange(rIdx, key, e.target.value)}
+                                className="w-full bg-transparent text-right font-mono font-bold text-teal-900 outline-none focus:bg-amber-100/70 focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-1 text-xs border-0"
+                                title="Sửa tổng cộng dồn của xã"
+                              />
                             </td>
                           );
                         })}
@@ -362,7 +593,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                                 <span className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
                                   <CheckCircle className="w-4 h-4 text-emerald-600" /> phân tích tỉ trọng địa bàn: {communeName}
                                 </span>
-                                <span className="text-[10px] text-slate-500 font-mono">Click vào hàng xã một lần nữa để thu gọn</span>
+                                <span className="text-[10px] text-slate-500 font-mono">Bảng cơ cấu đã được đồng bộ với bất kỳ sửa đổi số liệu nào của bạn</span>
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -534,7 +765,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-slate-800 font-mono text-[11px] sticky top-0 z-10 uppercase">
                   <th className="p-3 w-12 text-center text-slate-400 font-sans">STT</th>
-                  {cols.map((col) => (
+                  {visibleFlatCols.map((col) => (
                     <th key={col} className="p-3 font-semibold whitespace-nowrap">{col}</th>
                   ))}
                 </tr>
@@ -543,22 +774,23 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                 {filteredRows.map((row, rIdx) => (
                   <tr key={rIdx} className={`hover:bg-slate-50 transition-colors ${rIdx % 2 === 1 ? "bg-slate-50/30" : ""}`}>
                     <td className="p-3 text-center text-slate-400 font-mono">{rIdx + 1}</td>
-                    {cols.map((col) => {
+                    {visibleFlatCols.map((col) => {
                       const val = row[col];
-                      const isNumeric = typeof val === "number";
+                      const isNumeric = typeof val === "number" || !isNaN(Number(String(val).replace(/[^0-9.\-]/g, "")));
                       let proportionStr = "";
 
                       if (isNumeric) {
+                        const parsedNum = Number(String(val).replace(/[^0-9.\-]/g, "")) || 0;
                         if (col.startsWith("Tổng_")) {
                           const indName = col.replace("Tổng_", "");
                           const overallVal = overallTotals.totalsByIndicator[indName] || 0;
                           if (overallVal > 0) {
-                            proportionStr = ` (${((val / overallVal) * 100).toFixed(2)}%)`;
+                            proportionStr = ` (${((parsedNum / overallVal) * 105).toFixed(2)}%)`;
                           }
                         } else if (col === "Số_Lượng_Bản_Ghi") {
                           const overallVal = overallTotals.dn || 0;
                           if (overallVal > 0) {
-                            proportionStr = ` (${((val / overallVal) * 100).toFixed(2)}%)`;
+                            proportionStr = ` (${((parsedNum / overallVal) * 105).toFixed(2)}%)`;
                           }
                         }
                       }
@@ -566,20 +798,28 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                       return (
                         <td
                           key={col}
-                          className={`p-3 whitespace-nowrap ${
-                            isNumeric
-                              ? "font-mono text-emerald-700 font-bold text-right"
-                              : col === "Địa_Bàn_Xã" || col === "Địa_bàn_Xã"
-                              ? "font-semibold text-slate-900"
+                          className={`p-1 whitespace-nowrap ${
+                            col === "Địa_Bàn_Xã" || col === "Địa_bàn_Xã"
+                              ? "font-semibold text-slate-900 bg-white"
                               : ""
                           }`}
                         >
-                          {isNumeric ? (
-                            <>
-                              {val.toLocaleString("vi-VN")}
-                              {proportionStr && <span className="text-[10px] text-slate-500 font-normal ml-1 bg-slate-50 border border-slate-200 px-1.2 py-0.5 rounded">{proportionStr}</span>}
-                            </>
-                          ) : String(val ?? "")}
+                          <input
+                            type="text"
+                            value={val !== undefined && val !== null ? val : ""}
+                            onChange={(e) => {
+                              if (isNumeric) {
+                                handleCellChange(rIdx, col, e.target.value);
+                              } else {
+                                handleCellChangeText(rIdx, col, e.target.value);
+                              }
+                            }}
+                            className={`w-full bg-transparent outline-none focus:bg-amber-100/70 focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-1 text-xs border-0 ${
+                              isNumeric 
+                                ? "text-right font-mono text-emerald-700 font-bold" 
+                                : "text-left text-slate-800 font-medium"
+                            }`}
+                          />
                         </td>
                       );
                     })}
@@ -589,7 +829,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               <tfoot>
                 <tr className="bg-slate-100 border-t-2 border-slate-300 text-slate-900 font-bold text-[11.5px] font-mono uppercase">
                   <td className="p-3 text-center text-slate-400">∑</td>
-                  {cols.map((col, cIdx) => {
+                  {visibleFlatCols.map((col, cIdx) => {
                     if (cIdx === 0) {
                       return <td key={col} colSpan={2} className="p-3 text-left">TỔNG CỘNG TOÀN BẢNG</td>;
                     }
@@ -598,7 +838,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                     }
                     if (col === "Số_Lượng_Bản_Ghi") {
                       return (
-                        <td key={col} className="p-3 text-right font-semibold text-teal-800 bg-teal-50/20">
+                        <td key={col} className="p-3 text-right font-semibold text-teal-850 bg-teal-50/20">
                           {overallTotals.dn.toLocaleString("vi-VN")} (100%)
                         </td>
                       );

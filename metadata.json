@@ -1,6 +1,6 @@
 {
-  "name": "HỆ THỐNG SO SÁNH XỬ LÝ TỔNG HỢP DỮ LIỆU VISC",
-  "description": "Hệ thống xử lý so sánh kiểm tra dữ liệu VISC2025",
-  "requestFramePermissions": [],
+  "name": "NỀN TẢNG TRÍ TUỆ VSIC & KIỂM SOÁT DỮ LIỆU THỐNG KÊ LIÊN NGÀNH",
+  "description": "Hệ thống tự động hóa đối sánh mã ngành VSIC, rà soát lô-gích toán học, đối chiếu niên độ và xử lý tổng hợp dữ liệu thống kê liên ngành cao cấp",
+  "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -11,7 +11,121 @@
  * Key: VSIC code (string)
  * Value: Vietnamese name (string)
  */
-export const vsicRawData: { [key: string]: string } = {};
+export const vsicRawData: { [key: string]: string } = {
+  // Cấp 1
+  "A": "Nông nghiệp, lâm nghiệp và thủy sản",
+  "B": "Khai khoáng",
+  "C": "Công nghiệp chế biến, chế tạo",
+  "D": "Sản xuất và phân phối điện, khí đốt, nước nóng, hơi nước và điều hòa không khí",
+  "E": "Cung cấp nước; hoạt động quản lý và xử lý rác thải, nước thải",
+  "F": "Xây dựng",
+  "G": "Bán buôn và bán lẻ; sửa chữa ô tô, mô tô, xe máy và xe có động cơ khác",
+  "H": "Vận tải kho bãi",
+  "I": "Dịch vụ lưu trú và ăn uống",
+  "J": "Thông tin và truyền thông",
+  "K": "Hoạt động tài chính, ngân hàng và bảo hiểm",
+  "L": "Hoạt động kinh doanh bất động sản",
+  "M": "Hoạt động chuyên môn, khoa học và công nghệ",
+  "N": "Hoạt động hành chính và dịch vụ hỗ trợ",
+  "O": "Hoạt động của Đảng Cộng sản, tổ chức chính trị - xã hội, quản lý nhà nước, an ninh quốc phòng; bảo đảm xã hội bắt buộc",
+  "P": "Giáo dục và đào tạo",
+  "Q": "Y tế và hoạt động trợ giúp xã hội",
+  "R": "Nghệ thuật, vui chơi và giải trí",
+  "S": "Hoạt động dịch vụ khác",
+  "T": "Hoạt động làm thuê các công việc trong các hộ gia đình, sản xuất sản phẩm và dịch vụ tự tiêu dùng của hộ gia đình",
+  "U": "Hoạt động của các tổ chức và cơ quan quốc tế",
+
+  // Cấp 2
+  "01": "Nông nghiệp và hoạt động dịch vụ có liên quan",
+  "02": "Lâm nghiệp và hoạt động dịch vụ có liên quan",
+  "03": "Khai thác, nuôi trồng thủy sản",
+  "05": "Khai thác than cứng và than non",
+  "06": "Khai thác dầu thô và khí tự nhiên",
+  "07": "Khai thác quặng kim loại",
+  "08": "Khai khoáng khác",
+  "09": "Hoạt động dịch vụ hỗ trợ khai khoáng",
+  "10": "Sản xuất, chế biến thực phẩm",
+  "11": "Sản xuất đồ uống",
+  "12": "Sản xuất sản phẩm thuốc lá",
+  "13": "Dệt",
+  "14": "Sản xuất trang phục",
+  "15": "Sản xuất da và các sản phẩm có liên quan",
+  "16": "Chế biến gỗ và sản xuất sản phẩm từ gỗ, tre, nứa",
+  "17": "Sản xuất giấy và sản phẩm từ giấy",
+  "18": "In, sao chép bản ghi các loại",
+  "19": "Sản xuất than cốc, sản phẩm dầu mỏ tinh chế",
+  "20": "Sản xuất hóa chất và sản phẩm hóa chất",
+  "21": "Sản xuất thuốc, hóa dược và dược liệu",
+  "22": "Sản xuất sản phẩm từ cao su và plastic",
+  "23": "Sản xuất sản phẩm từ chất khoáng phi kim loại khác",
+  "24": "Sản xuất kim loại",
+  "25": "Sản xuất sản phẩm từ kim loại đúc sẵn (trừ máy móc, thiết bị)",
+  "26": "Sản xuất sản phẩm điện tử, máy vi tính và sản phẩm quang học",
+  "27": "Sản xuất thiết bị điện",
+  "28": "Sản xuất máy móc, thiết bị chưa được phân vào đâu",
+  "29": "Sản xuất ô tô và xe có động cơ khác",
+  "30": "Sản xuất phương tiện vận tải khác",
+  "31": "Sản xuất giường, tủ, bàn, ghế",
+  "32": "Công nghiệp chế biến, chế tạo khác",
+  "33": "Sửa chữa, bảo dưỡng và lắp đặt máy móc và thiết bị",
+  "35": "Sản xuất và phân phối điện, khí đốt, nước nóng, hơi nước",
+  "36": "Khai thác, xử lý và cung cấp nước",
+  "37": "Thoát nước và xử lý nước thải",
+  "38": "Thu gom, xử lý và tiêu hủy rác thải; tái chế phế liệu",
+  "39": "Xử lý ô nhiễm và hoạt động quản lý chất thải khác",
+  "41": "Xây dựng nhà các loại",
+  "42": "Xây dựng công trình kỹ thuật dân dụng",
+  "43": "Hoạt động xây dựng chuyên dụng",
+  "45": "Bán buôn, bán lẻ, sửa chữa ô tô, mô tô, xe máy",
+  "46": "Bán buôn (trừ ô tô, mô tô, xe máy)",
+  "47": "Bán lẻ (trừ ô tô, mô tô, xe máy)",
+  "49": "Vận tải đường bộ và vận tải đường ống",
+  "50": "Vận tải đường thủy",
+  "51": "Vận tải hàng không",
+  "52": "Kho bãi và các hoạt động hỗ trợ cho vận tải",
+  "53": "Bưu chính và chuyển phát",
+  "55": "Dịch vụ lưu trú",
+  "56": "Dịch vụ ăn uống",
+  "58": "Hoạt động xuất bản",
+  "59": "Hoạt động điện ảnh, sản xuất chương trình truyền hình, ghi âm",
+  "60": "Hoạt động phát thanh, truyền hình",
+  "61": "Viễn thông",
+  "62": "Lập trình máy vi tính, dịch vụ tư vấn và các hoạt động liên quan",
+  "63": "Hoạt động dịch vụ thông tin",
+  "64": "Hoạt động dịch vụ tài chính (trừ bảo hiểm và bảo hiểm xã hội)",
+  "65": "Bảo hiểm, tái bảo hiểm và bảo hiểm xã hội",
+  "66": "Hoạt động tài chính khác",
+  "68": "Hoạt động kinh doanh bất động sản",
+  "69": "Hoạt động pháp luật, kế toán và kiểm toán",
+  "70": "Hoạt động của văn phòng sở tại; hoạt động tư vấn quản lý",
+  "71": "Hoạt động kiến trúc; kiểm tra và phân tích kỹ thuật",
+  "72": "Nghiên cứu khoa học và phát triển công nghệ",
+  "73": "Quảng cáo và nghiên cứu thị trường",
+  "74": "Hoạt động chuyên môn, khoa học và công nghệ khác",
+  "75": "Hoạt động thú y",
+  "77": "Hoạt động cho thuê, cho thuê tài chính và hoạt động cho thuê tài sản phi tài chính khác",
+  "78": "Hoạt động dịch vụ lao động và việc làm",
+  "79": "Hoạt động của các đại lý du lịch, kinh doanh tua du lịch",
+  "80": "Hoạt động bảo vệ và điều tra",
+  "81": "Hoạt động dịch vụ vệ sinh nhà cửa, công trình và cảnh quan",
+  "82": "Hoạt động hành chính, hỗ trợ văn phòng và các hoạt động hỗ trợ kinh doanh khác",
+  "84": "Hoạt động quản lý nhà nước, an ninh quốc phòng",
+  "85": "Giáo dục và đào tạo",
+  "86": "Hoạt động y tế",
+  "87": "Hoạt động chăm sóc tập trung trợ giúp xã hội",
+  "88": "Hoạt động trợ giúp xã hội không tập trung",
+  "89": "Hoạt động của các hiệp hội, tổ chức khác",
+  "90": "Hoạt động sáng tạo, nghệ thuật và giải trí",
+  "91": "Hoạt động của thư viện, lưu trữ, bảo tàng",
+  "92": "Hoạt động xổ số, cá cược và vui chơi giải trí khác",
+  "93": "Hoạt động thể thao, vui chơi và giải trí khác",
+  "94": "Hoạt động của các hiệp hội, tổ chức khác",
+  "95": "Sửa chữa máy vi tính, đồ dùng cá nhân và gia đình",
+  "96": "Hoạt động dịch vụ cá nhân khác",
+  "97": "Hoạt động của các hộ gia đình đơn lẻ làm thuê",
+  "98": "Hoạt động sản xuất sản phẩm vật chất và dịch vụ tự tiêu dùng",
+  "99": "Hoạt động của các tổ chức và cơ quan quốc tế"
+};
 
 // ----- Utility Functions (DO NOT EDIT) -----
 
@@ -223,12 +337,28 @@ export const getParentSectorCode = (code: string): string => {
       return cleanKey;
     }
 
+    const getFlexibleParent = (c: string): string => {
+      const cl = c.trim().toUpperCase();
+      if (vsicParentMap[cl]) return vsicParentMap[cl];
+      const digits = cl.replace(/[^\d]/g, "");
+      if (digits.length > 0) {
+        if (digits.startsWith("0")) {
+          const stripped = digits.replace(/^0+/, "");
+          if (vsicParentMap[stripped]) return vsicParentMap[stripped];
+        } else {
+          const padded = "0" + digits;
+          if (vsicParentMap[padded]) return vsicParentMap[padded];
+        }
+      }
+      return "";
+    };
+
     // 1. Đi lên theo sơ đồ cha con vsicParentMap cho đến khi đạt chữ cái cấp 1
     let current = cleanKey;
     let visited = new Set<string>();
     while (current && !/^[A-U]$/.test(current) && !visited.has(current)) {
       visited.add(current);
-      const parent = vsicParentMap[current];
+      const parent = getFlexibleParent(current);
       if (parent) {
         current = parent.trim().toUpperCase();
       } else {
@@ -366,7 +496,31 @@ export const smartSuggestSectorByDescription = (description: string): { ma: stri
 };
 
 // Tự động khôi phục danh bạ ngành nghề tùy chọn do NSD nạp bổ sung từ localStorage khi tải trang
-export const vsicParentMap: { [key: string]: string } = {};
+export const vsicParentMap: { [key: string]: string } = {
+  // Nhóm con -> Nhóm cha cấp 1 (A-U)
+  "01": "A", "02": "A", "03": "A",
+  "05": "B", "06": "B", "07": "B", "08": "B", "09": "B",
+  "10": "C", "11": "C", "12": "C", "13": "C", "14": "C", "15": "C", "16": "C", "17": "C", "18": "C", "19": "C", "20": "C", "21": "C", "22": "C", "23": "C", "24": "C", "25": "C", "26": "C", "27": "C", "28": "C", "29": "C", "30": "C", "31": "C", "32": "C", "33": "C",
+  "35": "D",
+  "36": "E", "37": "E", "38": "E", "39": "E",
+  "41": "F", "42": "F", "43": "F",
+  "45": "G", "46": "G", "47": "G",
+  "49": "H", "50": "H", "51": "H", "52": "H", "53": "H",
+  "55": "I", "56": "I",
+  "58": "J", "59": "J", "60": "J", "61": "J", "62": "J", "63": "J",
+  "64": "K", "65": "K", "66": "K",
+  "68": "L",
+  "69": "M", "70": "M", "71": "M", "72": "M", "73": "M", "74": "M", "75": "M",
+  "77": "N", "78": "N", "79": "N", "80": "N", "81": "N", "82": "N",
+  "84": "O",
+  "85": "P",
+  "86": "Q", "87": "Q", "88": "Q",
+  "89": "O",
+  "90": "R", "91": "R", "92": "R", "93": "R",
+  "94": "S", "95": "S", "96": "S",
+  "97": "T", "98": "T",
+  "99": "U"
+};
 
 export const clearAllSectorsInVSIC = () => {
   for (const key in vsicRawData) {
@@ -390,7 +544,7 @@ export const loadParentsIntoVSIC = (parents: { [key: string]: string }) => {
 
 try {
   if (typeof window !== "undefined" && window.localStorage) {
-    const isPure = window.localStorage.getItem("custom_vsic_is_pure") !== "false";
+    const isPure = window.localStorage.getItem("custom_vsic_is_pure") === "true";
     if (isPure) {
       clearAllSectorsInVSIC();
       clearAllParentsInVSIC();
