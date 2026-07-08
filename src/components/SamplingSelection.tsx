@@ -88,8 +88,8 @@ export default function SamplingSelection({
   const [indTransportMaxCap, setIndTransportMaxCap] = useState<number>(50);
 
   // Dynamic sectors to filter industries on both sides
-  const [corpSectors, setCorpSectors] = useState<string[]>(["congnghiep", "thuongmai", "vantai", "anuongluutru"]);
-  const [indSectors, setIndSectors] = useState<string[]>(["congnghiep", "thuongmai", "vantai", "anuongluutru"]);
+  const [corpSectors, setCorpSectors] = useState<string[]>(["congnghiep", "xaydung", "thuongmai", "vantai", "dichvu"]);
+  const [indSectors, setIndSectors] = useState<string[]>(["congnghiep", "xaydung", "thuongmai", "vantai", "dichvu"]);
 
   // Search terms for output lists
   const [corpSearchTerm, setCorpSearchTerm] = useState<string>("");
@@ -123,10 +123,11 @@ export default function SamplingSelection({
     if (isNaN(l2Num)) return false;
 
     let matched = false;
-    if (sectors.includes("congnghiep") && l2Num >= 5 && l2Num <= 33) matched = true;
-    if (sectors.includes("thuongmai") && l2Num >= 45 && l2Num <= 46) matched = true;
-    if (sectors.includes("vantai") && l2Num === 49) matched = true;
-    if (sectors.includes("anuongluutru") && (l2Num === 55 || l2Num === 56)) matched = true;
+    if (sectors.includes("congnghiep") && l2Num >= 5 && l2Num <= 39) matched = true;
+    if (sectors.includes("xaydung") && l2Num >= 41 && l2Num <= 43) matched = true;
+    if (sectors.includes("thuongmai") && l2Num >= 45 && l2Num <= 47) matched = true;
+    if (sectors.includes("vantai") && l2Num >= 49 && l2Num <= 53) matched = true;
+    if (sectors.includes("dichvu") && l2Num >= 55 && l2Num <= 99) matched = true;
 
     return matched;
   };
@@ -957,12 +958,13 @@ export default function SamplingSelection({
                 <div className="pt-2.5 border-t border-slate-200">
                   <span className="block text-slate-700 font-extrabold mb-1.5">Lọc nhóm ngành khảo sát:</span>
                   <div className="flex flex-wrap gap-2.5">
-                    {["congnghiep", "thuongmai", "vantai", "anuongluutru"].map(sec => {
+                    {["congnghiep", "xaydung", "thuongmai", "vantai", "dichvu"].map(sec => {
                       const labels: Record<string, string> = {
-                        congnghiep: "Công nghiệp (05-33)",
-                        thuongmai: "Thương mại (45-46)",
-                        vantai: "Vận tải (49)",
-                        anuongluutru: "Dịch vụ/Ăn uống (55-56)"
+                        congnghiep: "Công nghiệp (05-39)",
+                        xaydung: "Xây dựng (41-43)",
+                        thuongmai: "Thương mại (45-47)",
+                        vantai: "Vận tải (49-53)",
+                        dichvu: "Dịch vụ (55-99)"
                       };
                       return (
                         <label key={sec} className="flex items-center gap-1.5 cursor-pointer text-[10.5px]">
@@ -1383,12 +1385,13 @@ export default function SamplingSelection({
                 <div className="pt-2.5 border-t border-slate-200">
                   <span className="block text-slate-700 font-extrabold mb-1.5">Lọc nhóm ngành khảo sát:</span>
                   <div className="flex flex-wrap gap-2.5">
-                    {["congnghiep", "thuongmai", "vantai", "anuongluutru"].map(sec => {
+                    {["congnghiep", "xaydung", "thuongmai", "vantai", "dichvu"].map(sec => {
                       const labels: Record<string, string> = {
-                        congnghiep: "Công nghiệp (05-33)",
-                        thuongmai: "Thương mại (45-46)",
-                        vantai: "Vận tải (49)",
-                        anuongluutru: "Dịch vụ/Ăn uống (55-56)"
+                        congnghiep: "Công nghiệp (05-39)",
+                        xaydung: "Xây dựng (41-43)",
+                        thuongmai: "Thương mại (45-47)",
+                        vantai: "Vận tải (49-53)",
+                        dichvu: "Dịch vụ (55-99)"
                       };
                       return (
                         <label key={sec} className="flex items-center gap-1.5 cursor-pointer text-[10.5px]">

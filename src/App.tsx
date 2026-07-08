@@ -7696,34 +7696,9 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             XÓA FILE DỮ LIỆU NẠP
           </button>
 
-          {/* TRÌNH CHỌN CHẾ ĐỘ HOẠT ĐỘNG SONG SONG ĐỘC LẬP */}
-          <div className="flex items-center bg-white border border-indigo-200 rounded-xl p-0.5 shadow-inner">
-            <button
-              onClick={() => switchDataMode("corp")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                dataMode === "corp"
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-              title="Nhấn để chuyển hoàn toàn sang làm việc với dữ liệu Doanh nghiệp độc lập"
-            >
-              🏢 Doanh nghiệp
-            </button>
-            <button
-              onClick={() => switchDataMode("individual")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                dataMode === "individual"
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-              title="Nhấn để chuyển hoàn toàn sang làm việc với dữ liệu Cá thể độc lập"
-            >
-              👤 Cá thể
-            </button>
-          </div>
-
-          <div className="text-slate-700 font-bold bg-indigo-100/50 border border-indigo-200/80 px-2.5 py-1 rounded-lg">
-            💾 Local {dataMode === "corp" ? "Doanh nghiệp" : "Cá thể"} DB
+          {/* Chế độ làm việc tập trung */}
+          <div className="text-slate-700 font-extrabold bg-indigo-100/60 border border-indigo-200/80 px-3 py-1.5 rounded-lg flex items-center gap-1">
+            <span>💻</span> CHẾ ĐỘ LÀM VIỆC TẬP TRUNG
           </div>
         </div>
       </div>

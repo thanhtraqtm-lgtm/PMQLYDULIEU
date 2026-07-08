@@ -240,6 +240,38 @@ export default function ComplexCalculations({
   return (
     <div className="bg-slate-50 p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-6 text-slate-800 shadow-xl font-sans">
       
+      {/* KHU VỰC BANNER HƯỚNG DẪN HOẠT ĐỘNG */}
+      <div className="bg-gradient-to-r from-indigo-900 to-slate-900 rounded-2xl p-5 text-white space-y-3 shadow-md border border-indigo-950 relative overflow-hidden">
+        <div className="absolute -right-10 -top-10 opacity-10 pointer-events-none">
+          <Sparkles className="w-40 h-40 text-white" />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="bg-amber-400 text-indigo-950 font-black text-[10px] uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">
+            HƯỚNG DẪN NHANH
+          </span>
+          <h4 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+            💡 Cách sử dụng Phép tính Liên kết Chéo giữa các tệp dữ liệu
+          </h4>
+        </div>
+        <p className="text-xs text-indigo-200 leading-relaxed max-w-4xl font-medium font-sans">
+          Tính năng này cho phép bạn làm phép toán <strong className="text-amber-300 font-sans">Cộng (+), Trừ (-), Nhân (*), Chia (/)</strong> trực tiếp giữa các cột số của hai tệp tin khác nhau (ví dụ: đối chiếu số liệu năm nay với năm cũ, đối sánh các tệp nông nghiệp và công nghiệp...).
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1 text-[11px] text-slate-300 font-sans">
+          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+            <span className="font-bold text-amber-300 block mb-1">1. CHỌN TỆP &amp; KHÓA (BƯỚC 1)</span>
+            Chọn Tệp A và Tệp B, sau đó chọn <strong className="font-semibold text-white">Cột khóa chung</strong> (Ví dụ: tên Xã hoặc mã Ngành). Hệ thống sẽ liên kết dòng tương ứng trong thời gian thực <em className="text-indigo-200">(không cần nút bấm nạp vì dữ liệu cập nhật tự động)</em>.
+          </div>
+          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+            <span className="font-bold text-amber-300 block mb-1">2. THIẾT LẬP PHÉP TÍNH (BƯỚC 2)</span>
+            Chọn các cột số của Tệp A, phép tính mong muốn, cột tương ứng của Tệp B và đặt tên cho cột kết quả mới sẽ tạo ra.
+          </div>
+          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+            <span className="font-bold text-amber-300 block mb-1">3. CHẠY KẾT QUẢ (NÚT BẤM)</span>
+            Cuộn xuống cuối Bước 2 và bấm nút <strong className="text-emerald-400 font-semibold">"CHẠY PHÉP TÍNH LIÊN KẾT CHÉO"</strong> màu xanh để tạo tệp tổng hợp so sánh gộp mới!
+          </div>
+        </div>
+      </div>
+
       {/* 1. CẤU HÌNH CÁC TỆP TIN VÀ KHÓA LIÊN KẾT ĐỒNG BỘ */}
       <fieldset className="border border-slate-200 rounded-xl p-4 sm:p-5 bg-white text-slate-800 space-y-4 shadow-sm relative">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
@@ -549,12 +581,15 @@ export default function ComplexCalculations({
         </div>
 
         {/* Nút hành động chính */}
-        <div className="pt-2 flex justify-end">
+        <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 mt-4">
+          <div className="text-xs text-amber-800 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200 font-medium font-sans">
+            💡 <strong>Lưu ý:</strong> Sau khi đã chọn đầy đủ các tệp &amp; cột khóa ở Bước 1, vui lòng bấm nút bên phải để chạy phép toán so sánh!
+          </div>
           <button
             onClick={handleExecuteWithLogs}
-            className="bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm px-8 py-3.5 rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer uppercase tracking-wider"
+            className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs sm:text-sm px-8 py-3.5 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer uppercase tracking-widest active:scale-95 border-b-4 border-emerald-800"
           >
-            <Sliders className="w-4 h-4 text-indigo-200" /> Thực hiện phép tính liên kết chéo
+            <Play className="w-4 h-4 text-white shrink-0 animate-bounce" /> ⚡ BẤM ĐỂ CHẠY PHÉP TÍNH LIÊN KẾT CHÉO
           </button>
         </div>
       </fieldset>
