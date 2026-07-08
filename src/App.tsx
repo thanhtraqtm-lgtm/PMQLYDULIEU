@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { DataEntry } from "./components/DataEntry";
 import { VideoRoom } from "./components/VideoRoom";
 import { AdminDashboard } from "./components/AdminDashboard";
-import SplitScreenView from "./components/SplitScreenView";
 import { LogIn, Key, HelpCircle, ShieldAlert, Radio, Users, Shield, CheckCircle } from "lucide-react";
 // @ts-ignore
 import logoImg from "./image/logo.jpg";
@@ -7382,24 +7381,6 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             Trang chủ
           </button>
 
-          {/* Nút CHIA MÀN HÌNH DOANH NGHIỆP - CÁ THỂ */}
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveTab("splitscreen");
-              setOpenDropdown(null);
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-              activeTab === "splitscreen" 
-                ? "bg-indigo-600 text-white shadow-md border border-indigo-700" 
-                : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
-            }`}
-            title="Xem chia đôi màn hình dữ liệu Doanh nghiệp và Cá thể song song"
-          >
-            <Combine className="w-4 h-4 shrink-0 text-emerald-500 animate-pulse" />
-            🖥️ Màn hình Song song
-          </button>
-
           {/* DROPDOWN 1: TRẠM DỮ LIỆU */}
           <div className="relative">
             <button 
@@ -10271,12 +10252,6 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           {activeTab === "videoroom" && (
             <div className="space-y-6 animate-fade-in">
               <VideoRoom />
-            </div>
-          )}
-
-          {activeTab === "splitscreen" && (
-            <div className="space-y-6 animate-fade-in">
-              <SplitScreenView currentMode={dataMode} onSwitchMode={switchDataMode} />
             </div>
           )}
 
