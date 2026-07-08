@@ -7386,8 +7386,8 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
   {/* Thanh Menu Ngang (Sub-header Navigation) sang trọng thay thế hoàn toàn Sidebar dọc */}
   const renderHorizontalMenu = () => {
     return (
-      <div className="bg-indigo-50/95 backdrop-blur-md border-b border-indigo-200/80 shadow-md relative z-30 px-6 py-2 flex flex-wrap items-center justify-between gap-4 select-none animate-fade-in">
-        <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="bg-indigo-50/95 backdrop-blur-md border-b border-indigo-200/80 shadow-md relative z-30 px-6 py-1.5 flex flex-nowrap items-center justify-between gap-3 overflow-x-auto lg:overflow-visible select-none animate-fade-in custom-scrollbar">
+        <div className="flex items-center gap-1 flex-nowrap shrink-0">
           
           {/* Nút TRANG CHỦ */}
           <button 
@@ -7676,30 +7676,16 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
         </div>
 
-        {/* Thông tin bộ nhớ Local Workspace nhỏ gọn ở góc phải menu ngang */}
-        <div className="flex items-center gap-3.5 text-[11px] font-sans text-slate-500">
-          <div className="hidden lg:flex items-center gap-1.5 text-emerald-600 font-bold">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span>Cloud Real-time: Đồng bộ</span>
-          </div>
-
-          {/* NÚT XÓA DỮ LIỆU THƯỜNG TRỰC */}
+        {/* Nút Xóa dữ liệu duy nhất và gọn gàng ở góc phải menu ngang */}
+        <div className="flex items-center gap-2 text-[11px] font-sans">
           <button 
             onClick={clearData}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 hover:text-rose-700 transition-all cursor-pointer shadow-sm active:scale-95"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 hover:text-rose-700 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
             title="Xóa nhanh toàn bộ các file dữ liệu đã nạp (Tệp chính, tệp nạp thêm, tệp chọn mẫu...). Danh mục ngành VSIC và quy tắc AI giữ nguyên."
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            XÓA FILE DỮ LIỆU NẠP
+            <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            XÓA DỮ LIỆU ĐÃ NẠP
           </button>
-
-          {/* Chế độ làm việc tập trung */}
-          <div className="text-slate-700 font-extrabold bg-indigo-100/60 border border-indigo-200/80 px-3 py-1.5 rounded-lg flex items-center gap-1">
-            <span>💻</span> CHẾ ĐỘ LÀM VIỆC TẬP TRUNG
-          </div>
         </div>
       </div>
     );
