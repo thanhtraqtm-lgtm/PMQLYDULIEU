@@ -101,7 +101,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
     const term = searchTerm.toLowerCase();
     return localRows.filter((row) => {
       const commune = String(row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "").toLowerCase();
-      const sectorKey = level === 0 ? "Nhóm_Phân_Loại" : `Ngành_Cấp_${level}`;
+      const sectorKey = level === 0 ? "Nhóm_Phân_Loại" : (level === 6 ? "Nhóm_Ngành_Chính" : `Ngành_Cấp_${level}`);
       const sector = String(row[sectorKey] || "").toLowerCase();
       return commune.includes(term) || sector.includes(term);
     });
@@ -199,7 +199,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 font-sans">
         <div>
           <span className="text-xs font-black text-slate-800 font-mono tracking-widest uppercase block mb-1">
-            📊 KẾT QUẢ TỔNG HỢP {level === 0 ? "PHÂN NHÓM" : `DANH MỤC NGÀNH CẤP ${level}`} × ĐỊA BÀN
+            📊 KẾT QUẢ TỔNG HỢP {level === 0 ? "PHÂN NHÓM" : (level === 6 ? "NHÓM NGÀNH CHÍNH" : `DANH MỤC NGÀNH CẤP ${level}`)} × ĐỊA BÀN
           </span>
           <span className="text-xs text-slate-600 block leading-normal">
             Nhấp chuột trực tiếp vào bất kỳ ô số liệu nào để <strong>chỉnh sửa số lại</strong>. Hệ thống sẽ tự động cộng dồn và cập nhật biểu mẫu toàn bảng.

@@ -4304,84 +4304,85 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
 
   // 5. CHỨC NĂNG BÁO CÁO NHANH THEO PHÂN CẤP NGÀNH & XÃ CHUẨN XÁC
   const handleQuickReport = async (level: number, optManganh?: string, optXa?: string, optDoanhThu?: string, optLaoDong?: string) => {
-    const activeFile = allAvailableFiles.find(f => f.id === selectedFileIdToAggregate) || (mainData.length > 0 ? { id: "main_data_file", name: "Dữ liệu chính", data: mainData, columns: columns } : null);
-    if (!activeFile || activeFile.data.length === 0) {
-      alert("Vui lòng nạp hoặc chọn dữ liệu trước khi chạy báo cáo.");
-      return;
-    }
-    const targetData = activeFile.data;
-    const targetColumns = activeFile.columns;
-
-    let targetManganh = optManganh || quickReportManganhCol || mapping.manganh;
-    let targetXa = optXa || quickReportXaCol || mapping.xa;
-    let targetDoanhThu = optDoanhThu || quickReportDoanhThuCol || mapping.doanhthu;
-    let targetLaoDong = optLaoDong || quickReportLaoDongCol || mapping.laodong;
-
-    // Tự động dò tìm cột Mã ngành nếu bị trống
-    if (!targetManganh) {
-      const foundMng = targetColumns.find(c => /mã\s*ngành|manganh|vsic|mã\s*nghe|manghe|ngành|ma_nganh/i.test(c));
-      if (foundMng) {
-        targetManganh = foundMng;
-        setQuickReportManganhCol(foundMng);
-      }
-    }
-
-    // Tự động dò tìm cột Xã / Địa bàn nếu bị trống
-    if (!targetXa) {
-      const foundXa = targetColumns.find(c => /xã|xa|địa\s*bàn|dia\s*ban|phường|phuong|ma_xa|ten_xa/i.test(c));
-      if (foundXa) {
-        targetXa = foundXa;
-        setQuickReportXaCol(foundXa);
-      }
-    }
-
-    if (!targetManganh) {
-      alert("Vui lòng chỉ định cột chứa Mã ngành hoặc tiêu chí phân loại gộp ở bộ chọn!");
-      return;
-    }
-    if (!targetXa) {
-      alert("Vui lòng chỉ định cột chứa Xã / Địa bàn ở bộ chọn!");
-      return;
-    }
-
-    // Xây dựng danh sách chỉ tiêu cộng dồn động (không khoá cứng cột)
-    const sumCols: string[] = [];
-    quickReportSumCols.forEach(col => {
-      if (col && (targetColumns.includes(col) || col === "Số lượng dòng")) {
-        sumCols.push(col);
-      }
-    });
-
-    // Nếu không cấu hình chỉ tiêu phụ động, tự chuyển về tương thích ngược dựa vào lựa chọn Doanh Thu và Lao Động
-    if (sumCols.length === 0) {
-      if (targetDoanhThu && targetColumns.includes(targetDoanhThu)) sumCols.push(targetDoanhThu);
-      if (targetLaoDong && targetColumns.includes(targetLaoDong)) sumCols.push(targetLaoDong);
-    }
-
-    // Tự động tìm kiếm các cột số trong tệp dữ liệu nếu chưa chọn hoặc không tìm thấy cột doanh thu/lao động
-    if (sumCols.length === 0) {
-      const firstRow = targetData[0] || {};
-      const detectedNumericCols = targetColumns.filter(col => {
-        if (col === targetManganh || col === targetXa) return false;
-        const val = String(firstRow[col] || "");
-        return val && !isNaN(parseFloat(val.replace(/[^0-9.\-]/g, "")));
-      });
-      if (detectedNumericCols.length > 0) {
-        sumCols.push(...detectedNumericCols.slice(0, 3)); // Lấy tối đa 3 cột số đầu tiên làm mẫu
-      }
-    }
-
-    // Nếu vẫn trống, lấy đại diện 1 cột số lượng dòng ảo làm chỉ tiêu cộng dồn
-    if (sumCols.length === 0) {
-      sumCols.push("Số lượng dòng");
-    }
-
-    setLoading(true);
-    setProgress(0);
-    setStatusMessage(`Đang tạo báo cáo tổng hợp gộp nhóm...`);
-    await sleep(200);
-
     try {
+      const activeFile = allAvailableFiles.find(f => f.id === selectedFileIdToAggregate) || (mainData && mainData.length > 0 ? { id: "main_data_file", name: "Dữ liệu chính", data: mainData, columns: columns } : null);
+      if (!activeFile || !activeFile.data || activeFile.data.length === 0) {
+        alert("Vui lòng nạp hoặc chọn dữ liệu trước khi chạy báo cáo.");
+        return;
+      }
+      const targetData = activeFile.data || [];
+      const targetColumns = activeFile.columns || [];
+
+      let targetManganh = optManganh || quickReportManganhCol || mapping.manganh;
+      let targetXa = optXa || quickReportXaCol || mapping.xa;
+      let targetDoanhThu = optDoanhThu || quickReportDoanhThuCol || mapping.doanhthu;
+      let targetLaoDong = optLaoDong || quickReportLaoDongCol || mapping.laodong;
+
+      // Tự động dò tìm cột Mã ngành nếu bị trống
+      if (!targetManganh) {
+        const foundMng = targetColumns.find(c => /mã\s*ngành|manganh|vsic|mã\s*nghe|manghe|ngành|ma_nganh/i.test(c));
+        if (foundMng) {
+          targetManganh = foundMng;
+          setQuickReportManganhCol(foundMng);
+        }
+      }
+
+      // Tự động dò tìm cột Xã / Địa bàn nếu bị trống
+      if (!targetXa) {
+        const foundXa = targetColumns.find(c => /xã|xa|địa\s*bàn|dia\s*ban|phường|phuong|ma_xa|ten_xa/i.test(c));
+        if (foundXa) {
+          targetXa = foundXa;
+          setQuickReportXaCol(foundXa);
+        }
+      }
+
+      if (!targetManganh) {
+        alert("Vui lòng chỉ định cột chứa Mã ngành hoặc tiêu chí phân loại gộp ở bộ chọn!");
+        return;
+      }
+      if (!targetXa) {
+        alert("Vui lòng chỉ định cột chứa Xã / Địa bàn ở bộ chọn!");
+        return;
+      }
+
+      // Xây dựng danh sách chỉ tiêu cộng dồn động (không khoá cứng cột)
+      const sumCols: string[] = [];
+      const sumColsToCheck = Array.isArray(quickReportSumCols) ? quickReportSumCols : [];
+      sumColsToCheck.forEach(col => {
+        if (col && (targetColumns.includes(col) || col === "Số lượng dòng")) {
+          sumCols.push(col);
+        }
+      });
+
+      // Nếu không cấu hình chỉ tiêu phụ động, tự chuyển về tương thích ngược dựa vào lựa chọn Doanh Thu và Lao Động
+      if (sumCols.length === 0) {
+        if (targetDoanhThu && targetColumns.includes(targetDoanhThu)) sumCols.push(targetDoanhThu);
+        if (targetLaoDong && targetColumns.includes(targetLaoDong)) sumCols.push(targetLaoDong);
+      }
+
+      // Tự động tìm kiếm các cột số trong tệp dữ liệu nếu chưa chọn hoặc không tìm thấy cột doanh thu/lao động
+      if (sumCols.length === 0) {
+        const firstRow = targetData[0] || {};
+        const detectedNumericCols = targetColumns.filter(col => {
+          if (col === targetManganh || col === targetXa) return false;
+          const val = String(firstRow[col] || "");
+          return val && !isNaN(parseFloat(val.replace(/[^0-9.\-]/g, "")));
+        });
+        if (detectedNumericCols.length > 0) {
+          sumCols.push(...detectedNumericCols.slice(0, 3)); // Lấy tối đa 3 cột số đầu tiên làm mẫu
+        }
+      }
+
+      // Nếu vẫn trống, lấy đại diện 1 cột số lượng dòng ảo làm chỉ tiêu cộng dồn
+      if (sumCols.length === 0) {
+        sumCols.push("Số lượng dòng");
+      }
+
+      setLoading(true);
+      setProgress(0);
+      setStatusMessage(`Đang tạo báo cáo tổng hợp gộp nhóm...`);
+      await sleep(200);
+
       const processedData = await chunkProcess(
         targetData,
         10000,
@@ -4426,6 +4427,26 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
               const sec5Code = mng ? mng.slice(0, 5) : "";
               const sec5Name = vsicRawData[sec5Code] || "Ngành cấp 5 chưa định nghĩa";
               tenNganhLabel = sec5Code ? `${sec5Code} - ${sec5Name}` : "Chưa xác định - Ngành cấp 5 chưa định nghĩa";
+            } else if (level === 6) {
+              const sec2Code = mng ? mng.replace(/\D/g, "").slice(0, 2) : "";
+              const sec2Num = parseInt(sec2Code, 10);
+              if (!isNaN(sec2Num)) {
+                if (sec2Num >= 5 && sec2Num <= 39) {
+                  tenNganhLabel = "Công nghiệp (05-39)";
+                } else if (sec2Num >= 41 && sec2Num <= 43) {
+                  tenNganhLabel = "Xây dựng (41-43)";
+                } else if (sec2Num >= 45 && sec2Num <= 47) {
+                  tenNganhLabel = "Thương mại (45-47)";
+                } else if (sec2Num >= 49 && sec2Num <= 53) {
+                  tenNganhLabel = "Vận tải (49-53)";
+                } else if (sec2Num >= 55 && sec2Num <= 99) {
+                  tenNganhLabel = "Dịch vụ (55-99)";
+                } else {
+                  tenNganhLabel = `Khác - Ngoài danh mục (${sec2Code})`;
+                }
+              } else {
+                tenNganhLabel = "Chưa xác định / Bỏ trống";
+              }
             }
           }
 
@@ -4522,6 +4543,8 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
           const rowObj: any = {};
           if (level === 0) {
             rowObj["Nhóm_Phân_Loại"] = dims.Ngành;
+          } else if (level === 6) {
+            rowObj["Nhóm_Ngành_Chính"] = dims.Ngành;
           } else {
             rowObj[`Ngành_Cấp_${level}`] = dims.Ngành;
           }
@@ -4546,7 +4569,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
 
       const newDataset: CompiledDataset = {
         id: "main_" + Date.now(),
-        name: `Biểu gộp: ${fileName || "Dữ liệu chính"} (Cấp ${level === 0 ? "gốc" : "ngành " + level}, ${reportType === "pivot" ? "Pivot" : "Mẫu dọc"})`,
+        name: `Biểu gộp: ${fileName || "Dữ liệu chính"} (${level === 6 ? "Nhóm ngành chính" : "Cấp " + (level === 0 ? "gốc" : "ngành " + level)}, ${reportType === "pivot" ? "Pivot" : "Mẫu dọc"})`,
         rows: finalReportRows,
         cols: Object.keys(finalReportRows[0] || {}),
         level: level,
@@ -4993,8 +5016,10 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
     try {
       const ws = XLSX.utils.json_to_sheet(rowsToExport);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, `Báo cáo cấp ${quickReportLevel}`);
-      XLSX.writeFile(wb, `Bao_Cao_Tong_Hop_Nganh_Cap_${quickReportLevel}_Va_Xa_Da_Chinh_Sua.xlsx`);
+      const sheetName = quickReportLevel === 6 ? "Nhóm ngành chính" : `Báo cáo cấp ${quickReportLevel}`;
+      const fileNameSuffix = quickReportLevel === 6 ? "Nhom_Nganh_Chinh" : `Nganh_Cap_${quickReportLevel}`;
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      XLSX.writeFile(wb, `Bao_Cao_Tong_Hop_${fileNameSuffix}_Va_Xa_Da_Chinh_Sua.xlsx`);
     } catch (err: any) {
       alert("Lỗi xuất Excel: " + err.message);
     }
@@ -9677,7 +9702,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         CHẠY TỔNG HỢP BÁO CÁO ĐA NĂNG
                       </span>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-end">
                         <div>
                           <label className="text-xs font-semibold text-slate-700 block mb-1">Mức độ phân cấp gộp nhóm:</label>
                           <select
@@ -9686,6 +9711,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                             className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2.5 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 font-sans font-medium"
                           >
                             <option value={0}>📊 Gom nhóm trực tiếp bằng nội dung gốc trong cột (Không tra cứu VSIC)</option>
+                            <option value={6}>💼 Tổng hợp theo Nhóm ngành chính (Công nghiệp, Xây dựng, Thương mại, Vận tải, Dịch vụ)</option>
                             <option value={1}>📈 Phân cấp Ngành Cấp 1 (VSIC - Chữ cái A-U)</option>
                             <option value={2}>📈 Phân cấp Ngành Cấp 2 (VSIC - 2 chữ số)</option>
                             <option value={3}>📈 Phân cấp Ngành Cấp 3 (VSIC - 3 chữ số)</option>
@@ -9696,9 +9722,16 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
                         <button 
                           onClick={() => handleQuickReport(quickReportLevel)}
-                          className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md hover:shadow-emerald-900/30 cursor-pointer flex items-center justify-center gap-2 font-sans active:scale-95 border-b-4 border-emerald-700 h-[38px]"
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 font-sans active:scale-95 border-b-4 border-emerald-800 h-[38px]"
                         >
-                          ⚡ Chạy Tổng Hợp Báo Cáo
+                          ⚡ Chạy Tổng Hợp Phân Cấp Đã Chọn
+                        </button>
+
+                        <button 
+                          onClick={() => handleQuickReport(6)}
+                          className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-black text-xs py-3 rounded-xl transition-all shadow-md hover:shadow-indigo-950/30 cursor-pointer flex items-center justify-center gap-2 font-sans active:scale-95 border-b-4 border-indigo-900 h-[38px]"
+                        >
+                          💼 Tổng hợp theo nhóm ngành chính
                         </button>
                       </div>
                     </div>
