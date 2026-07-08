@@ -58,6 +58,17 @@ export default function SamplingSelection({
   const [indCustomMode, setIndCustomMode] = useState<"fixed" | "percent">("fixed");
   const [indCustomCountValue, setIndCustomCountValue] = useState<number>(5);
   const [indCustomPercentValue, setIndCustomPercentValue] = useState<number>(10);
+  const [manualIndGroupSamples, setManualIndGroupSamples] = useState<Record<string, number>>({});
+  const [sampFilterTab, setSampFilterTab] = useState<"corp" | "ind">("corp");
+
+  // Cấu hình kéo thả nâng cao theo quy mô nhóm ngành của Hộ cá thể (Individual Sliders)
+  const [indSize1To5Value, setIndSize1To5Value] = useState<number>(5); // Nhóm có 1-5 hộ: Chọn toàn bộ (mặc định tối đa 5 hoặc toàn bộ)
+  const [indSize1To5All, setIndSize1To5All] = useState<boolean>(true); // Mặc định chọn toàn bộ
+  const [indSize6To100Value, setIndSize6To100Value] = useState<number>(5); // Nhóm có 6-100: Chọn 5 cơ sở (kéo từ 1 đến 50)
+  const [indSize101To1000Value, setIndSize101To1000Value] = useState<number>(8); // Nhóm có 101-1000: Chọn 8 cơ sở (kéo từ 1 đến 100)
+  const [indSize1001PlusPercent, setIndSize1001PlusPercent] = useState<number>(1); // Nhóm từ 1001 trở lên: Chọn 1% (kéo % từ 0.1 đến 10.0)
+  const [indTransportPercent, setIndTransportPercent] = useState<number>(1.5); // Riêng vận tải kho bãi: Chọn 1.5% (kéo % từ 0.5 đến 15.0)
+  const [indTransportMaxCap, setIndTransportMaxCap] = useState<number>(50); // Tối đa không quá 50 cơ sở cho vận tải kho bãi (kéo từ 5 đến 200)
 
   // --- STATES FOR MANUAL TRIGGER & USER CONFIDENCE ---
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
@@ -118,6 +129,18 @@ export default function SamplingSelection({
   const [sampXaCol, setSampXaCol] = useState<string>("");
   const [sampManganhCol, setSampManganhCol] = useState<string>("");
   const [sampDoanhThuCol, setSampDoanhThuCol] = useState<string>("");
+  
+  // Independent Column configurations to completely separate Enterprise and Household
+  const [corpIdCol, setCorpIdCol] = useState<string>("");
+  const [corpXaCol, setCorpXaCol] = useState<string>("");
+  const [corpManganhCol, setCorpManganhCol] = useState<string>("");
+  const [corpDoanhThuCol, setCorpDoanhThuCol] = useState<string>("");
+
+  const [indIdCol, setIndIdCol] = useState<string>("");
+  const [indXaCol, setIndXaCol] = useState<string>("");
+  const [indManganhCol, setIndManganhCol] = useState<string>("");
+  const [indDoanhThuCol, setIndDoanhThuCol] = useState<string>("");
+
   const [sampTypeCol, setSampTypeCol] = useState<string>("");
   const [sampFilterType, setSampFilterType] = useState<"all_ent" | "all_ind" | "by_col">("all_ent");
   const [sampTypeEnterpriseValue, setSampTypeEnterpriseValue] = useState<string>("DN");
@@ -126,6 +149,24 @@ export default function SamplingSelection({
   // Search & Navigation
   const [sampSearchTerm, setSampSearchTerm] = useState<string>("");
   const [sampActiveDetailGroup, setSampActiveDetailGroup] = useState<string>("");
+
+  const corpColumns = useMemo(() => {
+    const colsSet = new Set<string>();
+    columns.forEach(c => colsSet.add(c));
+    if (sampCorpData.length > 0) {
+      Object.keys(sampCorpData[0] || {}).forEach(c => colsSet.add(c));
+    }
+    return Array.from(colsSet);
+  }, [columns, sampCorpData]);
+
+  const indColumns = useMemo(() => {
+    const colsSet = new Set<string>();
+    columns.forEach(c => colsSet.add(c));
+    if (sampIndData.length > 0) {
+      Object.keys(sampIndData[0] || {}).forEach(c => colsSet.add(c));
+    }
+    return Array.from(colsSet);
+  }, [columns, sampIndData]);
 
   const samplingColumns = useMemo(() => {
     const colsSet = new Set<string>();
@@ -141,11 +182,27 @@ export default function SamplingSelection({
 
   // Sync columns with mapping whenever columns or mapping change
   useEffect(() => {
-    if (mapping.idCol && !sampIdCol) setSampIdCol(mapping.idCol);
-    if (mapping.xa && !sampXaCol) setSampXaCol(mapping.xa);
-    if (mapping.manganh && !sampManganhCol) setSampManganhCol(mapping.manganh);
-    if (mapping.doanhthu && !sampDoanhThuCol) setSampDoanhThuCol(mapping.doanhthu);
-  }, [mapping, samplingColumns]);
+    if (mapping.idCol) {
+      if (!corpIdCol) setCorpIdCol(mapping.idCol);
+      if (!indIdCol) setIndIdCol(mapping.idCol);
+      if (!sampIdCol) setSampIdCol(mapping.idCol);
+    }
+    if (mapping.xa) {
+      if (!corpXaCol) setCorpXaCol(mapping.xa);
+      if (!indXaCol) setIndXaCol(mapping.xa);
+      if (!sampXaCol) setSampXaCol(mapping.xa);
+    }
+    if (mapping.manganh) {
+      if (!corpManganhCol) setCorpManganhCol(mapping.manganh);
+      if (!indManganhCol) setIndManganhCol(mapping.manganh);
+      if (!sampManganhCol) setSampManganhCol(mapping.manganh);
+    }
+    if (mapping.doanhthu) {
+      if (!corpDoanhThuCol) setCorpDoanhThuCol(mapping.doanhthu);
+      if (!indDoanhThuCol) setIndDoanhThuCol(mapping.doanhthu);
+      if (!sampDoanhThuCol) setSampDoanhThuCol(mapping.doanhthu);
+    }
+  }, [mapping]);
 
   // High-performance CSV parser
   const parseCSV = (rawText: string): any[] => {
@@ -261,6 +318,34 @@ export default function SamplingSelection({
     return data;
   };
 
+  const autoDetectColumns = (cols: string[], type: "corp" | "ind") => {
+    cols.forEach(c => {
+      const cLow = c.toLowerCase();
+      const isId = cLow.includes("mst") || cLow.includes("mã số thuế") || cLow.includes("định danh") || cLow.includes("id");
+      const isXa = cLow.includes("xã") || cLow.includes("địa bàn") || cLow.includes("mã xã");
+      const isManganh = cLow.includes("ngành") || cLow.includes("mã ngành") || cLow.includes("vsic");
+      const isDoanhThu = cLow.includes("doanh thu") || cLow.includes("sản lượng") || cLow.includes("doanhthu");
+
+      if (type === "corp") {
+        if (isId) setCorpIdCol(c);
+        if (isXa) setCorpXaCol(c);
+        if (isManganh) setCorpManganhCol(c);
+        if (isDoanhThu) setCorpDoanhThuCol(c);
+      } else {
+        if (isId) setIndIdCol(c);
+        if (isXa) setIndXaCol(c);
+        if (isManganh) setIndManganhCol(c);
+        if (isDoanhThu) setIndDoanhThuCol(c);
+      }
+
+      // Also set the legacy fallback shared states
+      if (isId && !sampIdCol) setSampIdCol(c);
+      if (isXa && !sampXaCol) setSampXaCol(c);
+      if (isManganh && !sampManganhCol) setSampManganhCol(c);
+      if (isDoanhThu && !sampDoanhThuCol) setSampDoanhThuCol(c);
+    });
+  };
+
   const handleSamplingFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "corp" | "ind") => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -294,21 +379,7 @@ export default function SamplingSelection({
           }
 
           if (cols.length > 0) {
-            cols.forEach(c => {
-              const cLow = c.toLowerCase();
-              if ((cLow.includes("mst") || cLow.includes("mã số thuế") || cLow.includes("định danh") || cLow.includes("id")) && !sampIdCol) {
-                setSampIdCol(c);
-              }
-              if ((cLow.includes("xã") || cLow.includes("địa bàn") || cLow.includes("mã xã")) && !sampXaCol) {
-                setSampXaCol(c);
-              }
-              if ((cLow.includes("ngành") || cLow.includes("mã ngành") || cLow.includes("vsic")) && !sampManganhCol) {
-                setSampManganhCol(c);
-              }
-              if ((cLow.includes("doanh thu") || cLow.includes("sản lượng") || cLow.includes("doanhthu")) && !sampDoanhThuCol) {
-                setSampDoanhThuCol(c);
-              }
-            });
+            autoDetectColumns(cols, type);
           }
 
           setStatusMessage(`Đã nạp thành công ${data.length} dòng.`);
@@ -354,21 +425,7 @@ export default function SamplingSelection({
           }
 
           if (cols.length > 0) {
-            cols.forEach(c => {
-              const cLow = c.toLowerCase();
-              if ((cLow.includes("mst") || cLow.includes("mã số thuế") || cLow.includes("định danh") || cLow.includes("id")) && !sampIdCol) {
-                setSampIdCol(c);
-              }
-              if ((cLow.includes("xã") || cLow.includes("địa bàn") || cLow.includes("mã xã")) && !sampXaCol) {
-                setSampXaCol(c);
-              }
-              if ((cLow.includes("ngành") || cLow.includes("mã ngành") || cLow.includes("vsic")) && !sampManganhCol) {
-                setSampManganhCol(c);
-              }
-              if ((cLow.includes("doanh thu") || cLow.includes("sản lượng") || cLow.includes("doanhthu")) && !sampDoanhThuCol) {
-                setSampDoanhThuCol(c);
-              }
-            });
+            autoDetectColumns(cols, type);
           }
 
           setStatusMessage(`Đã nạp thành công ${data.length} dòng.`);
@@ -387,16 +444,16 @@ export default function SamplingSelection({
     if (sourceData.length === 0) return [];
 
     const processRow = (row: any, index: number) => {
-      const manganhVal = String(row[sampManganhCol] || "").trim();
+      const manganhVal = String(row[corpManganhCol || sampManganhCol] || "").trim();
       const cleanDigits = manganhVal.replace(/\D/g, "");
       const vsicL2 = cleanDigits.slice(0, 2);
       
       if (!isSectorSelected(vsicL2)) return null;
       
-      const idVal = String(row[sampIdCol] || row["Mã số thuế"] || row["MST"] || row["id"] || index);
+      const idVal = String(row[corpIdCol || sampIdCol] || row["Mã số thuế"] || row["MST"] || row["id"] || index);
       const nameVal = String(row["Tên doanh nghiệp"] || row["Tên đơn vị"] || row["Tên"] || row["Tên hộ"] || "Doanh nghiệp " + index);
-      const xaVal = String(row[sampXaCol] || "30000");
-      const revVal = parseFloat(String(row[sampDoanhThuCol] || "0").replace(/,/g, "")) || 0;
+      const xaVal = String(row[corpXaCol || sampXaCol] || "30000");
+      const revVal = parseFloat(String(row[corpDoanhThuCol || sampDoanhThuCol] || "0").replace(/,/g, "")) || 0;
       const vsicL2Name = vsicRawData[vsicL2] || `Ngành cấp 2 (${vsicL2})`;
       
       return {
@@ -435,23 +492,23 @@ export default function SamplingSelection({
         .filter((item): item is NonNullable<typeof item> => item !== null);
     }
     return [];
-  }, [mainData, sampCorpData, sampFilterType, sampTypeCol, sampTypeEnterpriseValue, sampIdCol, sampXaCol, sampManganhCol, sampDoanhThuCol, selectedSectors, customSectorRange]);
+  }, [mainData, sampCorpData, sampFilterType, sampTypeCol, sampTypeEnterpriseValue, corpIdCol, corpXaCol, corpManganhCol, corpDoanhThuCol, sampIdCol, sampXaCol, sampManganhCol, sampDoanhThuCol, selectedSectors, customSectorRange]);
 
   const individualList = useMemo(() => {
     const sourceData = sampIndData.length > 0 ? sampIndData : mainData;
     if (sourceData.length === 0) return [];
 
     const processRow = (row: any, index: number) => {
-      const manganhVal = String(row[sampManganhCol] || "").trim();
+      const manganhVal = String(row[indManganhCol || sampManganhCol] || "").trim();
       const cleanDigits = manganhVal.replace(/\D/g, "");
       const vsicL2 = cleanDigits.slice(0, 2);
       
       if (!isSectorSelected(vsicL2)) return null;
       
-      const idVal = String(row[sampIdCol] || row["Mã số thuế"] || row["MST"] || row["id"] || index);
+      const idVal = String(row[indIdCol || sampIdCol] || row["Mã số thuế"] || row["MST"] || row["id"] || index);
       const nameVal = String(row["Tên hộ"] || row["Tên đơn vị"] || row["Tên"] || "Hộ " + index);
-      const xaVal = String(row[sampXaCol] || "30000");
-      const revVal = parseFloat(String(row[sampDoanhThuCol] || "0").replace(/,/g, "")) || 0;
+      const xaVal = String(row[indXaCol || sampXaCol] || "30000");
+      const revVal = parseFloat(String(row[indDoanhThuCol || sampDoanhThuCol] || "0").replace(/,/g, "")) || 0;
       const vsicL2Name = vsicRawData[vsicL2] || `Ngành cấp 2 (${vsicL2})`;
       
       return {
@@ -490,7 +547,7 @@ export default function SamplingSelection({
         .filter((item): item is NonNullable<typeof item> => item !== null);
     }
     return [];
-  }, [mainData, sampIndData, sampFilterType, sampTypeCol, sampTypeHouseholdValue, sampIdCol, sampXaCol, sampManganhCol, sampDoanhThuCol, selectedSectors, customSectorRange]);
+  }, [mainData, sampIndData, sampFilterType, sampTypeCol, sampTypeHouseholdValue, indIdCol, indXaCol, indManganhCol, indDoanhThuCol, sampIdCol, sampXaCol, sampManganhCol, sampDoanhThuCol, selectedSectors, customSectorRange]);
 
   const corporateSamplingResults = useMemo(() => {
     const results: {
@@ -746,14 +803,19 @@ export default function SamplingSelection({
 
       let targetSampleSize = 0;
       if (indSamplingMode === 'GSO') {
+        const isTransport = ["49", "50", "51", "52", "53"].includes(vsicL2);
         if (totalN <= 5) {
-          targetSampleSize = totalN;
+          targetSampleSize = indSize1To5All ? totalN : Math.min(indSize1To5Value, totalN);
         } else if (totalN <= 100) {
-          targetSampleSize = Math.min(5, totalN);
+          targetSampleSize = Math.min(indSize6To100Value, totalN);
         } else if (totalN <= 1000) {
-          targetSampleSize = Math.min(8, totalN);
+          targetSampleSize = Math.min(indSize101To1000Value, totalN);
         } else {
-          targetSampleSize = Math.min(indMaxCap, Math.max(1, Math.round(totalN * 0.01)));
+          if (isTransport) {
+            targetSampleSize = Math.min(indTransportMaxCap, Math.max(8, Math.round(totalN * (indTransportPercent / 100))));
+          } else {
+            targetSampleSize = Math.max(8, Math.round(totalN * (indSize1001PlusPercent / 100)));
+          }
         }
       } else {
         if (indCustomMode === 'fixed') {
@@ -761,6 +823,11 @@ export default function SamplingSelection({
         } else {
           targetSampleSize = Math.min(indMaxCap, Math.max(1, Math.round(totalN * (indCustomPercentValue / 100))));
         }
+      }
+
+      // Ghi đè bằng giá trị kéo/chọn thủ công của người dùng nếu có
+      if (manualIndGroupSamples[groupKey] !== undefined) {
+        targetSampleSize = Math.min(manualIndGroupSamples[groupKey], totalN);
       }
 
       const selectedCandidatesList: any[] = [];
@@ -799,7 +866,7 @@ export default function SamplingSelection({
       };
     });
     return results;
-  }, [individualList, indSamplingMode, indCustomMode, indCustomCountValue, indCustomPercentValue, indMaxCap]);
+  }, [individualList, indSamplingMode, indCustomMode, indCustomCountValue, indCustomPercentValue, indMaxCap, manualIndGroupSamples, indSize1To5Value, indSize1To5All, indSize6To100Value, indSize101To1000Value, indSize1001PlusPercent, indTransportPercent, indTransportMaxCap]);
 
   const allSamplingGroups = useMemo(() => {
     const keys = new Set([
@@ -834,13 +901,22 @@ export default function SamplingSelection({
   }, [corporateSamplingResults, individualSamplingResults]);
 
   const filteredSamplingGroups = useMemo(() => {
-    if (!sampSearchTerm) return allSamplingGroups;
+    let result = allSamplingGroups;
+    
+    // Lọc theo tab hiển thị tách riêng
+    if (sampFilterTab === "corp") {
+      result = result.filter(g => g.corpGrp && g.corpGrp.totalN > 0);
+    } else if (sampFilterTab === "ind") {
+      result = result.filter(g => g.indGrp && g.indGrp.totalN > 0);
+    }
+
+    if (!sampSearchTerm) return result;
     const term = sampSearchTerm.toLowerCase();
-    return allSamplingGroups.filter(g => 
+    return result.filter(g => 
       g.xaCode.toLowerCase().includes(term) || 
       g.vsicL2.toLowerCase().includes(term)
     );
-  }, [allSamplingGroups, sampSearchTerm]);
+  }, [allSamplingGroups, sampSearchTerm, sampFilterTab]);
 
   const handleManualRun = () => {
     setIsCalculating(true);
@@ -849,8 +925,9 @@ export default function SamplingSelection({
       setIsCalculating(false);
       setCalculationSuccess(true);
       
-      const selectedCount = corporateSamplingResults.selectedIDs.size + individualSamplingResults.selectedIDs.size;
-      const backupCount = corporateSamplingResults.backupIDs.size + individualSamplingResults.backupIDs.size;
+      const isCorp = sampFilterTab === "corp";
+      const selectedCount = isCorp ? corporateSamplingResults.selectedIDs.size : individualSamplingResults.selectedIDs.size;
+      const backupCount = isCorp ? corporateSamplingResults.backupIDs.size : individualSamplingResults.backupIDs.size;
       
       setCalculationDetails({
         totalSelected: selectedCount,
@@ -867,25 +944,30 @@ export default function SamplingSelection({
   return (
     <div className="space-y-6 animate-fade-in font-sans text-slate-800">
       {/* Header Tab */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
           <h2 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2 font-sans">
-            <FileCheck className="w-5 h-5 text-indigo-600" /> BỘ CHỌN MẪU KHẢO SÁT CHUYÊN ĐỀ (DOANH NGHIỆP &amp; HỘ CÁ THỂ)
+            <FileCheck className="w-5 h-5 text-indigo-600" /> BỘ CHỌN MẪU KHẢO SÁT CHUYÊN BIỆT
           </h2>
           <p className="text-xs text-slate-500 font-medium font-sans">
-            Tự động lọc các nhóm ngành được chọn. Chọn mẫu theo quy mô doanh thu lũy kế {entCutoffPercent}% (Doanh nghiệp) và định mức quy mô chuẩn của Tổng cục Thống kê (Hộ cá thể).
+            {sampFilterTab === "corp" 
+              ? `Doanh nghiệp: Tự động lọc các nhóm ngành được chọn. Chọn mẫu theo quy mô doanh thu lũy kế ${entCutoffPercent}% tích lũy tối ưu.`
+              : `Hộ cá thể: Tự động gom nhóm theo Địa bàn xã & Mã ngành cấp 2. Chọn mẫu theo quy mô và định mức GSO.`}
           </p>
         </div>
-        {(mainData.length > 0 || sampCorpData.length > 0 || sampIndData.length > 0) && (
+        {(sampFilterTab === "corp" ? sampCorpData.length > 0 : sampIndData.length > 0) && (
           <button
             onClick={() => {
               try {
-                const sourceData = sampCorpData.length > 0 || sampIndData.length > 0
-                  ? [...sampCorpData, ...sampIndData]
-                  : mainData;
+                const isCorp = sampFilterTab === "corp";
+                const sourceData = isCorp ? sampCorpData : sampIndData;
+                const idCol = isCorp ? (corpIdCol || sampIdCol) : (indIdCol || sampIdCol);
+                const xaCol = isCorp ? (corpXaCol || sampXaCol) : (indXaCol || sampXaCol);
+                const manganhCol = isCorp ? (corpManganhCol || sampManganhCol) : (indManganhCol || sampManganhCol);
+                const doanhthuCol = isCorp ? (corpDoanhThuCol || sampDoanhThuCol) : (indDoanhThuCol || sampDoanhThuCol);
 
                 if (sourceData.length === 0) {
-                  alert("Chưa có dữ liệu nguồn để xuất!");
+                  alert(`Chưa có dữ liệu nguồn ${isCorp ? "doanh nghiệp" : "hộ cá thể"} để xuất!`);
                   return;
                 }
                 
@@ -903,58 +985,43 @@ export default function SamplingSelection({
                   "Doanh thu lũy kế (%)"
                 ];
                 
+                const listData = isCorp ? enterpriseList : individualList;
+                const results = isCorp ? corporateSamplingResults : individualSamplingResults;
+
                 const rows = sourceData
                   .map((row, index) => {
-                    const idVal = String(row[sampIdCol] || row["Mã số thuế"] || row["MST"] || row["id"] || index);
-                    const nameVal = String(row["Tên doanh nghiệp"] || row["Tên đơn vị"] || row["Tên"] || row["Tên hộ"] || "Đơn vị " + index);
-                    const xaVal = String(row[sampXaCol] || "30000");
-                    const manganhVal = String(row[sampManganhCol] || "").trim();
+                    const idVal = String(row[idCol] || row["Mã số thuế"] || row["MST"] || row["id"] || index);
+                    const nameVal = isCorp 
+                      ? String(row["Tên doanh nghiệp"] || row["Tên đơn vị"] || row["Tên"] || "Doanh nghiệp " + index)
+                      : String(row["Tên hộ"] || row["Tên đơn vị"] || row["Tên"] || "Hộ " + index);
+                    const xaVal = String(row[xaCol] || "30000");
+                    const manganhVal = String(row[manganhCol] || "").trim();
                     const cleanDigits = manganhVal.replace(/\D/g, "");
                     const vsicL2 = cleanDigits.slice(0, 2) || "00";
-                    const revVal = parseFloat(String(row[sampDoanhThuCol] || "0").replace(/,/g, "")) || 0;
+                    const revVal = parseFloat(String(row[doanhthuCol] || "0").replace(/,/g, "")) || 0;
                     
-                    const entItem = enterpriseList.find(e => e.id === idVal);
-                    const indItem = individualList.find(i => i.id === idVal);
-                    
-                    if (!entItem && !indItem) return null;
+                    const item = listData.find(x => x.id === idVal);
+                    if (!item) return null;
 
-                    let classification = "Không xác định";
+                    let classification = isCorp ? "Doanh nghiệp" : "Hộ cá thể";
                     let samplingStatus = "Không được chọn";
                     let samplingDetail = "Không lọt mẫu";
                     let cumulativePercent = 0;
                     const vsicL2Name = vsicRawData[vsicL2] || `Ngành công nghiệp cấp 2 (${vsicL2})`;
                     
-                    if (entItem) {
-                      classification = "Doanh nghiệp";
-                      const groupKey = `${xaVal}-${vsicL2}`;
-                      const grp = corporateSamplingResults.groups[groupKey];
-                      if (grp) {
-                        const isSelected = grp.selectedCandidates.find(c => c.id === idVal);
-                        const isBackup = grp.backupCandidates.find(c => c.id === idVal);
-                        if (isSelected) {
-                          samplingStatus = "Mẫu chính thức";
-                          samplingDetail = isSelected.selectionType;
-                          cumulativePercent = isSelected.cumulativeRevenuePercent;
-                        } else if (isBackup) {
-                          samplingStatus = "Mẫu dự phòng";
-                          samplingDetail = "Dự phòng";
-                          cumulativePercent = isBackup.cumulativeRevenuePercent;
-                        }
-                      }
-                    } else if (indItem) {
-                      classification = "Hộ cá thể";
-                      const groupKey = `${xaVal}-${vsicL2}`;
-                      const grp = individualSamplingResults.groups[groupKey];
-                      if (grp) {
-                        const isSelected = grp.selectedCandidates.find(c => c.id === idVal);
-                        const isBackup = grp.backupCandidates.find(c => c.id === idVal);
-                        if (isSelected) {
-                          samplingStatus = "Mẫu chính thức";
-                          samplingDetail = "Mẫu chính thức (Chuẩn GSO)";
-                        } else if (isBackup) {
-                          samplingStatus = "Mẫu dự phòng";
-                          samplingDetail = "Mẫu dự phòng";
-                        }
+                    const groupKey = `${xaVal}-${vsicL2}`;
+                    const grp = results.groups[groupKey];
+                    if (grp) {
+                      const isSelected = grp.selectedCandidates.find(c => c.id === idVal);
+                      const isBackup = grp.backupCandidates.find(c => c.id === idVal);
+                      if (isSelected) {
+                        samplingStatus = "Mẫu chính thức";
+                        samplingDetail = isCorp ? isSelected.selectionType : "Mẫu chính thức (Chuẩn GSO)";
+                        if (isCorp) cumulativePercent = isSelected.cumulativeRevenuePercent;
+                      } else if (isBackup) {
+                        samplingStatus = "Mẫu dự phòng";
+                        samplingDetail = "Dự phòng";
+                        if (isCorp) cumulativePercent = isBackup.cumulativeRevenuePercent;
                       }
                     }
                     
@@ -989,7 +1056,7 @@ export default function SamplingSelection({
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement("a");
                 link.setAttribute("href", url);
-                link.setAttribute("download", `Ket_Qua_Chon_Mau_Khao_Sat_${new Date().toISOString().slice(0, 10)}.csv`);
+                link.setAttribute("download", `Ket_Qua_Chon_Mau_${isCorp ? "Doanh_Nghiep" : "Ho_Ca_The"}_${new Date().toISOString().slice(0, 10)}.csv`);
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -997,54 +1064,83 @@ export default function SamplingSelection({
                 alert("Lỗi khi xuất file chọn mẫu: " + err.message);
               }
             }}
-            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 hover:scale-[1.02] active:scale-95 text-white font-bold px-5 py-2.5 rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer font-sans uppercase tracking-wider text-xs"
+            className={`font-bold px-5 py-2.5 rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer font-sans uppercase tracking-wider text-xs text-white ${
+              sampFilterTab === "corp" 
+                ? "bg-gradient-to-r from-indigo-500 to-indigo-700 hover:from-indigo-600 hover:to-indigo-800" 
+                : "bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800"
+            }`}
           >
-            <Download className="w-4 h-4 text-white" /> XUẤT KẾT QUẢ CHỌN MẪU KHẢO SÁT (.CSV)
+            <Download className="w-4 h-4 text-white" /> XUẤT KẾT QUẢ MẪU {sampFilterTab === "corp" ? "DOANH NGHIỆP" : "HỘ CÁ THỂ"} (.CSV)
           </button>
         )}
       </div>
 
-      {/* KHỐI NẠP FILE TRỰC TIẾP CHO PHÂN HỆ CHỌN MẪU */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h4 className="text-sm font-black text-slate-800 tracking-tight">📂 QUẢN LÝ CÁC TỆP CHỌN MẪU RIÊNG</h4>
-          <p className="text-[11px] text-slate-500 mt-0.5">Nạp hoặc gỡ bỏ các tệp dữ liệu dùng riêng cho phân hệ chọn mẫu (Doanh nghiệp &amp; Hộ cá thể). Danh mục chuẩn VSIC chuẩn vẫn giữ nguyên vẹn.</p>
-        </div>
-        {(sampCorpData.length > 0 || sampIndData.length > 0) && (
-          <button
-            onClick={() => {
-              if (window.confirm("Bạn có chắc chắn muốn xóa toàn bộ danh sách tệp dữ liệu chọn mẫu (Doanh nghiệp & Hộ cá thể) đã nạp? (Hệ thống sẽ giữ lại nguyên vẹn các danh mục hệ thống và thiết lập khác)")) {
-                setSampCorpData([]);
-                setSampCorpFileName("");
-                setSampIndData([]);
-                setSampIndFileName("");
-                alert("Đã xóa các file dữ liệu chọn mẫu thành công! (Danh mục chuẩn VSIC được giữ nguyên)");
-              }
-            }}
-            className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 hover:text-red-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer self-start sm:self-center"
-            title="Xóa toàn bộ file dữ liệu đã nạp cho phân hệ chọn mẫu"
-          >
-            <Trash2 className="w-4 h-4" /> XÓA DỮ LIỆU CHỌN MẪU
-          </button>
-        )}
+      {/* TABS PHÂN HỆ CHUYÊN BIỆT CHÍNH Ở ĐẦU TRANG */}
+      <div className="flex bg-slate-100 p-2 rounded-2xl border border-slate-300 shadow-md max-w-2xl mx-auto gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setSampFilterTab("corp");
+            setSampActiveDetailGroup("");
+          }}
+          className={`flex-1 text-sm font-black py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer hover:scale-[1.01] ${
+            sampFilterTab === "corp"
+              ? "bg-indigo-600 text-white shadow-lg border border-indigo-700"
+              : "text-slate-600 hover:text-slate-900 hover:bg-white"
+          }`}
+        >
+          <span className="text-lg">🏢</span> PHÂN HỆ DOANH NGHIỆP
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSampFilterTab("ind");
+            setSampActiveDetailGroup("");
+          }}
+          className={`flex-1 text-sm font-black py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer hover:scale-[1.01] ${
+            sampFilterTab === "ind"
+              ? "bg-amber-600 text-white shadow-lg border border-amber-700"
+              : "text-slate-600 hover:text-slate-900 hover:bg-white"
+          }`}
+        >
+          <span className="text-lg">🏡</span> PHÂN HỆ HỘ CÁ THỂ
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        {/* Khối nạp Doanh nghiệp */}
-        <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-4 shadow-inner flex flex-col justify-between">
-          <div className="space-y-1">
-            <span className="text-xs font-black text-indigo-700 tracking-wider uppercase font-mono flex items-center gap-1.5">
-              🏢 KHỐI 1: DANH SÁCH DOANH NGHIỆP CƠ SỞ
-            </span>
-            <p className="text-[11px] text-slate-500 font-medium font-sans leading-normal">
-              Nạp danh sách các doanh nghiệp trên địa bàn để thực hiện chọn mẫu theo quy mô doanh thu lũy kế.
-            </p>
+      {/* KHỐI NẠP FILE TRỰC TIẾP CHO PHÂN HỆ CHỌN MẪU - ĐỘNG THEO TAB CHỦ */}
+      {sampFilterTab === "corp" ? (
+        /* NẠP FILE DOANH NGHIỆP */
+        <div className="bg-white border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-gradient-to-br from-indigo-50/20 to-white rounded-2xl p-6 shadow-sm space-y-4 transition-all">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-indigo-100/50 pb-4">
+            <div className="space-y-1">
+              <span className="text-xs font-black text-indigo-700 tracking-wider uppercase font-mono flex items-center gap-1.5">
+                🏢 THIẾT LẬP NGUỒN: DANH SÁCH DOANH NGHIỆP CƠ SỞ
+              </span>
+              <p className="text-[11px] text-slate-500 font-medium leading-normal">
+                Nạp tệp Excel/CSV chứa danh sách các doanh nghiệp để thực hiện chọn mẫu theo quy mô doanh thu lũy kế tích lũy.
+              </p>
+            </div>
+            {sampCorpFileName && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Bạn có chắc muốn gỡ bỏ dữ liệu doanh nghiệp hiện tại?")) {
+                    setSampCorpData([]);
+                    setSampCorpFileName("");
+                  }
+                }}
+                className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Gỡ bỏ tệp
+              </button>
+            )}
           </div>
           
-          <div className="space-y-3 pt-2">
-            <label className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-sm font-bold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer w-full border-dashed border-2 hover:border-indigo-500">
-              <FileUp className="w-4 h-4 text-indigo-500" /> 
-              {sampCorpFileName ? "THAY ĐỔI FILE DOANH NGHIỆP" : "CHỌN FILE DOANH NGHIỆP (.xlsx, .xls, .csv)"}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center pt-1">
+            <label className="bg-white hover:bg-indigo-50/30 text-indigo-800 border-2 border-dashed border-indigo-200 shadow-sm font-extrabold text-xs px-5 py-5 rounded-2xl transition-all flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-indigo-500">
+              <FileUp className="w-6 h-6 text-indigo-500 animate-bounce" /> 
+              <span>{sampCorpFileName ? "THAY ĐỔI FILE DOANH NGHIỆP (.XLSX, .CSV)" : "NẠP TỆP DỮ LIỆU DOANH NGHIỆP CHUYÊN BIỆT"}</span>
+              <span className="text-[10px] text-slate-400 font-normal">Kéo thả hoặc click để duyệt tìm tệp tin nguồn</span>
               <input 
                 type="file" 
                 accept=".xlsx, .xls, .csv" 
@@ -1053,42 +1149,59 @@ export default function SamplingSelection({
               />
             </label>
 
-            {sampCorpFileName && (
-              <div className="bg-white border border-slate-200 p-3 rounded-xl text-xs flex justify-between items-center text-slate-700 shadow-sm">
-                <span className="truncate max-w-[220px] font-bold text-indigo-700" title={sampCorpFileName}>📄 {sampCorpFileName}</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg font-bold">{sampCorpData.length.toLocaleString()} dòng</span>
-                  <button
-                    onClick={() => {
-                      setSampCorpData([]);
-                      setSampCorpFileName("");
-                    }}
-                    className="text-red-500 hover:text-red-700 font-bold text-sm bg-transparent border-0 cursor-pointer p-1"
-                    title="Xóa file này"
-                  >
-                    ×
-                  </button>
+            <div className="p-4 bg-indigo-50/40 rounded-2xl border border-indigo-100/60 text-xs text-indigo-950 space-y-2 h-full flex flex-col justify-center">
+              {sampCorpFileName ? (
+                <>
+                  <div className="font-bold flex items-center gap-1.5 text-indigo-900">
+                    <span className="text-sm">📄</span> Tệp đã nhận: <span className="underline truncate max-w-[180px]">{sampCorpFileName}</span>
+                  </div>
+                  <div className="font-mono text-[11px] bg-white border border-indigo-100 rounded-lg px-2.5 py-1.5 inline-block font-bold">
+                    Tổng số bản ghi nạp: <span className="text-indigo-600 text-sm">{sampCorpData.length.toLocaleString()}</span> doanh nghiệp
+                  </div>
+                </>
+              ) : (
+                <div className="text-slate-500 flex flex-col items-center py-4 text-center">
+                  <span className="text-lg">📁</span>
+                  <span className="font-bold text-[11px] mt-1 text-slate-600">Chưa nạp tệp dữ liệu Doanh nghiệp</span>
+                  <span className="text-[10px] text-slate-400 max-w-[220px] mt-0.5">Vui lòng nạp tệp danh sách cơ sở khảo sát của Doanh nghiệp để thiết lập bộ chọn mẫu độc lập</span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Khối nạp Hộ cá thể */}
-        <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-4 shadow-inner flex flex-col justify-between">
-          <div className="space-y-1">
-            <span className="text-xs font-black text-orange-700 tracking-wider uppercase font-mono flex items-center gap-1.5">
-              🏪 KHỐI 2: DANH SÁCH HỘ KINH DOANH CÁ THỂ
-            </span>
-            <p className="text-[11px] text-slate-500 font-medium font-sans leading-normal">
-              Nạp danh sách các hộ cá thể công nghiệp để chọn mẫu theo định mức GSO của Tổng cục Thống kê.
-            </p>
+      ) : (
+        /* NẠP FILE HỘ CÁ THỂ */
+        <div className="bg-white border-2 border-dashed border-amber-200 hover:border-amber-400 bg-gradient-to-br from-amber-50/20 to-white rounded-2xl p-6 shadow-sm space-y-4 transition-all">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-amber-100/50 pb-4">
+            <div className="space-y-1">
+              <span className="text-xs font-black text-amber-700 tracking-wider uppercase font-mono flex items-center gap-1.5">
+                🏡 THIẾT LẬP NGUỒN: DANH SÁCH HỘ KINH DOANH CÁ THỂ
+              </span>
+              <p className="text-[11px] text-slate-500 font-medium leading-normal">
+                Nạp tệp Excel/CSV chứa danh sách các hộ cá thể để chọn mẫu phân tầng theo định mức chuẩn của Tổng cục Thống kê (GSO).
+              </p>
+            </div>
+            {sampIndFileName && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Bạn có chắc muốn gỡ bỏ dữ liệu hộ cá thể hiện tại?")) {
+                    setSampIndData([]);
+                    setSampIndFileName("");
+                  }
+                }}
+                className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Gỡ bỏ tệp
+              </button>
+            )}
           </div>
           
-          <div className="space-y-3 pt-2">
-            <label className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-sm font-bold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer w-full border-dashed border-2 hover:border-orange-500">
-              <FileUp className="w-4 h-4 text-orange-500" /> 
-              {sampIndFileName ? "THAY ĐỔI FILE HỘ CÁ THỂ" : "CHỌN FILE HỘ CÁ THỂ (.xlsx, .xls, .csv)"}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center pt-1">
+            <label className="bg-white hover:bg-amber-50/30 text-amber-800 border-2 border-dashed border-amber-200 shadow-sm font-extrabold text-xs px-5 py-5 rounded-2xl transition-all flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-amber-500">
+              <FileUp className="w-6 h-6 text-amber-500 animate-bounce" /> 
+              <span>{sampIndFileName ? "THAY ĐỔI FILE HỘ CÁ THỂ (.XLSX, .CSV)" : "NẠP TỆP DỮ LIỆU HỘ CÁ THỂ CHUYÊN BIỆT"}</span>
+              <span className="text-[10px] text-slate-400 font-normal">Kéo thả hoặc click để duyệt tìm tệp tin nguồn</span>
               <input 
                 type="file" 
                 accept=".xlsx, .xls, .csv" 
@@ -1097,43 +1210,52 @@ export default function SamplingSelection({
               />
             </label>
 
-            {sampIndFileName && (
-              <div className="bg-white border border-slate-200 p-3 rounded-xl text-xs flex justify-between items-center text-slate-700 shadow-sm">
-                <span className="truncate max-w-[220px] font-bold text-orange-700" title={sampIndFileName}>📄 {sampIndFileName}</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-orange-600 bg-orange-50 border border-orange-100 px-2 py-0.5 rounded-lg font-bold">{sampIndData.length.toLocaleString()} dòng</span>
-                  <button
-                    onClick={() => {
-                      setSampIndData([]);
-                      setSampIndFileName("");
-                    }}
-                    className="text-red-500 hover:text-red-700 font-bold text-sm bg-transparent border-0 cursor-pointer p-1"
-                    title="Xóa file này"
-                  >
-                    ×
-                  </button>
+            <div className="p-4 bg-amber-50/40 rounded-2xl border border-amber-100/60 text-xs text-amber-950 space-y-2 h-full flex flex-col justify-center">
+              {sampIndFileName ? (
+                <>
+                  <div className="font-bold flex items-center gap-1.5 text-amber-900">
+                    <span className="text-sm">📄</span> Tệp đã nhận: <span className="underline truncate max-w-[180px]">{sampIndFileName}</span>
+                  </div>
+                  <div className="font-mono text-[11px] bg-white border border-amber-100 rounded-lg px-2.5 py-1.5 inline-block font-bold">
+                    Tổng số bản ghi nạp: <span className="text-amber-600 text-sm">{sampIndData.length.toLocaleString()}</span> hộ cá thể
+                  </div>
+                </>
+              ) : (
+                <div className="text-slate-500 flex flex-col items-center py-4 text-center">
+                  <span className="text-lg">📁</span>
+                  <span className="font-bold text-[11px] mt-1 text-slate-600">Chưa nạp tệp dữ liệu Hộ cá thể</span>
+                  <span className="text-[10px] text-slate-400 max-w-[220px] mt-0.5">Vui lòng nạp tệp danh sách cơ sở khảo sát của Hộ cá thể để thiết lập bộ chọn mẫu độc lập</span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {(mainData.length > 0 || sampCorpData.length > 0 || sampIndData.length > 0) ? (
+      {(sampFilterTab === "corp" ? sampCorpData.length > 0 : sampIndData.length > 0) ? (
         <>
           {/* KHỐI ĐIỀU KHIỂN & CHẠY CHỌN MẪU HỆ THỐNG */}
-          <div className="bg-white border-2 border-indigo-500 rounded-2xl p-6 shadow-md space-y-4 relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-indigo-500 text-white font-mono text-[9px] font-black px-3 py-1 uppercase rounded-bl-xl tracking-widest animate-pulse">
+          <div className={`bg-white border-2 rounded-2xl p-6 shadow-md space-y-4 relative overflow-hidden ${
+            sampFilterTab === "corp" ? "border-indigo-500" : "border-amber-500"
+          }`}>
+            <div className={`absolute top-0 right-0 text-white font-mono text-[9px] font-black px-3 py-1 uppercase rounded-bl-xl tracking-widest animate-pulse ${
+              sampFilterTab === "corp" ? "bg-indigo-500" : "bg-amber-500"
+            }`}>
               ⚡ LIVE CALCULATION ACTIVE
             </div>
             
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-1.5 max-w-2xl">
-                <h3 className="text-base font-black text-indigo-900 tracking-tight flex items-center gap-2 uppercase font-sans">
-                  <Play className="w-5 h-5 text-indigo-600 fill-indigo-600 animate-pulse" /> KHỐI ĐIỀU KHIỂN &amp; CHẠY CHỌN MẪU HỆ THỐNG
+                <h3 className={`text-base font-black tracking-tight flex items-center gap-2 uppercase font-sans ${
+                  sampFilterTab === "corp" ? "text-indigo-900" : "text-amber-900"
+                }`}>
+                  <Play className={`w-5 h-5 animate-pulse ${
+                    sampFilterTab === "corp" ? "text-indigo-600 fill-indigo-600" : "text-amber-600 fill-amber-600"
+                  }`} /> 
+                  KHỐI ĐIỀU KHIỂN CHẠY CHỌN MẪU {sampFilterTab === "corp" ? "DOANH NGHIỆP" : "HỘ CÁ THỂ"}
                 </h3>
                 <p className="text-xs text-slate-600 leading-relaxed font-sans">
-                  Mặc định hệ thống luôn tự động tính toán tức thì (Real-time) mỗi khi bạn nạp file hoặc thay đổi bộ lọc. Tuy nhiên, bạn có thể <b>bấm nút kích hoạt bên phải</b> để hệ thống tái cơ cấu, phân phối lại tỷ lệ và đồng bộ kết xuất danh sách tối ưu hóa mẫu mới nhất.
+                  Hệ thống tự động đồng bộ tức thì. Bạn có thể <b>bấm nút kích hoạt bên phải</b> để hệ thống tái cơ cấu phân bổ, tối ưu hóa dải phân bố dải mẫu và xếp hạng nguồn đơn vị cập nhật mới nhất.
                 </p>
               </div>
 
@@ -1144,13 +1266,15 @@ export default function SamplingSelection({
                   disabled={isCalculating}
                   className={`w-full sm:w-auto px-6 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2.5 transition-all shadow-md active:scale-95 cursor-pointer border ${
                     isCalculating
-                      ? "bg-indigo-50 border-indigo-200 text-indigo-400 cursor-not-allowed"
-                      : "bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg border-indigo-700 text-white"
+                      ? "bg-slate-50 text-slate-400 cursor-not-allowed border-slate-200"
+                      : sampFilterTab === "corp"
+                        ? "bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg border-indigo-700 text-white"
+                        : "bg-amber-600 hover:bg-amber-700 hover:shadow-lg border-amber-700 text-white"
                   }`}
                 >
                   {isCalculating ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" />
+                      <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
                       <span>ĐANG TÍNH TOÁN MẪU...</span>
                     </>
                   ) : (
@@ -1165,504 +1289,794 @@ export default function SamplingSelection({
 
             {/* Trạng thái thông báo thành công hoặc đang chạy */}
             {isCalculating && (
-              <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 flex items-center gap-3 animate-pulse">
-                <div className="h-2 w-2 rounded-full bg-indigo-600 animate-ping"></div>
-                <span className="text-xs text-indigo-800 font-medium font-sans">Hệ thống đang chạy thuật toán phân tầng đối xứng, lọc dải mã ngành cấp 2, xếp hạng quy mô doanh thu tích lũy và áp định mức của Tổng cục Thống kê...</span>
+              <div className={`rounded-xl p-4 flex items-center gap-3 animate-pulse ${
+                sampFilterTab === "corp" ? "bg-indigo-50/50 border border-indigo-100" : "bg-amber-50/50 border border-amber-100"
+              }`}>
+                <div className={`h-2 w-2 rounded-full bg-current ${
+                  sampFilterTab === "corp" ? "text-indigo-600 animate-ping" : "text-amber-600 animate-ping"
+                }`}></div>
+                <span className={`text-xs font-medium font-sans ${
+                  sampFilterTab === "corp" ? "text-indigo-800" : "text-amber-800"
+                }`}>Hệ thống đang chạy thuật toán phân tách, lọc dải mã ngành và phân tầng đối xứng...</span>
               </div>
             )}
 
             {calculationSuccess && calculationDetails && (
-              <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4 space-y-2">
-                <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs font-sans uppercase">
-                  <span className="bg-emerald-500 text-white p-1 rounded-full text-xs">
+              <div className={`border-2 rounded-xl p-4 space-y-2 ${
+                sampFilterTab === "corp" ? "bg-indigo-50/30 border-indigo-200" : "bg-amber-50/30 border-amber-200"
+              }`}>
+                <div className={`flex items-center gap-2 font-bold text-xs font-sans uppercase ${
+                  sampFilterTab === "corp" ? "text-indigo-800" : "text-amber-800"
+                }`}>
+                  <span className={`text-white p-1 rounded-full text-xs ${
+                    sampFilterTab === "corp" ? "bg-indigo-500" : "bg-amber-500"
+                  }`}>
                     <Check className="w-4 h-4 stroke-[3]" />
                   </span>
-                  <span>Đã chạy và tối ưu hóa mẫu thành công lúc {calculationDetails.time}!</span>
+                  <span>Đã tối ưu hóa danh sách mẫu {sampFilterTab === "corp" ? "doanh nghiệp" : "hộ cá thể"} thành công lúc {calculationDetails.time}!</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-sans text-slate-700 pt-1 border-t border-emerald-100">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-sans text-slate-700 pt-1 border-t border-slate-100">
                   <div className="flex items-center gap-1.5">
                     <span className="text-slate-400">⚡ Chế độ:</span>
-                    <span className="font-extrabold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200 font-mono text-[10px]">Tối ưu phân tầng</span>
+                    <span className={`font-extrabold bg-white px-2 py-0.5 rounded border font-mono text-[10px] ${
+                      sampFilterTab === "corp" ? "text-indigo-700 border-indigo-200" : "text-amber-700 border-amber-200"
+                    }`}>Tối ưu phân tầng</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-slate-400">🎯 Mẫu chính thức:</span>
-                    <span className="font-extrabold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200 font-mono text-[11px]">{calculationDetails.totalSelected.toLocaleString()} đơn vị</span>
+                    <span className={`font-extrabold bg-white px-2 py-0.5 rounded border font-mono text-[11px] ${
+                      sampFilterTab === "corp" ? "text-indigo-700 border-indigo-200" : "text-amber-700 border-amber-200"
+                    }`}>{calculationDetails.totalSelected.toLocaleString()} đơn vị</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-slate-400">🛡️ Danh sách dự phòng:</span>
-                    <span className="font-extrabold text-orange-700 bg-white px-2 py-0.5 rounded border border-orange-200 font-mono text-[11px]">{calculationDetails.totalBackup.toLocaleString()} đơn vị</span>
+                    <span className={`font-extrabold bg-white px-2 py-0.5 rounded border font-mono text-[11px] ${
+                      sampFilterTab === "corp" ? "text-indigo-700 border-indigo-200" : "text-amber-700 border-amber-200"
+                    }`}>{calculationDetails.totalBackup.toLocaleString()} đơn vị</span>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Cấu hình Nhóm ngành & Hướng dẫn File Excel */}
-          <div className="bg-gradient-to-br from-indigo-50/50 to-slate-50/50 border border-indigo-100 rounded-2xl p-6 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Col: Sector Selector */}
-            <div className="lg:col-span-5 space-y-4">
-              <div className="flex items-center gap-2 border-b border-indigo-100 pb-2.5">
-                <Layers className="w-4 h-4 text-indigo-600" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-700">Bộ chọn Nhóm ngành Khảo sát</h3>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
-                Chọn một hoặc nhiều nhóm ngành kinh tế dưới đây để tự động lọc danh sách đối tượng chọn mẫu:
-              </p>
-              
-              <div className="space-y-2">
-                {[
-                  { id: "congnghiep", label: "Công nghiệp (Mã 05 - 33)", color: "border-indigo-200 text-indigo-700 bg-indigo-50/50" },
-                  { id: "thuongmai", label: "Thương mại (Mã 45 - 46)", color: "border-emerald-200 text-emerald-700 bg-emerald-50/50" },
-                  { id: "vantai", label: "Vận tải (Mã 49)", color: "border-teal-200 text-teal-700 bg-teal-50/50" },
-                  { id: "anuongluutru", label: "Ăn uống & Lưu trú (Mã 55, 56)", color: "border-orange-200 text-orange-700 bg-orange-50/50" }
-                ].map((sector) => {
-                  const isSelected = selectedSectors.includes(sector.id);
-                  return (
-                    <button
-                      key={sector.id}
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedSectors(prev => prev.filter(x => x !== sector.id));
-                        } else {
-                          setSelectedSectors(prev => [...prev, sector.id]);
-                        }
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition-all font-sans text-xs ${
-                        isSelected 
-                          ? `${sector.color} border-2 font-bold shadow-sm` 
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          readOnly
-                          className="accent-indigo-600 h-3.5 w-3.5"
-                        />
-                        <span>{sector.label}</span>
-                      </div>
-                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${isSelected ? "bg-white border" : "bg-slate-100"}`}>
-                        {isSelected ? "ĐANG BẬT" : "TẮT"}
-                      </span>
-                    </button>
-                  );
-                })}
+          {/* Cấu hình Nhóm ngành & Hướng dẫn File tương ứng với từng Phân hệ */}
+          {sampFilterTab === "corp" ? (
+            <div className="bg-gradient-to-br from-indigo-50/50 to-slate-50/50 border border-indigo-100 rounded-2xl p-6 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Col: Sector Selector */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="flex items-center gap-2 border-b border-indigo-100 pb-2.5">
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-700">Bộ chọn Nhóm ngành Khảo sát Doanh nghiệp</h3>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
+                  Chọn một hoặc nhiều nhóm ngành kinh tế dưới đây để tự động lọc danh sách đối tượng chọn mẫu:
+                </p>
+                
+                <div className="space-y-2">
+                  {[
+                    { id: "congnghiep", label: "Công nghiệp (Mã 05 - 33)", color: "border-indigo-200 text-indigo-700 bg-indigo-50/50" },
+                    { id: "thuongmai", label: "Thương mại (Mã 45 - 46)", color: "border-emerald-200 text-emerald-700 bg-emerald-50/50" },
+                    { id: "vantai", label: "Vận tải (Mã 49)", color: "border-teal-200 text-teal-700 bg-teal-50/50" },
+                    { id: "anuongluutru", label: "Ăn uống & Lưu trú (Mã 55, 56)", color: "border-orange-200 text-orange-700 bg-orange-50/50" }
+                  ].map((sector) => {
+                    const isSelected = selectedSectors.includes(sector.id);
+                    return (
+                      <button
+                        key={sector.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedSectors(prev => prev.filter(x => x !== sector.id));
+                          } else {
+                            setSelectedSectors(prev => [...prev, sector.id]);
+                          }
+                        }}
+                        className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition-all font-sans text-xs ${
+                          isSelected 
+                            ? `${sector.color} border-2 font-bold shadow-sm` 
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            readOnly
+                            className="accent-indigo-600 h-3.5 w-3.5"
+                          />
+                          <span>{sector.label}</span>
+                        </div>
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${isSelected ? "bg-white border" : "bg-slate-100"}`}>
+                          {isSelected ? "ĐANG BẬT" : "TẮT"}
+                        </span>
+                      </button>
+                    );
+                  })}
 
-                {/* Custom input */}
-                <div className={`p-3 rounded-xl border transition-all ${selectedSectors.includes("custom") ? "bg-indigo-50/30 border-indigo-200" : "bg-white border-slate-200"}`}>
-                  <label className="flex items-center gap-2 cursor-pointer mb-2 text-xs text-slate-700 font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={selectedSectors.includes("custom")}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSectors(prev => [...prev, "custom"]);
-                        } else {
-                          setSelectedSectors(prev => prev.filter(x => x !== "custom"));
-                        }
-                      }}
-                      className="accent-indigo-600 h-3.5 w-3.5"
-                    />
-                    <span>Tùy chọn / Tự nhập dải mã ngành</span>
-                  </label>
-                  {selectedSectors.includes("custom") && (
-                    <div className="space-y-1.5">
+                  {/* Custom input */}
+                  <div className={`p-3 rounded-xl border transition-all ${selectedSectors.includes("custom") ? "bg-indigo-50/30 border-indigo-200" : "bg-white border-slate-200"}`}>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2 text-xs text-slate-700 font-semibold">
                       <input
-                        type="text"
-                        value={customSectorRange}
-                        onChange={(e) => setCustomSectorRange(e.target.value)}
-                        placeholder="Ví dụ: 05-33, 45-46, 49, 55-56"
-                        className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        type="checkbox"
+                        checked={selectedSectors.includes("custom")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSectors(prev => [...prev, "custom"]);
+                          } else {
+                            setSelectedSectors(prev => prev.filter(x => x !== "custom"));
+                          }
+                        }}
+                        className="accent-indigo-600 h-3.5 w-3.5"
                       />
-                      <p className="text-[10px] text-slate-500 font-sans leading-normal">
-                        Ngăn cách các dải mã bằng dấu phẩy. Chấp nhận dạng dải <code>05-33</code> hoặc mã đơn lẻ <code>49</code>.
-                      </p>
-                    </div>
-                  )}
+                      <span>Tùy chọn / Tự nhập dải mã ngành</span>
+                    </label>
+                    {selectedSectors.includes("custom") && (
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          value={customSectorRange}
+                          onChange={(e) => setCustomSectorRange(e.target.value)}
+                          placeholder="Ví dụ: 05-33, 45-46, 49, 55-56"
+                          className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                        <p className="text-[10px] text-slate-500 font-sans leading-normal">
+                          Ngăn cách các dải mã bằng dấu phẩy. Chấp nhận dạng dải <code>05-33</code> hoặc mã đơn lẻ <code>49</code>.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Col: Excel Prep Guide */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="flex items-center gap-2 border-b border-indigo-100 pb-2.5">
+                  <FileCheck className="w-4 h-4 text-emerald-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-700">Hướng dẫn Cấu trúc File Excel &amp; Tiêu đề Cột Doanh nghiệp</h3>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
+                  Để hệ thống tự động nhận dạng tính năng <b>Ưu tiên mẫu Trung ương</b> và <b>Doanh nghiệp Nhà nước (DNNN) 100%</b>, hãy thiết lập file Excel của bạn khớp với các chuẩn cột dưới đây:
+                </p>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-white">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 font-sans">
+                        <th className="p-2.5">Tính năng ưu tiên</th>
+                        <th className="p-2.5">Tiêu đề cột hỗ trợ</th>
+                        <th className="p-2.5">Giá trị cần ghi trong ô</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-sans text-slate-700 text-[11px]">
+                      <tr className="hover:bg-slate-50/50">
+                        <td className="p-2.5 font-bold text-emerald-700">
+                          ⭐ Ưu tiên mẫu Trung ương
+                        </td>
+                        <td className="p-2.5">
+                          <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">Mẫu trung ương</code><br/>
+                          <span className="text-[9px] text-slate-400">hoặc <code>Mẫu TU</code>, <code>Mau trung uong</code>, <code>Mau TU</code></span>
+                        </td>
+                        <td className="p-2.5 font-semibold text-slate-800">
+                          <code className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100">Có</code> <span className="text-slate-400 font-normal">hoặc</span> <code className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100">Yes</code>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-slate-50/50">
+                        <td className="p-2.5 font-bold text-indigo-700">
+                          🏛️ Ưu tiên 100% DNNN
+                        </td>
+                        <td className="p-2.5">
+                          <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">Loại hình</code><br/>
+                          <span className="text-[9px] text-slate-400">hoặc <code>Loại doanh nghiệp</code>, <code>Hình thức</code>, <code>DNNN</code></span>
+                        </td>
+                        <td className="p-2.5 font-semibold text-slate-800">
+                          <code className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">Nhà nước</code> <span className="text-slate-400 font-normal">hoặc</span> <code className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">Có</code><br/>
+                          <span className="text-[9px] text-slate-400 font-normal">Chấp nhận giá trị chứa từ khóa "Nhà nước"</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="bg-indigo-50 text-indigo-800 border border-indigo-100 p-2.5 rounded-xl text-[10px] leading-relaxed flex items-start gap-1.5 font-sans">
+                  <span className="text-xs">💡</span>
+                  <span><b>Mẹo thiết lập:</b> Hệ thống sử dụng bộ khớp thông minh không phân biệt chữ hoa/thường hay dấu tiếng Việt. Bạn chỉ cần điền đúng từ khóa hoặc sử dụng cột <b>DNNN = Có</b> và <b>Mẫu TU = Có</b> trong file Excel là hệ thống tự nhận dạng tức thì!</span>
                 </div>
               </div>
             </div>
+          ) : (
+            <div className="bg-gradient-to-br from-amber-50/50 to-slate-50/50 border border-amber-200 rounded-2xl p-6 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Col: Sector Selector */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="flex items-center gap-2 border-b border-amber-200 pb-2.5">
+                  <Layers className="w-4 h-4 text-amber-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700">Bộ chọn Nhóm ngành Khảo sát Hộ cá thể</h3>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
+                  Chọn một hoặc nhiều nhóm ngành kinh tế dưới đây để tự động lọc danh sách đối tượng chọn mẫu:
+                </p>
+                
+                <div className="space-y-2">
+                  {[
+                    { id: "congnghiep", label: "Công nghiệp (Mã 05 - 33)", color: "border-amber-200 text-amber-700 bg-amber-50/50" },
+                    { id: "thuongmai", label: "Thương mại (Mã 45 - 46)", color: "border-emerald-200 text-emerald-700 bg-emerald-50/50" },
+                    { id: "vantai", label: "Vận tải (Mã 49)", color: "border-teal-200 text-teal-700 bg-teal-50/50" },
+                    { id: "anuongluutru", label: "Ăn uống & Lưu trú (Mã 55, 56)", color: "border-orange-200 text-orange-700 bg-orange-50/50" }
+                  ].map((sector) => {
+                    const isSelected = selectedSectors.includes(sector.id);
+                    return (
+                      <button
+                        key={sector.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedSectors(prev => prev.filter(x => x !== sector.id));
+                          } else {
+                            setSelectedSectors(prev => [...prev, sector.id]);
+                          }
+                        }}
+                        className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition-all font-sans text-xs ${
+                          isSelected 
+                            ? `${sector.color} border-2 font-bold shadow-sm` 
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            readOnly
+                            className="accent-amber-600 h-3.5 w-3.5"
+                          />
+                          <span>{sector.label}</span>
+                        </div>
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${isSelected ? "bg-white border" : "bg-slate-100"}`}>
+                          {isSelected ? "ĐANG BẬT" : "TẮT"}
+                        </span>
+                      </button>
+                    );
+                  })}
 
-            {/* Right Col: Excel Prep Guide */}
-            <div className="lg:col-span-7 space-y-4">
-              <div className="flex items-center gap-2 border-b border-indigo-100 pb-2.5">
-                <FileCheck className="w-4 h-4 text-emerald-600" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-700">Hướng dẫn Cấu trúc File Excel &amp; Tiêu đề Cột</h3>
+                  {/* Custom input */}
+                  <div className={`p-3 rounded-xl border transition-all ${selectedSectors.includes("custom") ? "bg-amber-50/30 border-amber-200" : "bg-white border-slate-200"}`}>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2 text-xs text-slate-700 font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={selectedSectors.includes("custom")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSectors(prev => [...prev, "custom"]);
+                          } else {
+                            setSelectedSectors(prev => prev.filter(x => x !== "custom"));
+                          }
+                        }}
+                        className="accent-amber-600 h-3.5 w-3.5"
+                      />
+                      <span>Tùy chọn / Tự nhập dải mã ngành</span>
+                    </label>
+                    {selectedSectors.includes("custom") && (
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          value={customSectorRange}
+                          onChange={(e) => setCustomSectorRange(e.target.value)}
+                          placeholder="Ví dụ: 05-33, 45-46, 49, 55-56"
+                          className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-amber-500 outline-none"
+                        />
+                        <p className="text-[10px] text-slate-500 font-sans leading-normal">
+                          Ngăn cách các dải mã bằng dấu phẩy. Chấp nhận dạng dải <code>05-33</code> hoặc mã đơn lẻ <code>49</code>.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
-                Để hệ thống tự động nhận dạng tính năng <b>Ưu tiên mẫu Trung ương</b> và <b>Doanh nghiệp Nhà nước (DNNN) 100%</b>, hãy thiết lập file Excel của bạn khớp với các chuẩn cột dưới đây:
-              </p>
 
-              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-white">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 font-sans">
-                      <th className="p-2.5">Tính năng ưu tiên</th>
-                      <th className="p-2.5">Tiêu đề cột hỗ trợ</th>
-                      <th className="p-2.5">Giá trị cần ghi trong ô</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-sans text-slate-700 text-[11px]">
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="p-2.5 font-bold text-emerald-700">
-                        ⭐ Ưu tiên mẫu Trung ương
-                      </td>
-                      <td className="p-2.5">
-                        <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">Mẫu trung ương</code><br/>
-                        <span className="text-[9px] text-slate-400">hoặc <code>Mẫu TU</code>, <code>Mau trung uong</code>, <code>Mau TU</code></span>
-                      </td>
-                      <td className="p-2.5 font-semibold text-slate-800">
-                        <code className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100">Có</code> <span className="text-slate-400 font-normal">hoặc</span> <code className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100">Yes</code>
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="p-2.5 font-bold text-indigo-700">
-                        🏛️ Ưu tiên 100% DNNN
-                      </td>
-                      <td className="p-2.5">
-                        <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">Loại hình</code><br/>
-                        <span className="text-[9px] text-slate-400">hoặc <code>Loại doanh nghiệp</code>, <code>Hình thức</code>, <code>DNNN</code></span>
-                      </td>
-                      <td className="p-2.5 font-semibold text-slate-800">
-                        <code className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">Nhà nước</code> <span className="text-slate-400 font-normal">hoặc</span> <code className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">Có</code><br/>
-                        <span className="text-[9px] text-slate-400 font-normal">Chấp nhận giá trị chứa từ khóa "Nhà nước"</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="bg-indigo-50 text-indigo-800 border border-indigo-100 p-2.5 rounded-xl text-[10px] leading-relaxed flex items-start gap-1.5 font-sans">
-                <span className="text-xs">💡</span>
-                <span><b>Mẹo thiết lập:</b> Hệ thống sử dụng bộ khớp thông minh không phân biệt chữ hoa/thường hay dấu tiếng Việt. Bạn chỉ cần điền đúng từ khóa hoặc sử dụng cột <b>DNNN = Có</b> và <b>Mẫu TU = Có</b> trong file Excel là hệ thống tự nhận dạng tức thì!</span>
+              {/* Right Col: Household Sampling Guide */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="flex items-center gap-2 border-b border-amber-200 pb-2.5">
+                  <FileCheck className="w-4 h-4 text-amber-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700">Nguyên tắc Chọn Mẫu Hộ cá thể (Chuẩn TCTK)</h3>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
+                  Việc chọn mẫu hộ cá thể được cấu trúc chặt chẽ dựa trên số lượng cơ sở thực tế của từng địa bàn xã &amp; nhóm ngành tương ứng để tối ưu dung lượng mẫu điều tra:
+                </p>
+
+                <div className="border border-amber-200 rounded-xl overflow-hidden shadow-inner bg-white">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-amber-50 text-[10px] font-bold text-amber-700 uppercase tracking-wider border-b border-amber-200 font-sans">
+                        <th className="p-2.5">Quy mô nhóm ngành</th>
+                        <th className="p-2.5">Nguyên tắc chọn mẫu mặc định</th>
+                        <th className="p-2.5">Tùy chỉnh linh hoạt</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-sans text-slate-700 text-[11px]">
+                      <tr className="hover:bg-amber-50/10">
+                        <td className="p-2.5 font-bold text-slate-800">
+                          1 - 5 cơ sở
+                        </td>
+                        <td className="p-2.5 text-amber-800 font-medium">
+                          Chọn toàn bộ cơ sở
+                        </td>
+                        <td className="p-2.5 text-slate-500">
+                          Sử dụng thanh kéo hoặc chọn tất cả
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-amber-50/10">
+                        <td className="p-2.5 font-bold text-slate-800">
+                          6 - 100 cơ sở
+                        </td>
+                        <td className="p-2.5 text-amber-800 font-medium">
+                          Chọn cố định 5 cơ sở
+                        </td>
+                        <td className="p-2.5 text-slate-500">
+                          Kéo tăng giảm định mức từ 1 - 30
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-amber-50/10">
+                        <td className="p-2.5 font-bold text-slate-800">
+                          101 - 1000 cơ sở
+                        </td>
+                        <td className="p-2.5 text-amber-800 font-medium">
+                          Chọn cố định 8 cơ sở
+                        </td>
+                        <td className="p-2.5 text-slate-500">
+                          Kéo tăng giảm định mức từ 1 - 100
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-amber-50/10">
+                        <td className="p-2.5 font-bold text-slate-800">
+                          Từ 1001 cơ sở trở lên
+                        </td>
+                        <td className="p-2.5 text-amber-800 font-medium">
+                          Chọn tỷ lệ 1% tổng số cơ sở
+                        </td>
+                        <td className="p-2.5 text-slate-500">
+                          Kéo tăng giảm tỷ lệ từ 0.1% - 10%
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-amber-50/10">
+                        <td className="p-2.5 font-bold text-indigo-800">
+                          📍 Đặc thù: Vận tải, kho bãi (49)
+                        </td>
+                        <td className="p-2.5 text-indigo-700 font-bold">
+                          Chọn 1.5% (Tối đa không quá 50 cơ sở)
+                        </td>
+                        <td className="p-2.5 text-slate-500">
+                          Kéo tỷ lệ 0.5% - 15% &amp; Tối đa 10 - 200 cơ sở
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="bg-amber-50 text-amber-800 border border-amber-100 p-2.5 rounded-xl text-[10px] leading-relaxed flex items-start gap-1.5 font-sans">
+                  <span className="text-xs">💡</span>
+                  <span><b>Phân hệ Chuyên biệt:</b> Dữ liệu hộ cá thể sẽ tự động áp dụng các quy tắc phân tầng trên. Bạn có thể sử dụng các thanh trượt và nút kéo bên dưới để tinh chỉnh tham số tính toán của Tổng cục Thống kê ngay lập tức!</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Setup parameters / mapping */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Column mappings */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm hover:scale-[1.01] transition-all">
+            <div className={`bg-white border rounded-2xl p-5 space-y-4 shadow-sm hover:scale-[1.01] transition-all ${
+              sampFilterTab === "corp" ? "border-indigo-200" : "border-amber-200"
+            }`}>
               <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
-                <Sliders className="w-4 h-4 text-indigo-600" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-600">1. Cấu hình cột khảo sát</h3>
+                <Sliders className={`w-4 h-4 ${sampFilterTab === "corp" ? "text-indigo-600" : "text-amber-600"}`} />
+                <h3 className={`text-xs font-bold uppercase tracking-wider ${sampFilterTab === "corp" ? "text-indigo-600" : "text-amber-600"}`}>
+                  1. Cấu hình cột khảo sát
+                </h3>
               </div>
               
               <div className="space-y-3 text-xs">
-                <div>
-                  <label className="block text-slate-700 font-bold text-xs mb-1">Cột Khóa định danh (MST/ID)</label>
-                  <select
-                    value={sampIdCol}
-                    onChange={(e) => setSampIdCol(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
-                  >
-                    <option value="">-- Chọn cột định danh --</option>
-                    {samplingColumns.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold text-xs mb-1">Cột Địa bàn xã / Địa bàn</label>
-                  <select
-                    value={sampXaCol}
-                    onChange={(e) => setSampXaCol(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
-                  >
-                    <option value="">-- Chọn cột địa bàn --</option>
-                    {samplingColumns.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold text-xs mb-1">Cột Mã ngành VSIC</label>
-                  <select
-                    value={sampManganhCol}
-                    onChange={(e) => setSampManganhCol(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
-                  >
-                    <option value="">-- Chọn cột mã ngành --</option>
-                    {samplingColumns.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold text-xs mb-1">Cột Doanh thu / Sản lượng</label>
-                  <select
-                    value={sampDoanhThuCol}
-                    onChange={(e) => setSampDoanhThuCol(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
-                  >
-                    <option value="">-- Chọn cột doanh thu --</option>
-                    {samplingColumns.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-[10px] text-amber-800 leading-relaxed mt-2 shadow-sm">
-                  <span className="font-bold">⚠️ Lưu ý Nhóm ngành lọc:</span> Hệ thống tự động tách lấy 2 chữ số đầu của mã ngành và lọc giữ lại theo <b>Bộ chọn Nhóm ngành Khảo sát</b> đang kích hoạt ở trên. Các dòng không thuộc nhóm ngành đã chọn sẽ tự động được loại bỏ khỏi danh sách mẫu.
-                </div>
-
-                <div className="border-t border-slate-200 pt-3 space-y-2">
-                  <label className="block text-slate-700 font-bold text-xs">Phân loại đối tượng mẫu</label>
-                  <div className="flex flex-col gap-2 text-slate-700">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={sampFilterType === "all_ent"}
-                        onChange={() => setSampFilterType("all_ent")}
-                        className="accent-indigo-600 h-3.5 w-3.5"
-                      />
-                      <span>Xem toàn bộ là Doanh nghiệp (DN)</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={sampFilterType === "all_ind"}
-                        onChange={() => setSampFilterType("all_ind")}
-                        className="accent-indigo-600 h-3.5 w-3.5"
-                      />
-                      <span>Xem toàn bộ là Hộ cá thể (Hộ)</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={sampFilterType === "by_col"}
-                        onChange={() => setSampFilterType("by_col")}
-                        className="accent-indigo-600 h-3.5 w-3.5"
-                      />
-                      <span>Phân chia theo cột dữ liệu</span>
-                    </label>
-                  </div>
-                </div>
-
-                {sampFilterType === "by_col" && (
-                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 space-y-2 shadow-inner">
+                {sampFilterTab === "corp" ? (
+                  /* COLUMN MAPPINGS FOR ENTERPRISE */
+                  <>
                     <div>
-                      <label className="block text-[11px] text-slate-700 font-bold mb-1">Cột phân loại</label>
+                      <label className="block text-indigo-950 font-bold text-xs mb-1">Cột Khóa định danh (MST/ID)</label>
                       <select
-                        value={sampTypeCol}
-                        onChange={(e) => setSampTypeCol(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none"
+                        value={corpIdCol}
+                        onChange={(e) => setCorpIdCol(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
                       >
-                        <option value="">-- Chọn cột phân loại --</option>
-                        {samplingColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                        <option value="">-- Chọn cột định danh DN --</option>
+                        {corpColumns.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-slate-700 font-medium">
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold">Giá trị DN</label>
-                        <input
-                          type="text"
-                          value={sampTypeEnterpriseValue}
-                          onChange={(e) => setSampTypeEnterpriseValue(e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold">Giá trị Hộ</label>
-                        <input
-                          type="text"
-                          value={sampTypeHouseholdValue}
-                          onChange={(e) => setSampTypeHouseholdValue(e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 outline-none"
-                        />
-                      </div>
+
+                    <div>
+                      <label className="block text-indigo-950 font-bold text-xs mb-1">Cột Địa bàn xã / Địa bàn</label>
+                      <select
+                        value={corpXaCol}
+                        onChange={(e) => setCorpXaCol(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
+                      >
+                        <option value="">-- Chọn cột địa bàn DN --</option>
+                        {corpColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
                     </div>
-                  </div>
+
+                    <div>
+                      <label className="block text-indigo-950 font-bold text-xs mb-1">Cột Mã ngành VSIC</label>
+                      <select
+                        value={corpManganhCol}
+                        onChange={(e) => setCorpManganhCol(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
+                      >
+                        <option value="">-- Chọn cột mã ngành DN --</option>
+                        {corpColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-indigo-950 font-bold text-xs mb-1">Cột Doanh thu / Sản lượng</label>
+                      <select
+                        value={corpDoanhThuCol}
+                        onChange={(e) => setCorpDoanhThuCol(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
+                      >
+                        <option value="">-- Chọn cột doanh thu DN --</option>
+                        {corpColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  /* COLUMN MAPPINGS FOR HOUSEHOLD */
+                  <>
+                    <div>
+                      <label className="block text-amber-950 font-bold text-xs mb-1">Cột Khóa định danh (MST/ID)</label>
+                      <select
+                        value={indIdCol}
+                        onChange={(e) => setIndIdCol(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none shadow-sm"
+                      >
+                        <option value="">-- Chọn cột định danh Hộ --</option>
+                        {indColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-amber-950 font-bold text-xs mb-1">Cột Địa bàn xã / Địa bàn</label>
+                      <select
+                        value={indXaCol}
+                        onChange={(e) => setIndXaCol(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none shadow-sm"
+                      >
+                        <option value="">-- Chọn cột địa bàn Hộ --</option>
+                        {indColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-amber-950 font-bold text-xs mb-1">Cột Mã ngành VSIC</label>
+                      <select
+                        value={indManganhCol}
+                        onChange={(e) => setIndManganhCol(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none shadow-sm"
+                      >
+                        <option value="">-- Chọn cột mã ngành Hộ --</option>
+                        {indColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-amber-950 font-bold text-xs mb-1">Cột Doanh thu / Sản lượng</label>
+                      <select
+                        value={indDoanhThuCol}
+                        onChange={(e) => setIndDoanhThuCol(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none shadow-sm"
+                      >
+                        <option value="">-- Chọn cột doanh thu Hộ --</option>
+                        {indColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </>
                 )}
-              </div>
-            </div>
 
-            {/* Enterprise selection rules */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm hover:scale-[1.01] transition-all">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
-                <Activity className="w-4 h-4 text-emerald-600" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-600">2. Chọn mẫu doanh nghiệp</h3>
-              </div>
-              
-              <div className="space-y-4 text-xs">
-                <div>
-                  <label className="block text-slate-700 font-bold text-xs mb-1">Phạm vi gom nhóm doanh thu lũy kế</label>
-                  <select
-                    value={entGroupScope}
-                    onChange={(e) => setEntGroupScope(e.target.value as "province" | "xa")}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm font-sans"
-                  >
-                    <option value="province">Toàn tỉnh (Gom theo Ngành cấp 2 của tỉnh - Đề xuất ✨)</option>
-                    <option value="xa">Địa bàn xã (Gom theo Địa bàn xã + Ngành cấp 2)</option>
-                  </select>
-                  <p className="text-[10px] text-slate-500 mt-1 leading-normal">
-                    {entGroupScope === "province" 
-                      ? "✨ Khuyên dùng: Sắp xếp và chọn mẫu doanh thu 75% trên phạm vi toàn tỉnh của từng ngành. Tránh tình trạng chọn quá nhiều do phân mảnh địa bàn nhỏ lẻ." 
-                      : "Sắp xếp và chọn mẫu doanh thu 75% riêng biệt cho từng địa bàn xã. Thích hợp khi cần đại diện chi tiết từng địa bàn xã."
-                    }
-                  </p>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-slate-700 font-bold text-xs">Ngưỡng đóng góp doanh thu lũy kế (%)</span>
-                    <span className="text-emerald-600 font-mono font-bold">{entCutoffPercent}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="95"
-                    step="5"
-                    value={entCutoffPercent}
-                    onChange={(e) => setEntCutoffPercent(parseInt(e.target.value))}
-                    className="w-full accent-emerald-500 cursor-pointer"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1 leading-normal">
-                    Xếp doanh nghiệp từ lớn tới nhỏ. Cộng dồn doanh thu cho đến khi chiếm tối thiểu {entCutoffPercent}% tổng doanh thu của ngành tại địa bàn.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold text-xs mb-1">Số Doanh nghiệp tối thiểu trong nhóm</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={entMinGroupSize}
-                    onChange={(e) => setEntMinGroupSize(parseInt(e.target.value) || 1)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Nếu số doanh nghiệp tại địa bàn cho 1 ngành từ {entMinGroupSize} trở xuống: Chọn toàn bộ 100% không loại trừ.
-                  </p>
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-slate-200">
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={entForceStates}
-                      onChange={(e) => setEntForceStates(e.target.checked)}
-                      className="accent-emerald-500 h-3.5 w-3.5 rounded"
-                    />
-                    <span>Ưu tiên chọn 100% Doanh nghiệp Nhà nước (DNNN)</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={entForceMonthly}
-                      onChange={(e) => setEntForceMonthly(e.target.checked)}
-                      className="accent-emerald-500 h-3.5 w-3.5 rounded"
-                    />
-                    <span>Ưu tiên mẫu Trung ương ("Mẫu trung ương" có ghi "Có")</span>
-                  </label>
+                <div className={`p-2.5 rounded-lg text-[10px] leading-relaxed mt-2 shadow-sm border ${
+                  sampFilterTab === "corp" 
+                    ? "bg-indigo-50/50 text-indigo-900 border-indigo-100" 
+                    : "bg-amber-50/50 text-amber-900 border-amber-100"
+                }`}>
+                  <span className="font-bold">⚠️ Lưu ý Nhóm ngành lọc:</span> Hệ thống tự động tách lấy 2 chữ số đầu của mã ngành và lọc giữ lại theo <b>Bộ chọn Nhóm ngành Khảo sát</b> đang kích hoạt ở trên. Các dòng không thuộc nhóm ngành đã chọn sẽ tự động được loại bỏ khỏi danh sách mẫu.
                 </div>
               </div>
             </div>
 
-            {/* Household selection rules */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm hover:scale-[1.01] transition-all">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
-                <Sliders className="w-4 h-4 text-orange-600" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-orange-600">3. Chọn mẫu Hộ cá thể</h3>
-              </div>
-              
-              <div className="space-y-4 text-xs">
-                <div>
-                  <label className="block text-slate-700 font-bold text-xs mb-1.5">Cách thức chọn mẫu hộ</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setIndSamplingMode("GSO")}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all border ${
-                        indSamplingMode === "GSO" 
-                          ? "bg-orange-50 text-orange-700 border-orange-300 shadow-sm" 
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-950 shadow-sm"
-                      }`}
-                    >
-                      Theo Chuẩn TCTK
-                    </button>
-                    <button
-                      onClick={() => setIndSamplingMode("Custom")}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all border ${
-                        indSamplingMode === "Custom" 
-                          ? "bg-orange-50 text-orange-700 border-orange-300 shadow-sm" 
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-950 shadow-sm"
-                      }`}
-                    >
-                      Tùy chọn thiết lập
-                    </button>
+            {/* Cột 2 & 3: Nội dung thay đổi động dựa theo Tab chuyển đổi */}
+            <div className="lg:col-span-2">
+              {(sampFilterTab === "corp" || sampFilterTab === "all") ? (
+                /* PHÂN HỆ DOANH NGHIỆP */
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm hover:scale-[1.01] transition-all h-full">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                    <Activity className="w-4 h-4 text-emerald-600" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-600">2. Chọn mẫu doanh nghiệp</h3>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1.5 leading-normal">
-                    {indSamplingMode === "GSO" 
-                      ? "Áp dụng định mức chuẩn: Dưới 5 hộ chọn hết; từ 6-100 hộ chọn 5 hộ lớn nhất; 101-1000 chọn 8 hộ lớn nhất; trên 1000 chọn 1%."
-                      : "Cho phép cấu hình thủ công số lượng hộ hoặc tỷ lệ % hộ đại diện lớn nhất."}
-                  </p>
-                </div>
-
-                {indSamplingMode === "Custom" && (
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3 shadow-inner">
-                    <div className="flex gap-4 text-slate-700 font-semibold">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          checked={indCustomMode === "fixed"}
-                          onChange={() => setIndCustomMode("fixed")}
-                          className="accent-orange-500 h-3.5 w-3.5"
-                          name="indCustomMode"
-                        />
-                        <span>Cố định hộ</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          checked={indCustomMode === "percent"}
-                          onChange={() => setIndCustomMode("percent")}
-                          className="accent-orange-500 h-3.5 w-3.5"
-                          name="indCustomMode"
-                        />
-                        <span>Tỷ lệ %</span>
-                      </label>
+                  
+                  <div className="space-y-4 text-xs">
+                    <div>
+                      <label className="block text-slate-700 font-bold text-xs mb-1">Phạm vi gom nhóm doanh thu lũy kế</label>
+                      <select
+                        value={entGroupScope}
+                        onChange={(e) => setEntGroupScope(e.target.value as "province" | "xa")}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm font-sans"
+                      >
+                        <option value="province">Toàn tỉnh (Gom theo Ngành cấp 2 của tỉnh - Đề xuất ✨)</option>
+                        <option value="xa">Địa bàn xã (Gom theo Địa bàn xã + Ngành cấp 2)</option>
+                      </select>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-normal">
+                        {entGroupScope === "province" 
+                          ? "✨ Khuyên dùng: Sắp xếp và chọn mẫu doanh thu 75% trên phạm vi toàn tỉnh của từng ngành. Tránh tình trạng chọn quá nhiều do phân mảnh địa bàn nhỏ lẻ." 
+                          : "Sắp xếp và chọn mẫu doanh thu 75% riêng biệt cho từng địa bàn xã. Thích hợp khi cần đại diện chi tiết từng địa bàn xã."
+                        }
+                      </p>
                     </div>
 
-                    {indCustomMode === "fixed" ? (
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold mb-1">Số lượng hộ lấy tối đa trong nhóm</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={indCustomCountValue}
-                          onChange={(e) => setIndCustomCountValue(parseInt(e.target.value) || 1)}
-                          className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 outline-none"
-                        />
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-slate-700 font-bold text-xs">Ngưỡng đóng góp doanh thu lũy kế (%)</span>
+                        <span className="text-emerald-600 font-mono font-bold">{entCutoffPercent}%</span>
                       </div>
-                    ) : (
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold mb-1">Tỷ lệ % lấy mẫu hộ</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={indCustomPercentValue}
-                          onChange={(e) => setIndCustomPercentValue(parseInt(e.target.value) || 1)}
-                          className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 outline-none"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
+                      <input
+                        type="range"
+                        min="50"
+                        max="95"
+                        step="5"
+                        value={entCutoffPercent}
+                        onChange={(e) => setEntCutoffPercent(parseInt(e.target.value))}
+                        className="w-full accent-emerald-500 cursor-pointer"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1 leading-normal">
+                        Xếp doanh nghiệp từ lớn tới nhỏ. Cộng dồn doanh thu cho đến khi chiếm tối thiểu {entCutoffPercent}% tổng doanh thu của ngành tại địa bàn.
+                      </p>
+                    </div>
 
-                <div>
-                  <label className="block text-slate-700 font-bold text-xs mb-1">Giới hạn mẫu tối đa / ngành địa bàn</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="200"
-                    value={indMaxCap}
-                    onChange={(e) => setIndMaxCap(parseInt(e.target.value) || 10)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Ngưỡng an toàn chặn trên để tránh bùng nổ số lượng mẫu khảo sát quá tải tại các địa bàn lớn đặc thù.
-                  </p>
+                    <div>
+                      <label className="block text-slate-700 font-bold text-xs mb-1">Số Doanh nghiệp tối thiểu trong nhóm</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={entMinGroupSize}
+                        onChange={(e) => setEntMinGroupSize(parseInt(e.target.value) || 1)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Nếu số doanh nghiệp tại địa bàn cho 1 ngành từ {entMinGroupSize} trở xuống: Chọn toàn bộ 100% không loại trừ.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <label className="flex items-center gap-2 cursor-pointer text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={entForceStates}
+                          onChange={(e) => setEntForceStates(e.target.checked)}
+                          className="accent-emerald-500 h-3.5 w-3.5 rounded"
+                        />
+                        <span>Ưu tiên chọn 100% Doanh nghiệp Nhà nước (DNNN)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={entForceMonthly}
+                          onChange={(e) => setEntForceMonthly(e.target.checked)}
+                          className="accent-emerald-500 h-3.5 w-3.5 rounded"
+                        />
+                        <span>Ưu tiên mẫu Trung ương ("Mẫu trung ương" có ghi "Có")</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* PHÂN HỆ HỘ CÁ THỂ - TRANG CẤU HÌNH KÉO THẢ RIÊNG BIỆT */
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-5 shadow-sm hover:scale-[1.01] transition-all h-full">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-amber-600" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-amber-600">3. Cấu hình chọn mẫu Hộ cá thể</h3>
+                    </div>
+                    <span className="text-[9.5px] bg-amber-100 text-amber-800 font-black font-sans px-2.5 py-0.5 rounded-lg border border-amber-200 shadow-inner">
+                      BẢNG ĐIỀU KHIỂN KÉO THẢ ĐỘNG
+                    </span>
+                  </div>
+
+                  {/* Giới thiệu cách tính */}
+                  <div className="bg-amber-50/50 border border-amber-100 p-3.5 rounded-xl text-[10.5px] text-amber-900 leading-relaxed space-y-1 shadow-sm font-sans">
+                    <p className="font-extrabold flex items-center gap-1">
+                      <span>💡</span> Hướng dẫn xác định cỡ mẫu cá thể động:
+                    </p>
+                    <p className="pl-4">
+                      Hộ cá thể tự động gom nhóm theo <b>Địa bàn xã và Mã ngành cấp 2 (VSIC)</b>. Với mỗi nhóm, số lượng mẫu được xác định dựa theo các phân khúc quy mô dưới đây. Hãy kéo các nút trượt để điều chỉnh trực tiếp số lượng mẫu mong muốn.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4 text-xs font-sans">
+                    {/* Phân khúc 1: 1 - 5 cơ sở */}
+                    <div className="bg-slate-50/50 border border-slate-200/60 p-3.5 rounded-xl space-y-2.5 shadow-inner">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5">
+                          <span className="text-[11.5px] font-black text-slate-800 block">1. Nhóm ngành cực nhỏ (1 - 5 cơ sở)</span>
+                          <span className="text-[9.5px] text-slate-500 block leading-normal">Chuẩn TCTK: Chọn toàn bộ (100%) để đảm bảo đại diện nhóm ngành.</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={indSize1To5All}
+                              onChange={(e) => setIndSize1To5All(e.target.checked)}
+                              className="accent-amber-600 h-3.5 w-3.5 rounded"
+                            />
+                            <span>Chọn toàn bộ</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {!indSize1To5All && (
+                        <div className="space-y-1.5 pt-2 border-t border-slate-200/50">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-500 font-medium">Số hộ lấy tối đa trong nhóm:</span>
+                            <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-mono border border-amber-100">{indSize1To5Value} hộ</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="5"
+                            value={indSize1To5Value}
+                            onChange={(e) => setIndSize1To5Value(parseInt(e.target.value) || 1)}
+                            className="w-full accent-amber-600 cursor-pointer h-1.5 bg-slate-200 rounded"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Phân khúc 2: 6 - 100 cơ sở */}
+                    <div className="bg-slate-50/50 border border-slate-200/60 p-3.5 rounded-xl space-y-2.5 shadow-inner">
+                      <div className="flex justify-between items-center gap-4">
+                        <div className="space-y-0.5">
+                          <span className="text-[11.5px] font-black text-slate-800 block">2. Nhóm ngành nhỏ (6 - 100 cơ sở)</span>
+                          <span className="text-[9.5px] text-slate-500 block leading-normal">Chuẩn TCTK: Chọn cố định 5 cơ sở/nhóm ngành.</span>
+                        </div>
+                        <span className="font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl font-mono text-xs border border-amber-100 shrink-0">
+                          {indSize6To100Value} cơ sở
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <input
+                          type="range"
+                          min="1"
+                          max="30"
+                          value={indSize6To100Value}
+                          onChange={(e) => setIndSize6To100Value(parseInt(e.target.value) || 5)}
+                          className="w-full accent-amber-600 cursor-pointer h-1.5 bg-slate-200 rounded"
+                        />
+                        <div className="flex justify-between text-[9px] text-slate-400 font-bold font-mono">
+                          <span>1 cơ sở</span>
+                          <span>Mặc định: 5</span>
+                          <span>30 cơ sở</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Phân khúc 3: 101 - 1000 cơ sở */}
+                    <div className="bg-slate-50/50 border border-slate-200/60 p-3.5 rounded-xl space-y-2.5 shadow-inner">
+                      <div className="flex justify-between items-center gap-4">
+                        <div className="space-y-0.5">
+                          <span className="text-[11.5px] font-black text-slate-800 block">3. Nhóm ngành trung bình (101 - 1000 cơ sở)</span>
+                          <span className="text-[9.5px] text-slate-500 block leading-normal">Chuẩn TCTK: Chọn cố định 8 cơ sở/nhóm ngành.</span>
+                        </div>
+                        <span className="font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl font-mono text-xs border border-amber-100 shrink-0">
+                          {indSize101To1000Value} cơ sở
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <input
+                          type="range"
+                          min="1"
+                          max="100"
+                          value={indSize101To1000Value}
+                          onChange={(e) => setIndSize101To1000Value(parseInt(e.target.value) || 8)}
+                          className="w-full accent-amber-600 cursor-pointer h-1.5 bg-slate-200 rounded"
+                        />
+                        <div className="flex justify-between text-[9px] text-slate-400 font-bold font-mono">
+                          <span>1 cơ sở</span>
+                          <span>Mặc định: 8</span>
+                          <span>100 cơ sở</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Phân khúc 4: Từ 1001 cơ sở trở lên */}
+                    <div className="bg-slate-50/50 border border-slate-200/60 p-3.5 rounded-xl space-y-3.5 shadow-inner">
+                      <div className="flex justify-between items-center gap-4">
+                        <div className="space-y-0.5">
+                          <span className="text-[11.5px] font-black text-slate-800 block">4. Nhóm ngành lớn (Từ 1001 cơ sở trở lên)</span>
+                          <span className="text-[9.5px] text-slate-500 block leading-normal">Chuẩn TCTK: Chọn tỷ lệ 1% tổng số cơ sở trong nhóm ngành.</span>
+                        </div>
+                        <span className="font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl font-mono text-xs border border-amber-100 shrink-0">
+                          Tỷ lệ: {indSize1001PlusPercent}%
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="10"
+                          step="0.1"
+                          value={indSize1001PlusPercent}
+                          onChange={(e) => setIndSize1001PlusPercent(parseFloat(e.target.value) || 1)}
+                          className="w-full accent-amber-600 cursor-pointer h-1.5 bg-slate-200 rounded"
+                        />
+                        <div className="flex justify-between text-[9px] text-slate-400 font-bold font-mono">
+                          <span>0.1%</span>
+                          <span>Mặc định: 1%</span>
+                          <span>10%</span>
+                        </div>
+                      </div>
+
+                      {/* Phân khúc đặc thù Vận tải, kho bãi */}
+                      <div className="bg-amber-50/40 border border-amber-200/60 p-3 rounded-xl space-y-3.5">
+                        <div className="flex justify-between items-center gap-4">
+                          <div className="space-y-0.5">
+                            <span className="text-[10.5px] font-extrabold text-amber-900 block">📍 Nhóm ngành Vận tải, kho bãi đặc thù (VSIC 49-53)</span>
+                            <span className="text-[9px] text-amber-750 block leading-normal">Cơ sở nhỏ thường ít nên khuyến nghị chọn 1.5% tổng số cơ sở.</span>
+                          </div>
+                          <span className="font-black text-amber-800 bg-white px-2 py-0.5 rounded-lg font-mono text-[10.5px] border border-amber-200 shrink-0">
+                            Tỷ lệ: {indTransportPercent}%
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="15"
+                            step="0.1"
+                            value={indTransportPercent}
+                            onChange={(e) => setIndTransportPercent(parseFloat(e.target.value) || 1.5)}
+                            className="w-full accent-amber-700 cursor-pointer h-1.5 bg-amber-200/30 rounded"
+                          />
+                        </div>
+
+                        <div className="flex justify-between items-center gap-4 pt-1.5 border-t border-amber-200/40">
+                          <span className="text-[10px] font-extrabold text-amber-900">Giới hạn tối đa không quá:</span>
+                          <span className="font-black text-amber-800 bg-white px-2 py-0.5 rounded-lg font-mono text-[10.5px] border border-amber-200 shrink-0">
+                            Tối đa {indTransportMaxCap} cơ sở
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <input
+                            type="range"
+                            min="10"
+                            max="200"
+                            value={indTransportMaxCap}
+                            onChange={(e) => setIndTransportMaxCap(parseInt(e.target.value) || 50)}
+                            className="w-full accent-amber-700 cursor-pointer h-1.5 bg-amber-200/30 rounded"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Nút khôi phục mặc định */}
+                  <div className="flex justify-end pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIndSize1To5Value(5);
+                        setIndSize1To5All(true);
+                        setIndSize6To100Value(5);
+                        setIndSize101To1000Value(8);
+                        setIndSize1001PlusPercent(1);
+                        setIndTransportPercent(1.5);
+                        setIndTransportMaxCap(50);
+                      }}
+                      className="text-[10.5px] text-amber-700 hover:text-amber-950 font-black hover:underline cursor-pointer flex items-center gap-1.5"
+                    >
+                      🔄 Khôi phục thiết lập mặc định của TCTK
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
           </div>
@@ -1716,6 +2130,23 @@ export default function SamplingSelection({
                   onChange={(e) => setSampSearchTerm(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner"
                 />
+              </div>
+
+              {/* Bộ chỉ báo trạng thái phân hệ hiện hành của danh sách nhóm */}
+              <div className={`p-2.5 rounded-xl border flex items-center justify-between font-sans text-[11px] font-bold ${
+                sampFilterTab === "corp"
+                  ? "bg-indigo-50/40 border-indigo-100 text-indigo-950"
+                  : "bg-amber-50/40 border-amber-100 text-amber-950"
+              }`}>
+                <span className="flex items-center gap-1.5">
+                  {sampFilterTab === "corp" ? "🏢 Phân hệ:" : "🏡 Phân hệ:"}
+                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                    sampFilterTab === "corp" ? "bg-indigo-600 text-white" : "bg-amber-600 text-white"
+                  }`}>
+                    {sampFilterTab === "corp" ? "Doanh nghiệp" : "Hộ cá thể"}
+                  </span>
+                </span>
+                <span className="text-slate-400 font-normal">Tự động phân nhóm theo xã & VSIC</span>
               </div>
 
               <div className="overflow-y-auto max-h-[450px] custom-scrollbar space-y-1.5 pr-1 text-xs">
@@ -1779,8 +2210,8 @@ export default function SamplingSelection({
                   const indSelected = grp.indGrp?.selectedCandidates || [];
                   const indBackup = grp.indGrp?.backupCandidates || [];
                   
-                  const allSelected = [...corpSelected, ...indSelected];
-                  const allBackup = [...corpBackup, ...indBackup];
+                  const allSelected = sampFilterTab === "corp" ? corpSelected : indSelected;
+                  const allBackup = sampFilterTab === "corp" ? corpBackup : indBackup;
                   
                   return (
                     <div className="space-y-4 text-xs">
@@ -1810,6 +2241,76 @@ export default function SamplingSelection({
                           </div>
                         </div>
                       </div>
+
+                      {/* Thanh trượt kéo thả cấu hình mẫu cá thể trực quan */}
+                      {grp.indGrp && grp.indGrp.totalN > 0 && (
+                        <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-4 space-y-3 shadow-sm animate-fade-in">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 font-bold text-amber-800">
+                              <span className="p-1 bg-amber-100 rounded-lg text-amber-700">🏡</span>
+                              <span>Kéo điều chỉnh số lượng mẫu Hộ cá thể (Ngành {grp.vsicL2})</span>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-[11px] bg-amber-100 text-amber-800 font-black font-mono px-2.5 py-1 rounded-lg border border-amber-200 shadow-inner">
+                                {indSelected.length} / {grp.indGrp.totalN} hộ
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-3">
+                              <span className="text-[10px] font-bold text-slate-400 font-mono w-3 text-center">0</span>
+                              <input
+                                type="range"
+                                min="0"
+                                max={grp.indGrp.totalN}
+                                value={grp.indGrp.targetSampleSize}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  setManualIndGroupSamples(prev => ({
+                                    ...prev,
+                                    [grp.key]: val
+                                  }));
+                                }}
+                                className="flex-1 accent-amber-600 cursor-pointer h-2 bg-amber-200/50 rounded-lg appearance-none"
+                              />
+                              <span className="text-[10px] font-bold text-slate-400 font-mono w-6 text-center">{grp.indGrp.totalN}</span>
+                            </div>
+                            
+                            <div className="flex justify-between items-center text-[10.5px]">
+                              <span className="text-slate-500 font-medium">
+                                Mặc định GSO: <strong className="text-slate-700 font-extrabold">{
+                                  (() => {
+                                    const totalN = grp.indGrp.totalN;
+                                    const isTransport = ["49", "50", "51", "52", "53"].includes(grp.vsicL2);
+                                    if (totalN <= 5) return totalN;
+                                    if (totalN <= 100) return Math.min(5, totalN);
+                                    if (totalN <= 1000) return Math.min(8, totalN);
+                                    if (isTransport) return Math.min(50, Math.max(8, Math.round(totalN * 0.015)));
+                                    return Math.max(8, Math.round(totalN * 0.01));
+                                  })()
+                                } hộ</strong>
+                              </span>
+                              
+                              {manualIndGroupSamples[grp.key] !== undefined && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setManualIndGroupSamples(prev => {
+                                      const updated = { ...prev };
+                                      delete updated[grp.key];
+                                      return updated;
+                                    });
+                                  }}
+                                  className="text-amber-700 hover:text-amber-900 font-black hover:underline cursor-pointer flex items-center gap-0.5"
+                                >
+                                  🔄 Khôi phục mặc định
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Members list */}
                       <div className="space-y-3">

@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { DataEntry } from "./components/DataEntry";
 import { VideoRoom } from "./components/VideoRoom";
 import { AdminDashboard } from "./components/AdminDashboard";
+import SplitScreenView from "./components/SplitScreenView";
 import { LogIn, Key, HelpCircle, ShieldAlert, Radio, Users, Shield, CheckCircle } from "lucide-react";
 // @ts-ignore
 import logoImg from "./image/logo.jpg";
@@ -106,9 +107,9 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-const CHUNK_SIZE = 5000;
+const CHUNK_SIZE = 50000;
 
-async function clearOldChunks(db: IDBDatabase): Promise<void> {
+async function clearOldChunks(db: IDBDatabase, prefix?: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, "readwrite");
     const store = transaction.objectStore(STORE_NAME);
@@ -117,8 +118,16 @@ async function clearOldChunks(db: IDBDatabase): Promise<void> {
       const cursor = event.target.result;
       if (cursor) {
         const key = String(cursor.key);
-        if (key.startsWith("mainData_chunk_") || key.startsWith("rawImportedData_chunk_")) {
-          store.delete(key);
+        if (prefix) {
+          if (key.startsWith(`${prefix}_chunk_`)) {
+            store.delete(key);
+          }
+        } else {
+          if (key.startsWith("mainData_chunk_") || key.startsWith("rawImportedData_chunk_") ||
+              key.startsWith("mainData_corp_chunk_") || key.startsWith("rawImportedData_corp_chunk_") ||
+              key.startsWith("mainData_individual_chunk_") || key.startsWith("rawImportedData_individual_chunk_")) {
+            store.delete(key);
+          }
         }
         cursor.continue();
       } else {
@@ -131,46 +140,60 @@ async function clearOldChunks(db: IDBDatabase): Promise<void> {
 
 async function saveArrayInChunks(db: IDBDatabase, prefix: string, array: any[]): Promise<void> {
   const numChunks = Math.ceil(array.length / CHUNK_SIZE);
+  if (numChunks === 0) return;
+
+  const transaction = db.transaction(STORE_NAME, "readwrite");
+  const store = transaction.objectStore(STORE_NAME);
+
+  const promises: Promise<void>[] = [];
   for (let i = 0; i < numChunks; i++) {
     const start = i * CHUNK_SIZE;
     const chunk = array.slice(start, start + CHUNK_SIZE);
-    
-    // Yield to the main thread to remain fully responsive
-    await new Promise<void>((resolve) => setTimeout(resolve, 5));
-    
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
+
+    promises.push(new Promise<void>((resolve, reject) => {
       const request = store.put(chunk, `${prefix}_chunk_${i}`);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error || new Error(`Lỗi lưu mảnh ${prefix} ${i}`));
-    });
+    }));
   }
+
+  await Promise.all(promises);
+
+  return new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error("Transaction failed"));
+  });
 }
 
 async function loadArrayInChunks(db: IDBDatabase, prefix: string, totalLength: number): Promise<any[]> {
   const numChunks = Math.ceil(totalLength / CHUNK_SIZE);
-  let result: any[] = [];
+  if (numChunks === 0) return [];
+
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+
+  const promises: Promise<any[]>[] = [];
   for (let i = 0; i < numChunks; i++) {
-    // Tránh giữ luồng thao tác liên tục
-    await new Promise<void>((resolve) => setTimeout(resolve, 2));
-    
-    const chunk: any[] = await new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readonly");
-      const store = transaction.objectStore(STORE_NAME);
+    promises.push(new Promise<any[]>((resolve, reject) => {
       const request = store.get(`${prefix}_chunk_${i}`);
       request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => reject(request.error || new Error(`Lỗi tải mảnh ${prefix} ${i}`));
-    });
-    result = result.concat(chunk);
+    }));
+  }
+
+  const chunks = await Promise.all(promises);
+  let result: any[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    result = result.concat(chunks[i]);
   }
   return result;
 }
 
-async function saveAppState(state: AppState, forceSaveData: boolean = false): Promise<void> {
+async function saveAppState(state: AppState, forceSaveData: boolean = false, mode?: "corp" | "individual"): Promise<void> {
   try {
     const db = await openDB();
     const { mainData, rawImportedData, ...meta } = state;
+    const activeMode = mode || (localStorage.getItem("vsic_current_data_mode") as "corp" | "individual") || "corp";
     
     // 1. Luôn ghi nhận Metadata (rất nhẹ, < 1ms)
     await new Promise<void>((resolve, reject) => {
@@ -180,18 +203,20 @@ async function saveAppState(state: AppState, forceSaveData: boolean = false): Pr
         ...meta,
         mainDataLength: mainData.length,
         rawImportedDataLength: rawImportedData.length,
-        isChunked: true
+        isChunked: true,
+        dataMode: activeMode
       };
-      const request = store.put(metaData, "sessionMeta");
+      const request = store.put(metaData, `sessionMeta_${activeMode}`);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error || new Error("Lỗi lưu metadata"));
     });
 
     // 2. Chỉ thực hiện lưu chuỗi khối dữ liệu khổng lồ nếu được bật cờ bắt buộc (nhập file mới, tính toán lại, gộp sheet)
     if (forceSaveData) {
-      await clearOldChunks(db);
-      await saveArrayInChunks(db, "mainData", mainData);
-      await saveArrayInChunks(db, "rawImportedData", rawImportedData);
+      await clearOldChunks(db, `mainData_${activeMode}`);
+      await clearOldChunks(db, `rawImportedData_${activeMode}`);
+      await saveArrayInChunks(db, `mainData_${activeMode}`, mainData);
+      await saveArrayInChunks(db, `rawImportedData_${activeMode}`, rawImportedData);
     }
 
     // Xóa định dạng session cũ nếu có
@@ -206,15 +231,16 @@ async function saveAppState(state: AppState, forceSaveData: boolean = false): Pr
   }
 }
 
-async function loadAppState(): Promise<AppState | null> {
+async function loadAppState(mode?: "corp" | "individual"): Promise<AppState | null> {
   try {
     const db = await openDB();
+    const activeMode = mode || (localStorage.getItem("vsic_current_data_mode") as "corp" | "individual") || "corp";
     
     // 1. Tải Metadata trước
     const meta: any = await new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readonly");
       const store = transaction.objectStore(STORE_NAME);
-      const request = store.get("sessionMeta");
+      const request = store.get(`sessionMeta_${activeMode}`);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error || new Error("Lỗi đọc sessionMeta"));
     });
@@ -223,8 +249,8 @@ async function loadAppState(): Promise<AppState | null> {
       const mainDataLength = meta.mainDataLength || 0;
       const rawImportedDataLength = meta.rawImportedDataLength || 0;
       
-      const mainData = await loadArrayInChunks(db, "mainData", mainDataLength);
-      const rawImportedData = await loadArrayInChunks(db, "rawImportedData", rawImportedDataLength);
+      const mainData = await loadArrayInChunks(db, `mainData_${activeMode}`, mainDataLength);
+      const rawImportedData = await loadArrayInChunks(db, `rawImportedData_${activeMode}`, rawImportedDataLength);
       
       return {
         ...meta,
@@ -232,6 +258,28 @@ async function loadAppState(): Promise<AppState | null> {
         rawImportedData
       };
     }
+
+    // Tương thích ngược: Đọc session thô cũ nếu đang tìm kiếm chế độ Doanh nghiệp
+    if (activeMode === "corp") {
+      const legacyMeta: any = await new Promise((resolve) => {
+        const transaction = db.transaction(STORE_NAME, "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get("sessionMeta");
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+      });
+      if (legacyMeta && legacyMeta.isChunked) {
+        const mainData = await loadArrayInChunks(db, "mainData", legacyMeta.mainDataLength || 0);
+        const rawImportedData = await loadArrayInChunks(db, "rawImportedData", legacyMeta.rawImportedDataLength || 0);
+        return {
+          ...legacyMeta,
+          mainData,
+          rawImportedData
+        };
+      }
+    }
+
+    return null;
 
     // Tương thích ngược: Đọc session thô cũ
     return new Promise((resolve, reject) => {
@@ -318,7 +366,9 @@ import {
   Save,
   Video,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Mic,
+  MicOff
 } from "lucide-react";
 
 import { 
@@ -826,6 +876,55 @@ export function MainAppContent() {
   const [rawImportedData, setRawImportedData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [fileName, setFileName] = useState<string>("");
+  
+  // Trạng thái Ghi âm Microphone (Web Speech API) cho Cột định nghĩa
+  const [isRecordingColMic, setIsRecordingColMic] = useState(false);
+
+  // Chế độ dữ liệu làm việc độc lập (Doanh nghiệp - "corp" / Cá thể - "individual")
+  const [dataMode, setDataMode] = useState<"corp" | "individual">("corp");
+
+  const toggleMicCol = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Trình duyệt không hỗ trợ nhận diện giọng nói (Web Speech API). Hãy dùng Google Chrome hoặc Microsoft Edge.");
+      return;
+    }
+
+    if (isRecordingColMic) {
+      setIsRecordingColMic(false);
+      return;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.lang = "vi-VN";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+      setIsRecordingColMic(true);
+    };
+
+    rec.onerror = (e: any) => {
+      console.error(e);
+      setIsRecordingColMic(false);
+    };
+
+    rec.onend = () => {
+      setIsRecordingColMic(false);
+    };
+
+    rec.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      if (transcript) {
+        setAiColLearnPrompt(prev => {
+          const trimmed = prev.trim();
+          return trimmed ? `${trimmed} ${transcript}` : transcript;
+        });
+      }
+    };
+
+    rec.start();
+  };
 
   // Sampling states lifted from SamplingSelection.tsx
   const [sampCorpData, setSampCorpData] = useState<any[]>([]);
@@ -1877,13 +1976,65 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
   const [visibleDescInconCount, setVisibleDescInconCount] = useState<number>(50);
   const [visibleCodeInconCount, setVisibleCodeInconCount] = useState<number>(50);
 
+  const switchDataMode = async (newMode: "corp" | "individual") => {
+    if (newMode === dataMode) return;
+    
+    setLoading(true);
+    setStatusMessage(`Đang lưu trữ dữ liệu Chế độ ${dataMode === "corp" ? "Doanh nghiệp" : "Cá thể"}...`);
+    
+    try {
+      // 1. Lưu phiên hiện tại trước khi đổi sang chế độ mới
+      await saveAppState({
+        mainData,
+        rawImportedData,
+        columns,
+        fileName,
+        mapping,
+        customColConfigs
+      }, true, dataMode);
+      
+      setStatusMessage(`Đang tải dữ liệu Chế độ ${newMode === "corp" ? "Doanh nghiệp" : "Cá thể"}...`);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // 2. Cập nhật localStorage và tải dữ liệu chế độ mới
+      localStorage.setItem("vsic_current_data_mode", newMode);
+      setDataMode(newMode);
+      
+      const saved = await loadAppState(newMode);
+      if (saved) {
+        setMainData(saved.mainData || []);
+        setRawImportedData(saved.rawImportedData || saved.mainData || []);
+        setColumns(saved.columns || []);
+        setFileName(saved.fileName || "");
+        setMapping(saved.mapping || { mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" });
+        setCustomColConfigs(saved.customColConfigs || []);
+      } else {
+        // Khởi tạo trống nếu chưa có dữ liệu riêng
+        setMainData([]);
+        setRawImportedData([]);
+        setColumns([]);
+        setFileName("");
+        setMapping({ mota: "", manganh: "", xa: "", doanhthu: "", laodong: "", idCol: "" });
+        setCustomColConfigs([]);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setStatusMessage("");
+    }
+  };
+
   // Khôi phục dữ liệu từ IndexedDB khi mở ứng dụng
   useEffect(() => {
     async function restoreSession() {
       setLoading(true);
       setStatusMessage("Đang kiểm tra dữ liệu phiên làm việc trước đó trong bộ nhớ...");
       try {
-        const saved = await loadAppState();
+        const initialMode = (localStorage.getItem("vsic_current_data_mode") as "corp" | "individual") || "corp";
+        setDataMode(initialMode);
+        
+        const saved = await loadAppState(initialMode);
         if (saved && saved.mainData && saved.mainData.length > 0) {
           setMainData(saved.mainData);
           setRawImportedData(saved.rawImportedData || saved.mainData);
@@ -1891,7 +2042,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
           setFileName(saved.fileName);
           if (saved.mapping) setMapping(saved.mapping);
           if (saved.customColConfigs) setCustomColConfigs(saved.customColConfigs);
-          setStatusMessage(`Đã khôi phục thành công tệp "${saved.fileName}" (${saved.mainData.length} dòng) từ phiên trước!`);
+          setStatusMessage(`Đã khôi phục thành công tệp chế độ ${initialMode === "corp" ? "Doanh nghiệp" : "Cá thể"} "${saved.fileName}" (${saved.mainData.length} dòng) từ phiên trước!`);
         } else {
           setStatusMessage("");
         }
@@ -1927,7 +2078,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
         fileName: customFileName !== undefined ? customFileName : fileName,
         mapping: customMapping !== undefined ? customMapping : mapping,
         customColConfigs: customConfigs !== undefined ? customConfigs : customColConfigs
-      }, true); // Bắt buộc lưu toàn bộ chuỗi khối dữ liệu thô
+      }, true, dataMode); // Bắt buộc lưu toàn bộ chuỗi khối dữ liệu thô
     } catch (err) {
       console.warn("Không thể lưu trạng thái phiên (sử dụng cache bộ nhớ):", err);
     }
@@ -1945,11 +2096,11 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
         fileName,
         mapping,
         customColConfigs
-      }, false).catch(err => console.warn("Lỗi tự động lưu phiên làm việc:", err)); // Chỉ lưu metadata siêu nhanh
+      }, false, dataMode).catch(err => console.warn("Lỗi tự động lưu phiên làm việc:", err)); // Chỉ lưu metadata siêu nhanh
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [mainData, rawImportedData, columns, fileName, mapping, customColConfigs]);
+  }, [mainData, rawImportedData, columns, fileName, mapping, customColConfigs, dataMode]);
 
   // Thuật toán hiệu chỉnh dải ô (Range) trực tiếp trên Worksheet cực kỳ nhanh chóng và an toàn
   // Hỗ trợ cấu trúc Dense Worksheet (lưu trữ dạng mảng 2 chiều !data thay vì flat keys), tránh cực đọ việc lặp hàng triệu lần và không gọi Object.keys() loại bỏ hoàn toàn "Too many properties to enumerate"
@@ -5640,13 +5791,11 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
           newName = "Mô Tả Hoạt Động";
         }
 
-        // Nếu người dùng yêu cầu loại bỏ bớt cột ngoài các vai trò chính
-        if (pl.includes("loại bỏ") || pl.includes("bỏ bớt") || pl.includes("chỉ giữ")) {
-          if (pl.includes("chỉ giữ")) {
-            if (!role) {
-              use = false;
-              newName = "";
-            }
+        // Nếu người dùng yêu cầu loại bỏ bớt cột ngoài các vai trò chính hoặc loại bỏ cột thừa
+        if (pl.includes("loại bỏ") || pl.includes("bỏ bớt") || pl.includes("chỉ giữ") || pl.includes("bỏ cột thừa") || pl.includes("bỏ chọn") || pl.includes("loại bỏ cột thừa")) {
+          if (!role) {
+            use = false;
+            newName = "";
           }
         }
 
@@ -5689,6 +5838,9 @@ Các vai trò hệ thống quy chuẩn chỉ gồm các nhãn sau hoặc để r
 - "xa": Địa bàn xã/phường (VD: Xa, Phuong, DiaBan).
 - "doanhthu": Số liệu kinh doanh, doanh thu, lợi nhuận (VD: DoanhThu, DoanhSo).
 - "laodong": Số lượng nhân sự, lao động (VD: LaoDong, NhanSu).
+
+ĐẶC BIỆT LƯU Ý VỀ CỘT THỪA (COLUMN REDUCTION):
+Nếu người dùng yêu cầu "loại bỏ cột thừa", "loại bỏ các cột thừa", "bỏ bớt cột thừa", "bỏ chọn các cột", "bỏ cột", "chỉ giữ các cột chính", "loại bỏ cột phụ", hoặc diễn đạt tương đương, bạn BẮT BUỘC phải đặt "use": false cho tất cả những cột không được gán bất kỳ vai trò chính nào (vai trò để rỗng "").
 
 Hãy trả về một mảng JSON trực tiếp đại diện cho các trường được ánh xạ, tuyệt đối không viết thêm lời bình luận, không bọc thẻ markdown ngoài cục diện JSON. Định dạng bắt buộc:
 [
@@ -7230,6 +7382,24 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             Trang chủ
           </button>
 
+          {/* Nút CHIA MÀN HÌNH DOANH NGHIỆP - CÁ THỂ */}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveTab("splitscreen");
+              setOpenDropdown(null);
+            }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+              activeTab === "splitscreen" 
+                ? "bg-indigo-600 text-white shadow-md border border-indigo-700" 
+                : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
+            }`}
+            title="Xem chia đôi màn hình dữ liệu Doanh nghiệp và Cá thể song song"
+          >
+            <Combine className="w-4 h-4 shrink-0 text-emerald-500 animate-pulse" />
+            🖥️ Màn hình Song song
+          </button>
+
           {/* DROPDOWN 1: TRẠM DỮ LIỆU */}
           <div className="relative">
             <button 
@@ -7520,8 +7690,34 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             XÓA FILE DỮ LIỆU NẠP
           </button>
 
+          {/* TRÌNH CHỌN CHẾ ĐỘ HOẠT ĐỘNG SONG SONG ĐỘC LẬP */}
+          <div className="flex items-center bg-white border border-indigo-200 rounded-xl p-0.5 shadow-inner">
+            <button
+              onClick={() => switchDataMode("corp")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                dataMode === "corp"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+              title="Nhấn để chuyển hoàn toàn sang làm việc với dữ liệu Doanh nghiệp độc lập"
+            >
+              🏢 Doanh nghiệp
+            </button>
+            <button
+              onClick={() => switchDataMode("individual")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                dataMode === "individual"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+              title="Nhấn để chuyển hoàn toàn sang làm việc với dữ liệu Cá thể độc lập"
+            >
+              👤 Cá thể
+            </button>
+          </div>
+
           <div className="text-slate-700 font-bold bg-indigo-100/50 border border-indigo-200/80 px-2.5 py-1 rounded-lg">
-            💾 Local IndexedDB
+            💾 Local {dataMode === "corp" ? "Doanh nghiệp" : "Cá thể"} DB
           </div>
         </div>
       </div>
@@ -8314,9 +8510,31 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                     {/* Cột 1: Huấn luyện AI */}
                     <div className="xl:col-span-7 space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
                       <div>
-                        <label className="text-xs font-bold text-slate-700 block mb-1.5 uppercase font-mono">
-                          🗣️ Nhập khẩu lệnh của bạn hoặc chọn các mẫu gợi ý bên dưới:
-                        </label>
+                        <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                          <label className="text-xs font-bold text-slate-700 uppercase font-mono">
+                            🗣️ Nhập khẩu lệnh của bạn hoặc chọn các mẫu gợi ý:
+                          </label>
+                          <button
+                            type="button"
+                            onClick={toggleMicCol}
+                            className={`flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                              isRecordingColMic 
+                                ? "bg-rose-100 hover:bg-rose-200 text-rose-700 border-rose-300 animate-pulse font-bold" 
+                                : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                            }`}
+                            title="Bấm để nói bằng tiếng Việt"
+                          >
+                            {isRecordingColMic ? (
+                              <>
+                                <MicOff className="w-3 h-3 text-rose-600 shrink-0" /> Dừng nghe
+                              </>
+                            ) : (
+                              <>
+                                <Mic className="w-3 h-3 text-emerald-600 shrink-0" /> Ghi âm (Nói)
+                              </>
+                            )}
+                          </button>
+                        </div>
                         <textarea
                           rows={3}
                           value={aiColLearnPrompt}
@@ -8586,48 +8804,31 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                           <table className="w-full text-left text-xs min-w-[700px] border-separate border-spacing-0">
                             <thead>
                               <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-mono text-[11px] sticky top-0 z-10">
-                                <th className="p-3 text-center w-[110px] bg-slate-100 border-b border-slate-200 shadow-sm select-none sticky top-0 z-10">
-                                  <div className="flex flex-col items-center justify-center gap-1">
-                                    <span className="text-[10px] font-bold text-slate-600">SỬ DỤNG</span>
-                                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-sm">
-                                      <input
-                                        type="checkbox"
-                                        checked={customColConfigs.length > 0 && customColConfigs.every(c => c.use && c.newName.trim() !== "")}
-                                        ref={(el) => {
-                                          if (el) {
-                                            const someUse = customColConfigs.some(c => c.use && c.newName.trim() !== "");
-                                            const allUse = customColConfigs.every(c => c.use && c.newName.trim() !== "");
-                                            el.indeterminate = someUse && !allUse;
-                                          }
-                                        }}
-                                        onChange={(e) => {
-                                          const checked = e.target.checked;
-                                          const updated = customColConfigs.map(c => ({
-                                            ...c,
-                                            use: checked,
-                                            newName: checked ? (c.newName.trim() || c.originalName) : ""
-                                          }));
-                                          setCustomColConfigs(updated);
-                                        }}
-                                        className="w-3.5 h-3.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
-                                        title="Chọn tất cả / Bỏ chọn tất cả"
-                                      />
-                                      <span 
-                                        className="text-[10px] text-slate-500 font-bold select-none cursor-pointer hover:text-purple-650" 
-                                        onClick={() => {
-                                          const allSelected = customColConfigs.length > 0 && customColConfigs.every(c => c.use && c.newName.trim() !== "");
-                                          const targetState = !allSelected;
-                                          const updated = customColConfigs.map(c => ({
-                                            ...c,
-                                            use: targetState,
-                                            newName: targetState ? (c.newName.trim() || c.originalName) : ""
-                                          }));
-                                          setCustomColConfigs(updated);
-                                        }}
-                                      >
-                                        Tất cả
-                                      </span>
-                                    </div>
+                                <th className="p-3 text-center w-[120px] bg-slate-100 border-b border-slate-200 shadow-sm select-none sticky top-0 z-10">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={customColConfigs.length > 0 && customColConfigs.every(c => c.use && c.newName.trim() !== "")}
+                                      ref={(el) => {
+                                        if (el) {
+                                          const someUse = customColConfigs.some(c => c.use && c.newName.trim() !== "");
+                                          const allUse = customColConfigs.every(c => c.use && c.newName.trim() !== "");
+                                          el.indeterminate = someUse && !allUse;
+                                        }
+                                      }}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        const updated = customColConfigs.map(c => ({
+                                          ...c,
+                                          use: checked,
+                                          newName: checked ? (c.newName.trim() || c.originalName) : ""
+                                        }));
+                                        setCustomColConfigs(updated);
+                                      }}
+                                      className="w-3.5 h-3.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                                      title="Chọn tất cả / Bỏ chọn tất cả"
+                                    />
+                                    <span>SỬ DỤNG</span>
                                   </div>
                                 </th>
                                 <th className="p-3 text-center w-[50px] bg-slate-100 border-b border-slate-200 shadow-sm sticky top-0 z-10">STT</th>
@@ -10070,6 +10271,12 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           {activeTab === "videoroom" && (
             <div className="space-y-6 animate-fade-in">
               <VideoRoom />
+            </div>
+          )}
+
+          {activeTab === "splitscreen" && (
+            <div className="space-y-6 animate-fade-in">
+              <SplitScreenView currentMode={dataMode} onSwitchMode={switchDataMode} />
             </div>
           )}
 

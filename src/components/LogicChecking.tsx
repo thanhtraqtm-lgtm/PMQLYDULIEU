@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   CheckSquare, Sliders, Sparkles, Download, Upload, 
-  Trash2, AlertTriangle, Play, Save, Activity 
+  Trash2, AlertTriangle, Play, Save, Activity, Mic, MicOff
 } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 import { MainDataInlinePreview } from "./MainDataInlinePreview";
@@ -104,6 +104,50 @@ export default function LogicChecking({
 
   // Trí tuệ Nhân tạo - Học và lưu lệnh qua AI
   const [aiRulePrompt, setAiRulePrompt] = useState<string>("");
+  const [isRecordingRuleMic, setIsRecordingRuleMic] = useState(false);
+
+  const toggleMicRule = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Trình duyệt không hỗ trợ nhận diện giọng nói (Web Speech API). Hãy dùng Google Chrome hoặc Microsoft Edge.");
+      return;
+    }
+
+    if (isRecordingRuleMic) {
+      setIsRecordingRuleMic(false);
+      return;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.lang = "vi-VN";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+      setIsRecordingRuleMic(true);
+    };
+
+    rec.onerror = (e: any) => {
+      console.error(e);
+      setIsRecordingRuleMic(false);
+    };
+
+    rec.onend = () => {
+      setIsRecordingRuleMic(false);
+    };
+
+    rec.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      if (transcript) {
+        setAiRulePrompt(prev => {
+          const trimmed = prev.trim();
+          return trimmed ? `${trimmed} ${transcript}` : transcript;
+        });
+      }
+    };
+
+    rec.start();
+  };
   const [aiTranslatedExpression, setAiTranslatedExpression] = useState<string>("");
   const [customRuleName, setCustomRuleName] = useState<string>("");
   const [aiScanMetrics, setAiScanMetrics] = useState<{
@@ -986,9 +1030,31 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               {/* KHU VỰC NHẬP LỆNH AI */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                 <div className="md:col-span-3 space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                    ✍️ Nhập điều kiện lỗi tiếng Việt (Ví dụ: 'Tìm dòng có DonGia &lt; 0'):
-                  </label>
+                  <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      ✍️ Nhập điều kiện lỗi tiếng Việt (Ví dụ: 'Tìm dòng có DonGia &lt; 0'):
+                    </label>
+                    <button
+                      type="button"
+                      onClick={toggleMicRule}
+                      className={`flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                        isRecordingRuleMic 
+                          ? "bg-rose-100 hover:bg-rose-200 text-rose-700 border-rose-300 animate-pulse font-bold" 
+                          : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                      }`}
+                      title="Bấm để nói bằng tiếng Việt"
+                    >
+                      {isRecordingRuleMic ? (
+                        <>
+                          <MicOff className="w-3 h-3 text-rose-600 shrink-0" /> Dừng nghe
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="w-3 h-3 text-emerald-600 shrink-0" /> Ghi âm (Nói)
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"

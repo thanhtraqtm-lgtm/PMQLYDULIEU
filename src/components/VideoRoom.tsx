@@ -88,6 +88,7 @@ export const VideoRoom: React.FC = () => {
   const [tempAgoraToken, setTempAgoraToken] = useState(agoraTokenState);
 
   const [joined, setJoined] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
   const [localScreenTrack, setLocalScreenTrack] = useState<any | null>(null);
@@ -431,10 +432,27 @@ export const VideoRoom: React.FC = () => {
       return;
     }
 
+    if (isConnecting || joined) {
+      console.log("Already joining or joined, skipping handleJoin");
+      return;
+    }
+
+    setIsConnecting(true);
     try {
       setErrorMsg(null);
       const client = rtcClientRef.current;
-      if (!client) return;
+      if (!client) {
+        setIsConnecting(false);
+        return;
+      }
+
+      // Kiểm tra trạng thái kết nối hiện tại để tránh lỗi Client already in connecting/connected state
+      if (client.connectionState === "CONNECTED" || client.connectionState === "CONNECTING") {
+        console.log("Client is already CONNECTED or CONNECTING. Setting joined to true.");
+        setJoined(true);
+        setIsConnecting(false);
+        return;
+      }
 
       setupClientEvents(client);
 
@@ -470,6 +488,14 @@ export const VideoRoom: React.FC = () => {
         } catch (tokenErr) {
           console.error("Không thể kết nối API sinh Token:", tokenErr);
         }
+      }
+
+      // Kiểm tra lại trạng thái kết nối ngay trước khi join (phòng tránh async race conditions)
+      if (client.connectionState === "CONNECTED" || client.connectionState === "CONNECTING") {
+        console.log("Client is already CONNECTED or CONNECTING before final join. Setting joined to true.");
+        setJoined(true);
+        setIsConnecting(false);
+        return;
       }
 
       await client.join(agoraAppIdState, channelName, activeToken, user?.uid || null);
@@ -532,6 +558,7 @@ export const VideoRoom: React.FC = () => {
       }
 
       setJoined(true);
+      setIsConnecting(false);
 
       if (initError) {
         console.warn(initError);
@@ -548,7 +575,22 @@ export const VideoRoom: React.FC = () => {
       }, 300);
 
     } catch (err: any) {
+      setIsConnecting(false);
       console.error("Lỗi nghiêm trọng khi tham gia phòng Agora:", err);
+      
+      const errStr = String(err || "").toLowerCase();
+      // Nếu lỗi là do đã kết nối hoặc đang kết nối, bỏ qua và đánh dấu đã tham gia thành công
+      if (
+        errStr.includes("already in connecting") || 
+        errStr.includes("invalid_operation") || 
+        errStr.includes("client-88663") || 
+        (err && err.code === "INVALID_OPERATION")
+      ) {
+        console.log("Phát hiện lỗi trạng thái đang kết nối nhưng bỏ qua vì đã sẵn sàng.");
+        setJoined(true);
+        return;
+      }
+
       setErrorMsg(`Lỗi kết nối Agora: ${err.message || err}. Đang chuyển sang chế độ giả lập.`);
       setIsSimulationMode(true);
       setJoined(true);
@@ -589,6 +631,7 @@ export const VideoRoom: React.FC = () => {
     }
 
     setJoined(false);
+    setIsConnecting(false);
     setRemoteUsers([]);
     setScreenSharing(false);
   };
@@ -1272,9 +1315,19 @@ export const VideoRoom: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
               <button
                 onClick={handleJoin}
-                className="w-full sm:w-auto px-8 py-3 bg-indigo-600 hover:bg-indigo-500 active:translate-y-0.5 transition font-bold text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/20"
+                disabled={isConnecting}
+                className={`w-full sm:w-auto px-8 py-3 bg-indigo-600 hover:bg-indigo-500 active:translate-y-0.5 transition font-bold text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/20 ${isConnecting ? "opacity-60 cursor-not-allowed" : ""}`}
               >
-                <Users className="w-4 h-4" /> Tham gia phòng họp
+                {isConnecting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                    ĐANG KẾT NỐI...
+                  </>
+                ) : (
+                  <>
+                    <Users className="w-4 h-4" /> Tham gia phòng họp
+                  </>
+                )}
               </button>
               
               <button
