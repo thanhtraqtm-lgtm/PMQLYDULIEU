@@ -7970,37 +7970,37 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 </div>
               </div>
 
-              {/* SƠ ĐỒ LUỒNG XỬ LÝ DỮ LIỆU THỐNG KÊ CHUẨN HÓA (VISIC ARCHITECTURAL FLOWCHART) */}
-              <div className="bg-slate-950 text-slate-100 rounded-3xl p-6 md:p-10 shadow-2xl relative overflow-hidden border border-slate-800 w-full max-w-none">
+              {/* SƠ ĐỒ LUỒNG XỬ LÝ DỮ LIỆU THỐNG KÊ CHUẨN HÓA (VISIC ARCHITECTURAL FLOWCHART) - LIGHT BLUE/SLATE MODERN PRESETS */}
+              <div className="bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 text-slate-800 rounded-3xl p-6 md:p-10 shadow-lg relative overflow-hidden border-2 border-indigo-100 w-full max-w-none">
                 {/* Background decorative glows */}
-                <div className="absolute -top-12 -right-12 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl opacity-60"></div>
-                <div className="absolute -bottom-12 -left-12 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl opacity-60"></div>
-                <div className="absolute top-1/2 left-1/3 w-80 h-80 bg-purple-500/5 rounded-full blur-3xl opacity-40"></div>
+                <div className="absolute -top-12 -right-12 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl opacity-60"></div>
+                <div className="absolute -bottom-12 -left-12 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl opacity-60"></div>
+                <div className="absolute top-1/2 left-1/3 w-80 h-80 bg-purple-500/3 rounded-full blur-3xl opacity-40"></div>
                 
                 {/* Top border ambient line */}
                 <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-emerald-500 via-indigo-500 via-purple-500 to-amber-500"></div>
 
-                <div className="border-b border-slate-800/80 pb-6 mb-8 relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="border-b border-indigo-100 pb-6 mb-8 relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <span className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-300 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border border-indigo-500/30">
+                    <span className="bg-indigo-100 text-indigo-700 text-[10px] font-extrabold uppercase tracking-widest px-3.5 py-1.5 rounded-full border border-indigo-200">
                       Bản Đồ Kiến Trúc Hệ Thống Toàn Diện
                     </span>
-                    <h3 className="text-xl md:text-2xl font-black tracking-tight mt-2 text-white flex items-center gap-2.5">
-                      <BrainCircuit className="w-6.5 h-6.5 text-indigo-400 animate-pulse" />
+                    <h3 className="text-xl md:text-2xl font-black tracking-tight mt-2 text-indigo-950 flex items-center gap-2.5">
+                      <BrainCircuit className="w-6.5 h-6.5 text-indigo-650 animate-pulse" />
                       Quy Trình Xử Lý &amp; Kiểm Soát Dữ Liệu Khép Kín VSIC
                     </h3>
-                    <p className="text-xs text-slate-400 mt-1 max-w-3xl leading-relaxed">
+                    <p className="text-xs text-slate-600 mt-1 max-w-3xl leading-relaxed">
                       Mọi dữ liệu khảo sát thô đều bắt buộc đi qua trạm kiểm soát trung tâm (Nạp danh mục ngành VSIC và Định nghĩa cột) trước khi phân rã sang các công cụ nghiệp vụ chuyên biệt hoặc đưa vào phòng hội chẩn trực tuyến.
                     </p>
                   </div>
                   
                   {/* AI & Video room quick highlights */}
                   <div className="flex flex-wrap gap-2">
-                    <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 animate-pulse" /> AI-Powered Engine
+                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" /> AI-Powered Engine
                     </span>
-                    <span className="bg-purple-950/80 text-purple-400 border border-purple-500/40 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
-                      <Video className="w-3.5 h-3.5 animate-bounce" /> Live Room Active
+                    <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                      <Video className="w-3.5 h-3.5 text-purple-600 animate-bounce" /> Live Room Active
                     </span>
                   </div>
                 </div>
@@ -8011,146 +8011,146 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   {/* CỘT 1: ĐẦU VÀO THÔ (lg:col-span-2) */}
                   <div className="lg:col-span-2 flex flex-col justify-start space-y-3">
                     <div className="text-center lg:text-left">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">BƯỚC ĐẦU</span>
-                      <h4 className="text-xs font-black text-indigo-300 uppercase tracking-wider mt-0.5">1. Dữ Liệu Đầu Vào</h4>
+                      <span className="text-[10px] font-bold text-slate-450 uppercase tracking-widest font-mono">BƯỚC ĐẦU</span>
+                      <h4 className="text-xs font-black text-indigo-850 uppercase tracking-wider mt-0.5">1. Dữ Liệu Đầu Vào</h4>
                     </div>
                     
-                    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 space-y-2.5 shadow-inner">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider text-center border-b border-slate-800/80 pb-1.5 mb-1.5">
+                    <div className="bg-white border border-indigo-50 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
+                      <p className="text-[10px] text-slate-550 font-extrabold uppercase tracking-wider text-center border-b border-indigo-50/50 pb-1.5 mb-1.5">
                         Nguồn Khảo Sát Thô
                       </p>
                       
-                      <div className="flex items-center gap-2.5 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors">
-                        <FileSpreadsheet className="w-4.5 h-4.5 text-emerald-400 shrink-0" />
+                      <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:border-indigo-350 transition-colors">
+                        <FileSpreadsheet className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
                         <div>
-                          <div className="text-[11px] font-bold text-slate-200">Excel / XML</div>
-                          <div className="text-[9px] text-slate-500">Doanh nghiệp</div>
+                          <div className="text-[11px] font-extrabold text-slate-800">Excel / XML</div>
+                          <div className="text-[9px] text-slate-500 font-medium">Doanh nghiệp</div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2.5 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors">
-                        <Database className="w-4.5 h-4.5 text-sky-400 shrink-0" />
+                      <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:border-indigo-350 transition-colors">
+                        <Database className="w-4.5 h-4.5 text-sky-600 shrink-0" />
                         <div>
-                          <div className="text-[11px] font-bold text-slate-200">CSV / DB Dump</div>
-                          <div className="text-[9px] text-slate-500 font-mono">Hàng triệu dòng</div>
+                          <div className="text-[11px] font-extrabold text-slate-800">CSV / DB Dump</div>
+                          <div className="text-[9px] text-slate-500 font-mono font-medium">Hàng triệu dòng</div>
                         </div>
                       </div>
 
                       {/* Mũi tên chỉ ra luồng (a) và (b) */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-800/80 space-y-1.5 text-[9.5px] font-bold">
-                        <div className="flex items-center gap-1.5 text-indigo-400">
-                          <span className="animate-pulse text-indigo-300">➔</span> Truyền sang (a) VSIC
+                      <div className="mt-3 pt-2.5 border-t border-indigo-100 space-y-1.5 text-[9.5px] font-bold">
+                        <div className="flex items-center gap-1.5 text-indigo-700">
+                          <span className="text-indigo-555">➔</span> Truyền sang (a) VSIC
                         </div>
-                        <div className="flex items-center gap-1.5 text-teal-400">
-                          <span className="animate-pulse text-teal-300">➔</span> Truyền sang (b) Cột/Vai trò
+                        <div className="flex items-center gap-1.5 text-teal-700">
+                          <span className="text-teal-555">➔</span> Truyền sang (b) Cột/Vai trò
                         </div>
                       </div>
                     </div>
                   </div>
 
                   {/* CỘT 2: TRẠM CHUẨN HÓA VSIC (a) (lg:col-span-3) */}
-                  <div className="lg:col-span-3 flex flex-col justify-start bg-slate-900/30 border border-slate-800 rounded-3xl p-5 space-y-4 relative">
+                  <div className="lg:col-span-3 flex flex-col justify-start bg-indigo-50/30 border border-indigo-100 rounded-3xl p-5 space-y-4 relative">
                     <div className="absolute -top-3 left-6">
-                      <span className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1">
+                      <span className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
                         <Sparkles className="w-3 h-3" /> Trạm Chuẩn Hóa
                       </span>
                     </div>
                     
                     <div className="text-center pt-2">
-                      <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest font-mono">GIAI ĐOẠN TRỌNG TÂM A</span>
-                      <h4 className="text-xs font-black text-white uppercase tracking-wider mt-0.5">(a) Xử Lý Ngành VSIC</h4>
+                      <span className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-widest font-mono">GIAI ĐOẠN TRỌNG TÂM A</span>
+                      <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider mt-0.5">(a) Xử Lý Ngành VSIC</h4>
                     </div>
 
                     {/* BOX 1: NẠP & CHUẨN HÓA DANH MỤC VSIC */}
                     <button 
                       onClick={() => setActiveTab("smartcatalog")}
-                      className="w-full text-left bg-gradient-to-br from-indigo-950/90 to-indigo-900 border-2 border-indigo-500/60 hover:border-indigo-400 rounded-2xl p-4 transition-all hover:scale-[1.02] shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_25px_rgba(99,102,241,0.35)] group relative cursor-pointer grow flex flex-col justify-center min-h-[220px]"
+                      className="w-full text-left bg-white hover:bg-indigo-50/40 border-2 border-indigo-200 hover:border-indigo-400 rounded-2xl p-4 transition-all hover:scale-[1.02] shadow-sm group relative cursor-pointer grow flex flex-col justify-center min-h-[220px]"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-indigo-500/20 rounded-xl border border-indigo-500/30 text-indigo-300 group-hover:scale-110 transition-transform shadow-inner animate-pulse">
-                          <BrainCircuit className="w-5.5 h-5.5 text-indigo-300" />
+                        <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 group-hover:scale-110 transition-transform">
+                          <BrainCircuit className="w-5.5 h-5.5 text-indigo-600" />
                         </div>
                         <div className="space-y-1">
-                          <div className="text-xs font-black text-white uppercase tracking-wide flex items-center gap-1.5">
+                          <div className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-1.5 flex-wrap">
                             📌 1. Nạp Danh Mục Ngành VSIC
-                            <span className="bg-indigo-400/25 text-indigo-200 text-[8px] font-bold px-1.5 py-0.2 rounded font-mono">VSIC 5 Cấp</span>
+                            <span className="bg-indigo-100 text-indigo-700 text-[8px] font-extrabold px-1.5 py-0.2 rounded font-mono">VSIC 5 Cấp</span>
                           </div>
-                          <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                          <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                             Pháp lý hóa dữ liệu theo chuẩn Danh mục ngành kinh tế Việt Nam. Khớp mã tự động dựa trên từ điển hệ thống lưu trữ.
                           </p>
                         </div>
                       </div>
-                      <span className="absolute bottom-3 right-3 text-[9px] font-mono text-indigo-400 group-hover:text-indigo-200 font-bold">Bắt đầu nạp ngay ➔</span>
+                      <span className="absolute bottom-3 right-3 text-[9px] font-mono text-indigo-600 group-hover:text-indigo-800 font-extrabold">Bắt đầu nạp ngay ➔</span>
                     </button>
                   </div>
 
                   {/* CỘT 3: CẤU TRÚC VÀ ĐỊNH NGHĨA CỘT (b) (lg:col-span-3) */}
-                  <div className="lg:col-span-3 flex flex-col justify-start bg-slate-900/30 border border-slate-800 rounded-3xl p-5 space-y-4 relative">
+                  <div className="lg:col-span-3 flex flex-col justify-start bg-teal-50/20 border border-teal-100/80 rounded-3xl p-5 space-y-4 relative">
                     <div className="text-center">
-                      <span className="text-[10px] font-bold text-teal-400 uppercase tracking-widest font-mono">GIAI ĐOẠN TRỌNG TÂM B</span>
-                      <h4 className="text-xs font-black text-white uppercase tracking-wider mt-0.5">(b) Xử Lý Cấu Trúc Bảng</h4>
+                      <span className="text-[10px] font-extrabold text-teal-700 uppercase tracking-widest font-mono">GIAI ĐOẠN TRỌNG TÂM B</span>
+                      <h4 className="text-xs font-black text-teal-950 uppercase tracking-wider mt-0.5">(b) Xử Lý Cấu Trúc Bảng</h4>
                     </div>
 
                     {/* BOX 2: ĐỊNH NGHĨA TÊN CỘT & VAI TRÒ */}
                     <button 
                       onClick={() => setActiveTab("xemdulieu")}
-                      className="w-full text-left bg-gradient-to-br from-teal-950 to-teal-900 border-2 border-teal-500/40 hover:border-teal-350 rounded-2xl p-4 transition-all hover:scale-[1.02] shadow-xl group relative cursor-pointer grow flex flex-col justify-center min-h-[220px]"
+                      className="w-full text-left bg-white hover:bg-teal-50/40 border-2 border-teal-200 hover:border-teal-400 rounded-2xl p-4 transition-all hover:scale-[1.02] shadow-sm group relative cursor-pointer grow flex flex-col justify-center min-h-[220px]"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-teal-500/20 rounded-xl border border-teal-500/30 text-teal-300 group-hover:scale-110 transition-transform">
-                          <FileSpreadsheet className="w-5.5 h-5.5 text-teal-300" />
+                        <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl border border-teal-100 group-hover:scale-110 transition-transform">
+                          <FileSpreadsheet className="w-5.5 h-5.5 text-teal-600" />
                         </div>
                         <div className="space-y-1">
-                          <div className="text-xs font-black text-white uppercase tracking-wide">
+                          <div className="text-xs font-black text-slate-900 uppercase tracking-wide">
                             🏷️ 2. Định Nghĩa Tên Cột &amp; Vai Trò
                           </div>
-                          <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                          <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                             Ánh xạ tiêu đề cột (Doanh thu, Lao động, Thuế, Xã/Phường, Mã ngành) thống nhất các file thô về một mô hình định dạng chuẩn nhất quán.
                           </p>
                         </div>
                       </div>
-                      <span className="absolute bottom-3 right-3 text-[9px] font-mono text-teal-400 group-hover:text-teal-200 font-bold">Vào Định nghĩa cột ➔</span>
+                      <span className="absolute bottom-3 right-3 text-[9px] font-mono text-teal-600 group-hover:text-teal-800 font-extrabold">Vào Định nghĩa cột ➔</span>
                     </button>
                   </div>
 
                   {/* CỘT 4: CÁC CÔNG CỤ CHUYÊN SÂU & ĐẦU RA + VIDEO ROOM (lg:col-span-4) */}
                   <div className="lg:col-span-4 flex flex-col justify-between space-y-4">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">BƯỚC CUỐI</span>
-                      <h4 className="text-xs font-black text-purple-300 uppercase tracking-wider mt-0.5">3. Khớp AI &amp; Nghiệp Vụ Chuyên Sâu</h4>
+                      <span className="text-[10px] font-bold text-slate-450 uppercase tracking-widest font-mono">BƯỚC CUỐI</span>
+                      <h4 className="text-xs font-black text-purple-850 uppercase tracking-wider mt-0.5">3. Khớp AI &amp; Nghiệp Vụ Chuyên Sâu</h4>
                     </div>
 
                     {/* BOX 1b DI CHUYỂN SANG ĐÂY: KHỚP & SO SÁNH TÊN NGÀNH BẰNG AI */}
                     <button 
                       onClick={() => setActiveTab("smartcatalog")}
-                      className="w-full text-left bg-gradient-to-r from-purple-950 to-indigo-950 border-2 border-purple-500/60 hover:border-purple-300 rounded-2xl p-3.5 transition-all hover:scale-[1.02] shadow-[0_0_15px_rgba(168,85,247,0.25)] hover:shadow-[0_0_25px_rgba(168,85,247,0.4)] group relative cursor-pointer"
+                      className="w-full text-left bg-white hover:bg-purple-50/40 border-2 border-purple-200 hover:border-purple-400 rounded-2xl p-3.5 transition-all hover:scale-[1.02] shadow-sm group relative cursor-pointer"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="p-2 bg-purple-500/20 rounded-xl border border-purple-500/30 text-purple-300 group-hover:scale-110 transition-transform">
-                          <Search className="w-5 h-5 text-purple-300 animate-pulse" />
+                        <div className="p-2 bg-purple-50 text-purple-650 rounded-xl border border-purple-100 group-hover:scale-110 transition-transform">
+                          <Search className="w-5 h-5 text-purple-650 animate-pulse" />
                         </div>
                         <div className="space-y-1">
-                          <div className="text-xs font-black text-white uppercase tracking-wide flex items-center gap-1.5 flex-wrap">
+                          <div className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-1.5 flex-wrap">
                             ✨ 1b. Khớp &amp; So Sánh Tên Ngành
-                            <span className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-full font-mono animate-pulse uppercase border border-purple-400/50 shadow-md">
+                            <span className="bg-purple-100 text-purple-700 text-[8px] font-extrabold px-1.5 py-0.5 rounded-full font-mono uppercase border border-purple-200/50 shadow-sm">
                               AI Đối Chiếu
                             </span>
                           </div>
-                          <p className="text-[10.5px] text-purple-100 leading-relaxed font-semibold">
+                          <p className="text-[10.5px] text-slate-600 leading-relaxed font-medium">
                             Thuật toán AI đối chiếu mô tả hoạt động thực tế với tên ngành chuẩn hóa sau khi đã gán mã ngành và cấu trúc lại cột.
                           </p>
                         </div>
                       </div>
-                      <span className="absolute bottom-2 right-3 text-[9px] font-mono text-purple-300 group-hover:text-purple-100 font-bold">Chạy kiểm tra AI ➔</span>
+                      <span className="absolute bottom-2 right-3 text-[9px] font-mono text-purple-600 group-hover:text-purple-800 font-extrabold">Chạy kiểm tra AI ➔</span>
                     </button>
 
                     {/* Grid các công cụ nhỏ */}
                     <div className="grid grid-cols-2 gap-2">
                       <button 
                         onClick={() => setActiveTab("ghepnoi")}
-                        className="text-left bg-indigo-50/95 hover:bg-white border-2 border-indigo-200 hover:border-indigo-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-[0_2px_12px_rgba(99,102,241,0.15)] group/btn"
+                        className="text-left bg-indigo-50/95 hover:bg-white border-2 border-indigo-250 hover:border-indigo-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-sm group/btn"
                       >
-                        <div className="p-1.5 bg-indigo-600 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
+                        <div className="p-1.5 bg-indigo-650 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
                           <GitMerge className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
@@ -8161,9 +8161,9 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
                       <button 
                         onClick={() => setActiveTab("tachfile")}
-                        className="text-left bg-pink-50/95 hover:bg-white border-2 border-pink-200 hover:border-pink-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-[0_2px_12px_rgba(236,72,153,0.15)] group/btn"
+                        className="text-left bg-pink-50/95 hover:bg-white border-2 border-pink-250 hover:border-pink-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-sm group/btn"
                       >
-                        <div className="p-1.5 bg-pink-600 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
+                        <div className="p-1.5 bg-pink-650 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
                           <Scissors className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
@@ -8174,9 +8174,9 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
                       <button 
                         onClick={() => setActiveTab("kiemtralogic")}
-                        className="text-left bg-emerald-50/95 hover:bg-white border-2 border-emerald-200 hover:border-emerald-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-[0_2px_12px_rgba(16,185,129,0.15)] group/btn"
+                        className="text-left bg-emerald-50/95 hover:bg-white border-2 border-emerald-250 hover:border-emerald-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-sm group/btn"
                       >
-                        <div className="p-1.5 bg-emerald-600 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
+                        <div className="p-1.5 bg-emerald-650 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
                           <CheckSquare className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
@@ -8187,7 +8187,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
                       <button 
                         onClick={() => setActiveTab("sosanh")}
-                        className="text-left bg-amber-50/95 hover:bg-white border-2 border-amber-200 hover:border-amber-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-[0_2px_12px_rgba(245,158,11,0.15)] group/btn"
+                        className="text-left bg-amber-50/95 hover:bg-white border-2 border-amber-250 hover:border-amber-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-sm group/btn"
                       >
                         <div className="p-1.5 bg-amber-600 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
                           <ArrowLeftRight className="w-4 h-4" />
@@ -8202,18 +8202,18 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                     {/* VIRTUAL CONFERENCE / COLLABORATION VIDEO ROOM */}
                     <button 
                       onClick={() => setActiveTab("videoroom")}
-                      className="w-full text-left bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 border-2 border-purple-300 hover:border-white rounded-2xl p-3 transition-all hover:scale-[1.02] cursor-pointer text-center group shadow-[0_0_20px_rgba(139,92,246,0.4)] relative overflow-hidden"
+                      className="w-full text-left bg-gradient-to-r from-violet-50 to-indigo-50 border-2 border-purple-200 hover:border-purple-400 rounded-2xl p-3 transition-all hover:scale-[1.02] cursor-pointer text-center group shadow-sm relative overflow-hidden"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                      <div className="text-xs font-black text-white uppercase tracking-wider flex items-center justify-center gap-2">
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-100/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="text-xs font-black text-purple-950 uppercase tracking-wider flex items-center justify-center gap-2">
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
                         </span>
-                        <Video className="w-4.5 h-4.5 text-white animate-pulse" />
+                        <Video className="w-4.5 h-4.5 text-purple-650 animate-pulse" />
                         PHÒNG HỌP TRỰC TUYẾN 
                       </div>
-                      <p className="text-[10px] text-purple-100 mt-1 leading-normal font-semibold">
+                      <p className="text-[10px] text-slate-600 mt-1 leading-normal font-medium">
                         Hội ý trực tuyến, duyệt biểu mẫu &amp; đối thoại xử lý bất cập số liệu.
                       </p>
                       <span className="inline-block mt-1 text-[8px] font-black tracking-widest text-white bg-red-500/90 px-2 py-0.2 rounded-full uppercase border border-white/20 animate-pulse">
@@ -8224,13 +8224,13 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                     {/* ĐẦU RA SẠCH */}
                     <button 
                       onClick={() => setActiveTab("tonghop")}
-                      className="w-full text-left bg-gradient-to-r from-emerald-950 to-indigo-950 border border-emerald-500/40 hover:border-emerald-400 rounded-xl p-3 transition-all cursor-pointer text-center group"
+                      className="w-full text-left bg-white hover:bg-emerald-50/40 border-2 border-emerald-200 hover:border-emerald-400 rounded-xl p-3 transition-all cursor-pointer text-center group shadow-sm"
                     >
-                      <div className="text-xs font-black text-white uppercase tracking-wider flex items-center justify-center gap-1.5">
-                        <BarChart3 className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                      <div className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-center gap-1.5">
+                        <BarChart3 className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
                         KẾT QUẢ: BIỂU TỔNG HỢP SẠCH
                       </div>
-                      <p className="text-[9.5px] text-slate-300 mt-1 leading-normal font-medium">
+                      <p className="text-[9.5px] text-slate-600 mt-1 leading-normal font-medium">
                         Tích hợp phân tích dữ liệu chuẩn mực, an toàn và sẵn sàng báo cáo.
                       </p>
                     </button>

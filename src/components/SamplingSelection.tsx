@@ -723,19 +723,19 @@ export default function SamplingSelection({
   return (
     <div className="space-y-8 animate-fade-in font-sans text-slate-800">
       
-      {/* HEADER BANNER CARD */}
-      <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+      {/* HEADER BANNER CARD - LIGHT MODE STYLE */}
+      <div className="bg-gradient-to-r from-indigo-50 via-sky-50 to-emerald-50/50 border-2 border-indigo-100 text-slate-800 rounded-3xl p-6 shadow-md relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
         <div className="relative z-10 space-y-2">
-          <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full border border-indigo-500/30">
+          <span className="bg-indigo-100 text-indigo-700 text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full border border-indigo-200">
             🖥️ PHÂN HỆ KHẢO SÁT CHUYÊN BIỆT
           </span>
-          <h2 className="text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
-            <FileCheck className="w-6.5 h-6.5 text-indigo-400" /> BỘ ĐIỀU CHỈNH CHỌN MẪU SONG SONG
+          <h2 className="text-2xl font-black tracking-tight text-indigo-950 flex items-center gap-2.5">
+            <FileCheck className="w-6.5 h-6.5 text-indigo-600" /> BỘ ĐIỀU CHỈNH CHỌN MẪU SONG SONG
           </h2>
-          <p className="text-xs text-slate-300 max-w-4xl leading-relaxed">
+          <p className="text-xs text-slate-650 max-w-4xl leading-relaxed">
             Hệ thống rà soát và tạo mẫu điều tra độc lập cho cả hai phân hệ <b>Doanh nghiệp</b> & <b>Hộ cá thể</b> đồng thời. 
-            <span className="text-emerald-400 font-bold ml-1">Quy tắc tuyệt đối: Không tự động gán trước bất cứ cột nào</span>, người dùng chỉ định thủ công các vai trò cột để đảm bảo độ tin cậy tuyệt đối 100%.
+            <span className="text-emerald-700 font-extrabold ml-1">Quy tắc tuyệt đối: Không tự động gán trước bất cứ cột nào</span>, người dùng chỉ định thủ công các vai trò cột để đảm bảo độ tin cậy tuyệt đối 100%.
           </p>
         </div>
       </div>
