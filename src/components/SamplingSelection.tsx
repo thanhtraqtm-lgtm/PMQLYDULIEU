@@ -95,6 +95,9 @@ export default function SamplingSelection({
   const [corpSearchTerm, setCorpSearchTerm] = useState<string>("");
   const [indSearchTerm, setIndSearchTerm] = useState<string>("");
 
+  const [corpShowFilter, setCorpShowFilter] = useState<"all" | "selected" | "backup">("all");
+  const [indShowFilter, setIndShowFilter] = useState<"all" | "selected" | "backup">("all");
+
   // --- FINAL CALCULATED RESULTS ---
   const [corpSelectedList, setCorpSelectedList] = useState<any[]>([]);
   const [corpBackupList, setCorpBackupList] = useState<any[]>([]);
@@ -603,109 +606,119 @@ export default function SamplingSelection({
   };
 
   // --- EXPORT DOWNLOAD HANDLERS ---
-  const handleExportCSV = (type: "corp" | "ind") => {
+  const handleExportExcel = (type: "corp" | "ind") => {
     try {
       const isCorp = type === "corp";
       const selectedList = isCorp ? corpSelectedList : indSelectedList;
       const backupList = isCorp ? corpBackupList : indBackupList;
-      const groupStats = isCorp ? corpGroupStats : indGroupStats;
+      const originalCols = isCorp ? corpColumns : indColumns;
 
-      if (selectedList.length === 0) {
+      if (selectedList.length === 0 && backupList.length === 0) {
         alert("⚠️ Chưa có danh sách mẫu đã lọc để xuất tệp tin! Vui lòng thực hiện lọc trước.");
         return;
       }
 
-      const headers = [
-        "Mã định danh/MST",
-        "Tên cơ sở/đơn vị",
-        "Mã địa bàn xã/phường",
-        "Mã ngành VSIC",
-        "Mã ngành Cấp 2",
-        "Tên ngành Cấp 2",
-        "Doanh thu / Sản lượng",
-        "Phân loại",
-        "Trạng thái chọn mẫu"
-      ];
+      setLoading(true);
+      setStatusMessage(`Đang đóng gói và xuất tệp Excel ${isCorp ? "Doanh nghiệp" : "Hộ cá thể"}...`);
 
-      const csvRows: string[][] = [];
+      setTimeout(() => {
+        try {
+          const dataToExport: any[] = [];
 
-      // Add selected official samples
-      selectedList.forEach(item => {
-        const vsicL2Name = vsicRawData[item.vsicL2] || `Ngành cấp 2 (${item.vsicL2})`;
-        csvRows.push([
-          item.id,
-          item.name,
-          item.xaCode,
-          item.vsicFull,
-          item.vsicL2,
-          vsicL2Name,
-          String(item.revenue),
-          isCorp ? "Doanh nghiệp" : "Hộ cá thể",
-          "Mẫu chính thức"
-        ]);
-      });
+          // 1. Add selected (Mẫu chính thức)
+          selectedList.forEach(item => {
+            const rowObj: Record<string, any> = {};
+            rowObj["Trạng thái chọn mẫu"] = "Mẫu chính thức";
+            rowObj["Phân loại"] = isCorp ? "Doanh nghiệp" : "Hộ cá thể";
+            rowObj["Mã ngành Cấp 2"] = item.vsicL2;
+            rowObj["Tên ngành Cấp 2"] = vsicRawData[item.vsicL2] || `Ngành cấp 2 (${item.vsicL2})`;
 
-      // Add backup samples
-      backupList.forEach(item => {
-        const vsicL2Name = vsicRawData[item.vsicL2] || `Ngành cấp 2 (${item.vsicL2})`;
-        csvRows.push([
-          item.id,
-          item.name,
-          item.xaCode,
-          item.vsicFull,
-          item.vsicL2,
-          vsicL2Name,
-          String(item.revenue),
-          isCorp ? "Doanh nghiệp" : "Hộ cá thể",
-          "Mẫu dự phòng"
-        ]);
-      });
+            originalCols.forEach(col => {
+              rowObj[col] = item.originalRow ? item.originalRow[col] : "";
+            });
+            dataToExport.push(rowObj);
+          });
 
-      // Encode CSV content
-      const headers_escaped = headers.map(h => `"${h}"`);
-      let csvContent = "\uFEFF"; // BOM for UTF-8
-      csvContent += headers_escaped.join(",") + "\n";
+          // 2. Add backup (Mẫu dự phòng)
+          backupList.forEach(item => {
+            const rowObj: Record<string, any> = {};
+            rowObj["Trạng thái chọn mẫu"] = "Mẫu dự phòng";
+            rowObj["Phân loại"] = isCorp ? "Doanh nghiệp" : "Hộ cá thể";
+            rowObj["Mã ngành Cấp 2"] = item.vsicL2;
+            rowObj["Tên ngành Cấp 2"] = vsicRawData[item.vsicL2] || `Ngành cấp 2 (${item.vsicL2})`;
 
-      csvRows.forEach(r => {
-        const escaped = r.map(v => `"${String(v).replace(/"/g, '""')}"`);
-        csvContent += escaped.join(",") + "\n";
-      });
+            originalCols.forEach(col => {
+              rowObj[col] = item.originalRow ? item.originalRow[col] : "";
+            });
+            dataToExport.push(rowObj);
+          });
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `Mau_Khao_Sat_${isCorp ? "Doanh_Nghiep" : "Ho_Ca_The"}_${new Date().toISOString().slice(0, 10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+          const ws = XLSX.utils.json_to_sheet(dataToExport);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, isCorp ? "Mau_Doanh_Nghiep" : "Mau_Ho_Ca_The");
+
+          const fileName = `Mau_Khao_Sat_${isCorp ? "Doanh_Nghiep" : "Ho_Ca_The"}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+          XLSX.writeFile(wb, fileName);
+
+          setStatusMessage(`Đã xuất thành công tệp Excel: ${fileName}`);
+        } catch (innerErr: any) {
+          alert("Lỗi khi tạo tệp Excel: " + innerErr.message);
+        } finally {
+          setLoading(false);
+        }
+      }, 100);
     } catch (err: any) {
-      alert("Lỗi khi xuất tệp tin CSV: " + err.message);
+      alert("Lỗi khi xuất Excel: " + err.message);
+      setLoading(false);
     }
   };
 
-  // Filter lists based on users search inputs
+  // Filter lists based on user search inputs and active status filter
   const displayedCorpList = useMemo(() => {
-    if (!corpSearchTerm) return corpSelectedList.slice(0, 50);
+    let baseList: any[] = [];
+    if (corpShowFilter === "all") {
+      baseList = [
+        ...corpSelectedList.map(item => ({ ...item, isBackup: false })),
+        ...corpBackupList.map(item => ({ ...item, isBackup: true }))
+      ];
+    } else if (corpShowFilter === "selected") {
+      baseList = corpSelectedList.map(item => ({ ...item, isBackup: false }));
+    } else {
+      baseList = corpBackupList.map(item => ({ ...item, isBackup: true }));
+    }
+
+    if (!corpSearchTerm) return baseList.slice(0, 100);
     const term = corpSearchTerm.toLowerCase();
-    return corpSelectedList.filter(item => 
+    return baseList.filter(item => 
       item.id.toLowerCase().includes(term) ||
       item.name.toLowerCase().includes(term) ||
       item.vsicFull.toLowerCase().includes(term) ||
       item.xaCode.toLowerCase().includes(term)
-    ).slice(0, 50);
-  }, [corpSelectedList, corpSearchTerm]);
+    ).slice(0, 100);
+  }, [corpSelectedList, corpBackupList, corpSearchTerm, corpShowFilter]);
 
   const displayedIndList = useMemo(() => {
-    if (!indSearchTerm) return indSelectedList.slice(0, 50);
+    let baseList: any[] = [];
+    if (indShowFilter === "all") {
+      baseList = [
+        ...indSelectedList.map(item => ({ ...item, isBackup: false })),
+        ...indBackupList.map(item => ({ ...item, isBackup: true }))
+      ];
+    } else if (indShowFilter === "selected") {
+      baseList = indSelectedList.map(item => ({ ...item, isBackup: false }));
+    } else {
+      baseList = indBackupList.map(item => ({ ...item, isBackup: true }));
+    }
+
+    if (!indSearchTerm) return baseList.slice(0, 100);
     const term = indSearchTerm.toLowerCase();
-    return indSelectedList.filter(item => 
+    return baseList.filter(item => 
       item.id.toLowerCase().includes(term) ||
       item.name.toLowerCase().includes(term) ||
       item.vsicFull.toLowerCase().includes(term) ||
       item.xaCode.toLowerCase().includes(term)
-    ).slice(0, 50);
-  }, [indSelectedList, indSearchTerm]);
+    ).slice(0, 100);
+  }, [indSelectedList, indBackupList, indSearchTerm, indShowFilter]);
 
   return (
     <div className="space-y-8 animate-fade-in font-sans text-slate-800">
@@ -1003,68 +1016,110 @@ export default function SamplingSelection({
 
             {/* RESULT COMPARTMENT FOR ENTERPRISE */}
             {corpHasFiltered ? (
-              <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4.5 space-y-4.5 animate-scale-in text-xs font-sans">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-emerald-950 flex items-center gap-1.5 uppercase">
-                    <Check className="w-4 h-4 text-emerald-600" /> Kết quả mẫu Doanh nghiệp
+              <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4.5 space-y-4 animate-scale-in text-xs font-sans">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-150 pb-3">
+                  <span className="font-black text-emerald-950 flex items-center gap-1.5 uppercase tracking-wide">
+                    <Check className="w-4 h-4 text-emerald-600" /> Kết quả chọn mẫu Doanh nghiệp
                   </span>
                   <button
                     type="button"
-                    onClick={() => handleExportCSV("corp")}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[10.5px] transition-all flex items-center gap-1 cursor-pointer"
+                    onClick={() => handleExportExcel("corp")}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3.5 py-2 rounded-xl text-[10.5px] tracking-wide transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/10 active:scale-95 shrink-0"
                   >
-                    <Download className="w-3.5 h-3.5" /> Tải về CSV
+                    <Download className="w-3.5 h-3.5" /> Xuất Excel (.xlsx)
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-center">
                   <div className="bg-white border border-emerald-100 p-3 rounded-xl shadow-sm">
-                    <span className="block text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">MẪU CHÍNH THỨC</span>
+                    <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">MẪU CHÍNH THỨC</span>
                     <span className="block text-xl font-black text-emerald-600 font-mono mt-0.5">{corpSelectedList.length}</span>
                   </div>
                   <div className="bg-white border border-emerald-100 p-3 rounded-xl shadow-sm">
-                    <span className="block text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">MẪU DỰ PHÒNG</span>
+                    <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">MẪU DỰ PHÒNG</span>
                     <span className="block text-xl font-black text-orange-500 font-mono mt-0.5">{corpBackupList.length}</span>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                    <input
-                      type="text"
-                      placeholder="Tìm MST, tên doanh nghiệp..."
-                      value={corpSearchTerm}
-                      onChange={(e) => setCorpSearchTerm(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-inner"
-                    />
+                {/* FILTERS AND SEARCH */}
+                <div className="space-y-3 pt-1">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    {/* Select filter status */}
+                    <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-inner shrink-0">
+                      {(["all", "selected", "backup"] as const).map(f => {
+                        const labelMap = { all: "Tất cả", selected: "Chính thức", backup: "Dự phòng" };
+                        return (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setCorpShowFilter(f)}
+                            className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                              corpShowFilter === f
+                                ? "bg-indigo-600 text-white shadow-sm"
+                                : "text-slate-600 hover:bg-slate-100"
+                            }`}
+                          >
+                            {labelMap[f]}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="relative flex-1">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Tìm kiếm trong danh sách mẫu..."
+                        value={corpSearchTerm}
+                        onChange={(e) => setCorpSearchTerm(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-inner font-sans"
+                      />
+                    </div>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-100 rounded-lg">
-                    <table className="w-full text-left text-[10px] text-slate-700">
+                  {/* HIGH FIDELITY TABLE PRESERVING ORIGINAL COLUMNS */}
+                  <div className="overflow-auto border border-slate-200/80 rounded-xl shadow-inner max-h-[350px] relative custom-scrollbar bg-white">
+                    <table className="w-full text-left text-[11px] text-slate-700 border-collapse">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100">
-                          <th className="p-2 font-bold uppercase">ID/MST</th>
-                          <th className="p-2 font-bold uppercase">Tên Doanh nghiệp</th>
-                          <th className="p-2 font-bold uppercase">Mã Xã</th>
-                          <th className="p-2 font-bold uppercase">Mã Ngành</th>
-                          <th className="p-2 font-bold text-right uppercase">Doanh thu</th>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-[10px] font-extrabold text-slate-600 uppercase sticky top-0 z-20">
+                          <th className="p-2.5 bg-slate-100 border-r border-slate-200 sticky left-0 z-30 shadow-sm text-center whitespace-nowrap min-w-[100px]">Trạng thái mẫu</th>
+                          {corpColumns.map(col => (
+                            <th key={col} className="p-2.5 border-r border-slate-200 whitespace-nowrap bg-slate-100">{col}</th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
                         {displayedCorpList.map((item, idx) => (
-                          <tr key={idx} className="border-b border-slate-50 hover:bg-emerald-50/20">
-                            <td className="p-2 font-mono font-semibold text-slate-900">{item.id}</td>
-                            <td className="p-2 truncate max-w-[140px]" title={item.name}>{item.name}</td>
-                            <td className="p-2 text-slate-500">{item.xaCode}</td>
-                            <td className="p-2 font-mono text-indigo-700 font-bold">{item.vsicFull}</td>
-                            <td className="p-2 text-right font-mono text-emerald-700 font-bold">{item.revenue.toLocaleString()}</td>
+                          <tr key={idx} className="border-b border-slate-150 hover:bg-emerald-50/20 transition-all text-[11px]">
+                            <td className="p-2 border-r border-slate-200 sticky left-0 bg-white z-10 text-center shadow-sm">
+                              {item.isBackup ? (
+                                <span className="bg-amber-100 text-amber-800 border border-amber-200 font-extrabold px-2 py-0.5 rounded text-[9px] uppercase tracking-wide">Dự phòng</span>
+                              ) : (
+                                <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 font-extrabold px-2 py-0.5 rounded text-[9px] uppercase tracking-wide">Chính thức</span>
+                              )}
+                            </td>
+                            {corpColumns.map(col => {
+                              const rawVal = item.originalRow ? item.originalRow[col] : "";
+                              const isNumeric = typeof rawVal === "number";
+                              return (
+                                <td key={col} className={`p-2 border-r border-slate-150 whitespace-nowrap font-sans ${isNumeric ? "text-right font-mono text-indigo-700 font-semibold" : "text-left text-slate-800"}`} title={String(rawVal ?? "")}>
+                                  {isNumeric ? rawVal.toLocaleString() : String(rawVal ?? "")}
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))}
+                        {displayedCorpList.length === 0 && (
+                          <tr>
+                            <td colSpan={corpColumns.length + 1} className="p-8 text-center text-slate-400 italic font-medium bg-slate-50/50">
+                              Không tìm thấy dòng mẫu phù hợp với từ khóa tìm kiếm.
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-[10px] text-slate-400 italic text-center">Hiển thị tối đa 50 dòng kết quả đầu tiên.</p>
+                  <p className="text-[10px] text-slate-400 italic text-center">Hiển thị tối đa 100 dòng kết quả đầu tiên. Xuất file Excel để nhận toàn bộ dữ liệu mẫu.</p>
                 </div>
               </div>
             ) : (
@@ -1430,68 +1485,110 @@ export default function SamplingSelection({
 
             {/* RESULT COMPARTMENT FOR HOUSEHOLD */}
             {indHasFiltered ? (
-              <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4.5 space-y-4.5 animate-scale-in text-xs font-sans">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-emerald-950 flex items-center gap-1.5 uppercase">
-                    <Check className="w-4 h-4 text-emerald-600" /> Kết quả mẫu Hộ cá thể
+              <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4.5 space-y-4 animate-scale-in text-xs font-sans">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-150 pb-3">
+                  <span className="font-black text-emerald-950 flex items-center gap-1.5 uppercase tracking-wide">
+                    <Check className="w-4 h-4 text-emerald-600" /> Kết quả chọn mẫu Hộ cá thể
                   </span>
                   <button
                     type="button"
-                    onClick={() => handleExportCSV("ind")}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[10.5px] transition-all flex items-center gap-1 cursor-pointer"
+                    onClick={() => handleExportExcel("ind")}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3.5 py-2 rounded-xl text-[10.5px] tracking-wide transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/10 active:scale-95 shrink-0"
                   >
-                    <Download className="w-3.5 h-3.5" /> Tải về CSV
+                    <Download className="w-3.5 h-3.5" /> Xuất Excel (.xlsx)
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-center">
                   <div className="bg-white border border-emerald-100 p-3 rounded-xl shadow-sm">
-                    <span className="block text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">MẪU CHÍNH THỨC</span>
+                    <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">MẪU CHÍNH THỨC</span>
                     <span className="block text-xl font-black text-emerald-600 font-mono mt-0.5">{indSelectedList.length}</span>
                   </div>
                   <div className="bg-white border border-emerald-100 p-3 rounded-xl shadow-sm">
-                    <span className="block text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">MẪU DỰ PHÒNG</span>
+                    <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">MẪU DỰ PHÒNG</span>
                     <span className="block text-xl font-black text-orange-500 font-mono mt-0.5">{indBackupList.length}</span>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                    <input
-                      type="text"
-                      placeholder="Tìm ID, tên chủ hộ..."
-                      value={indSearchTerm}
-                      onChange={(e) => setIndSearchTerm(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-inner"
-                    />
+                {/* FILTERS AND SEARCH */}
+                <div className="space-y-3 pt-1">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    {/* Select filter status */}
+                    <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-inner shrink-0">
+                      {(["all", "selected", "backup"] as const).map(f => {
+                        const labelMap = { all: "Tất cả", selected: "Chính thức", backup: "Dự phòng" };
+                        return (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setIndShowFilter(f)}
+                            className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                              indShowFilter === f
+                                ? "bg-indigo-600 text-white shadow-sm"
+                                : "text-slate-600 hover:bg-slate-100"
+                            }`}
+                          >
+                            {labelMap[f]}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="relative flex-1">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Tìm kiếm trong danh sách mẫu..."
+                        value={indSearchTerm}
+                        onChange={(e) => setIndSearchTerm(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-inner font-sans"
+                      />
+                    </div>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-100 rounded-lg">
-                    <table className="w-full text-left text-[10px] text-slate-700">
+                  {/* HIGH FIDELITY TABLE PRESERVING ORIGINAL COLUMNS */}
+                  <div className="overflow-auto border border-slate-200/80 rounded-xl shadow-inner max-h-[350px] relative custom-scrollbar bg-white">
+                    <table className="w-full text-left text-[11px] text-slate-700 border-collapse">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100">
-                          <th className="p-2 font-bold uppercase">ID</th>
-                          <th className="p-2 font-bold uppercase">Chủ hộ</th>
-                          <th className="p-2 font-bold uppercase">Mã Xã</th>
-                          <th className="p-2 font-bold uppercase">Mã Ngành</th>
-                          <th className="p-2 font-bold text-right uppercase">Doanh thu</th>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-[10px] font-extrabold text-slate-600 uppercase sticky top-0 z-20">
+                          <th className="p-2.5 bg-slate-100 border-r border-slate-200 sticky left-0 z-30 shadow-sm text-center whitespace-nowrap min-w-[100px]">Trạng thái mẫu</th>
+                          {indColumns.map(col => (
+                            <th key={col} className="p-2.5 border-r border-slate-200 whitespace-nowrap bg-slate-100">{col}</th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
                         {displayedIndList.map((item, idx) => (
-                          <tr key={idx} className="border-b border-slate-50 hover:bg-emerald-50/20">
-                            <td className="p-2 font-mono font-semibold text-slate-900">{item.id}</td>
-                            <td className="p-2 truncate max-w-[140px]" title={item.name}>{item.name}</td>
-                            <td className="p-2 text-slate-500">{item.xaCode}</td>
-                            <td className="p-2 font-mono text-amber-700 font-bold">{item.vsicFull}</td>
-                            <td className="p-2 text-right font-mono text-emerald-700 font-bold">{item.revenue.toLocaleString()}</td>
+                          <tr key={idx} className="border-b border-slate-150 hover:bg-emerald-50/20 transition-all text-[11px]">
+                            <td className="p-2 border-r border-slate-200 sticky left-0 bg-white z-10 text-center shadow-sm">
+                              {item.isBackup ? (
+                                <span className="bg-amber-100 text-amber-800 border border-amber-200 font-extrabold px-2 py-0.5 rounded text-[9px] uppercase tracking-wide">Dự phòng</span>
+                              ) : (
+                                <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 font-extrabold px-2 py-0.5 rounded text-[9px] uppercase tracking-wide">Chính thức</span>
+                              )}
+                            </td>
+                            {indColumns.map(col => {
+                              const rawVal = item.originalRow ? item.originalRow[col] : "";
+                              const isNumeric = typeof rawVal === "number";
+                              return (
+                                <td key={col} className={`p-2 border-r border-slate-150 whitespace-nowrap font-sans ${isNumeric ? "text-right font-mono text-indigo-700 font-semibold" : "text-left text-slate-800"}`} title={String(rawVal ?? "")}>
+                                  {isNumeric ? rawVal.toLocaleString() : String(rawVal ?? "")}
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))}
+                        {displayedIndList.length === 0 && (
+                          <tr>
+                            <td colSpan={indColumns.length + 1} className="p-8 text-center text-slate-400 italic font-medium bg-slate-50/50">
+                              Không tìm thấy dòng mẫu phù hợp với từ khóa tìm kiếm.
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-[10px] text-slate-400 italic text-center">Hiển thị tối đa 50 dòng kết quả đầu tiên.</p>
+                  <p className="text-[10px] text-slate-400 italic text-center">Hiển thị tối đa 100 dòng kết quả đầu tiên. Xuất file Excel để nhận toàn bộ dữ liệu mẫu.</p>
                 </div>
               </div>
             ) : (
