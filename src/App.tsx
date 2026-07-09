@@ -4371,6 +4371,8 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
         const firstRow = targetData[0] || {};
         const detectedNumericCols = targetColumns.filter(col => {
           if (col === targetManganh || col === targetXa) return false;
+          const isIdOrCode = /mã|mst|code|id|phone|đt|điện\s*thoại|tel|fax|stt|index|key|serial|no\./i.test(col);
+          if (isIdOrCode) return false;
           const val = String(firstRow[col] || "");
           return val && !isNaN(parseFloat(val.replace(/[^0-9.\-]/g, "")));
         });
@@ -9558,8 +9560,12 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                                   const val = String(firstRow[col] || "");
                                   return val && !isNaN(parseFloat(val.replace(/[^0-9.\-]/g, "")));
                                 });
-                                const cleanNumerics = numericCols.filter(col => col !== quickReportManganhCol && col !== quickReportXaCol);
-                                setQuickReportSumCols(cleanNumerics.length > 0 ? cleanNumerics : currentFile.columns.slice(0, 5));
+                                const cleanNumerics = numericCols.filter(col => {
+                                  const isManganhOrXa = col === quickReportManganhCol || col === quickReportXaCol;
+                                  const isIdOrCode = /mã|mst|code|id|phone|đt|điện\s*thoại|tel|fax|stt|index|key|serial|no\./i.test(col);
+                                  return !isManganhOrXa && !isIdOrCode;
+                                });
+                                setQuickReportSumCols(cleanNumerics.length > 0 ? cleanNumerics : currentFile.columns.slice(0, 5).filter(col => !/mã|mst|code|id|phone|đt|điện\s*thoại|tel|fax|stt|index|key|serial|no\./i.test(col)));
                               }}
                               className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded px-2 py-1 text-[10px] font-bold cursor-pointer transition-all active:scale-95"
                             >
@@ -9579,28 +9585,36 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         <div className="bg-white border border-slate-200 rounded-xl p-3 max-h-[160px] overflow-y-auto grid grid-cols-2 md:grid-cols-4 gap-2 shadow-inner">
                           {(allAvailableFiles.find(f => f.id === selectedFileIdToAggregate) || allAvailableFiles[0])?.columns.map(col => {
                             const isChecked = quickReportSumCols.includes(col);
+                            const isIdOrCode = /mã|mst|code|id|phone|đt|điện\s*thoại|tel|fax|stt|index|key|serial|no\./i.test(col);
                             return (
                               <label 
                                 key={col} 
-                                className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                                className={`flex items-center justify-between gap-1.5 p-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
                                   isChecked 
                                     ? "bg-indigo-50 border-indigo-300 text-indigo-800 font-semibold" 
                                     : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                                 }`}
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    if (isChecked) {
-                                      setQuickReportSumCols(prev => prev.filter(c => c !== col));
-                                    } else {
-                                      setQuickReportSumCols(prev => [...prev, col]);
-                                    }
-                                  }}
-                                  className="rounded text-indigo-600 focus:ring-indigo-500 bg-white border-slate-300 w-3.5 h-3.5"
-                                />
-                                <span className="truncate" title={col}>{col}</span>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      if (isChecked) {
+                                        setQuickReportSumCols(prev => prev.filter(c => c !== col));
+                                      } else {
+                                        setQuickReportSumCols(prev => [...prev, col]);
+                                      }
+                                    }}
+                                    className="rounded text-indigo-600 focus:ring-indigo-500 bg-white border-slate-300 w-3.5 h-3.5 shrink-0"
+                                  />
+                                  <span className="truncate" title={col}>{col}</span>
+                                </div>
+                                {isIdOrCode && (
+                                  <span className="text-[8px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold font-sans shrink-0" title="Mã số/ID thường không phù hợp để tính tổng cộng">
+                                    ⚠️ Mã/ID
+                                  </span>
+                                )}
                               </label>
                             );
                           })}

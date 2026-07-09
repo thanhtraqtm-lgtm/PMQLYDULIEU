@@ -1,6 +1,19 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Eye, EyeOff, Download, ChevronRight, ChevronDown, CheckCircle, Settings, Edit, Columns } from "lucide-react";
 
+export function formatNumberVi(val: any): string {
+  const num = typeof val === "number" ? val : parseFloat(String(val).replace(/[^0-9.\-eE+]/g, "")) || 0;
+  if (isNaN(num)) return "0";
+  if (!isFinite(num)) return "∞";
+  
+  // Nếu là số cực lớn (lớn hơn 10^12), hiển thị dạng số khoa học kèm cảnh báo để phát hiện MST/SĐT bị cộng nhầm
+  if (Math.abs(num) > 1e12) {
+    return num.toExponential(4) + " (⚠️ Số cực lớn)";
+  }
+  
+  return num.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+}
+
 interface BeautifulReportTableProps {
   rows: any[];
   cols: string[];
@@ -115,11 +128,15 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
     
     localRows.forEach((row) => {
       if (reportType === "pivot") {
-        grandDN += row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"] ?? 0;
+        const dnRaw = row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"] ?? 0;
+        const dnVal = typeof dnRaw === "number" ? dnRaw : parseFloat(String(dnRaw).replace(/[^0-9.\-]/g, "")) || 0;
+        grandDN += isNaN(dnVal) ? 0 : dnVal;
         
         pivotAnalysis.indicators.forEach((ind) => {
           if (totalsByIndicator[ind] === undefined) totalsByIndicator[ind] = 0;
-          totalsByIndicator[ind] += row[`Tổng_Cộng_${ind}_Toàn_Xã`] ?? row[`Tổng_Cộng_Toàn_Xã_${ind}`] ?? 0;
+          const rawVal = row[`Tổng_Cộng_${ind}_Toàn_Xã`] ?? row[`Tổng_Cộng_Toàn_Xã_${ind}`] ?? 0;
+          const val = typeof rawVal === "number" ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.\-]/g, "")) || 0;
+          totalsByIndicator[ind] += isNaN(val) ? 0 : val;
         });
 
         pivotAnalysis.sectors.forEach((sector) => {
@@ -128,17 +145,23 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
           }
           pivotAnalysis.indicators.forEach((ind) => {
             if (sectorStats[sector][ind] === undefined) sectorStats[sector][ind] = 0;
-            sectorStats[sector][ind] += row[`${sector} - Tổng ${ind}`] || 0;
+            const rawVal = row[`${sector} - Tổng ${ind}`] ?? 0;
+            const val = typeof rawVal === "number" ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.\-]/g, "")) || 0;
+            sectorStats[sector][ind] += isNaN(val) ? 0 : val;
           });
         });
       } else {
         // Flat mode
-        grandDN += row["Số_Lượng_Bản_Ghi"] ?? row["Số_Lượng_Doanh_Nghiệp"] ?? 0;
+        const dnRaw = row["Số_Lượng_Bản_Ghi"] ?? row["Số_Lượng_Doanh_Nghiệp"] ?? 0;
+        const dnVal = typeof dnRaw === "number" ? dnRaw : parseFloat(String(dnRaw).replace(/[^0-9.\-]/g, "")) || 0;
+        grandDN += isNaN(dnVal) ? 0 : dnVal;
         cols.forEach((col) => {
           if (col.startsWith("Tổng_")) {
             const ind = col.replace("Tổng_", "");
             if (totalsByIndicator[ind] === undefined) totalsByIndicator[ind] = 0;
-            totalsByIndicator[ind] += row[col] || 0;
+            const rawVal = row[col] ?? 0;
+            const val = typeof rawVal === "number" ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.\-]/g, "")) || 0;
+            totalsByIndicator[ind] += isNaN(val) ? 0 : val;
           }
         });
       }
@@ -168,8 +191,9 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
             let sum = 0;
             pivotAnalysis.sectors.forEach(sec => {
               const key = `${sec} - Tổng ${ind}`;
-              const v = key === field ? numericVal : (row[key] || 0);
-              sum += v;
+              const rawV = key === field ? numericVal : (row[key] || 0);
+              const v = typeof rawV === "number" ? rawV : parseFloat(String(rawV).replace(/[^0-9.\-]/g, "")) || 0;
+              sum += isNaN(v) ? 0 : v;
             });
             row[`Tổng_Cộng_${ind}_Toàn_Xã`] = Math.round(sum * 100) / 100;
             row[`Tổng_Cộng_Toàn_Xã_${ind}`] = Math.round(sum * 100) / 100;
@@ -400,7 +424,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                 {idx === 0 ? "💰" : "👥"} TỔNG CỘNG: {ind}
               </div>
               <div className="text-lg font-black text-slate-900 mt-0.5 font-mono">
-                {totalVal.toLocaleString("vi-VN")} <span className="text-xs font-normal text-slate-500 font-sans">tổng cộng</span>
+                {formatNumberVi(totalVal)} <span className="text-xs font-normal text-slate-500 font-sans">tổng cộng</span>
               </div>
               <div className="text-[10px] text-slate-500">Tổng quy nạp lũy kế trên toàn bộ {localRows.length} địa bàn</div>
             </div>
@@ -429,7 +453,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
             🏢 TỔNG LƯỢNG MẪU NGUỒN
           </div>
           <div className="text-lg font-black text-slate-900 mt-0.5 font-mono">
-            {overallTotals.dn.toLocaleString("vi-VN")} <span className="text-xs font-normal text-slate-500 font-sans">cơ sở/dòng d.liệu</span>
+            {formatNumberVi(overallTotals.dn)} <span className="text-xs font-normal text-slate-500 font-sans">cơ sở/dòng d.liệu</span>
           </div>
           <div className="text-[10px] text-slate-500">Ghi nhận đại diện cho các địa bàn đã nạp</div>
         </div>
@@ -608,7 +632,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                                         <div className="flex justify-between text-xs text-slate-700">
                                           <span>🏢 Số dòng mẫu:</span>
                                           <strong className="text-cyan-700 font-mono">
-                                            {(row["Số_Dòng_Tổng_Hợp"] ?? 0).toLocaleString()} / {overallTotals.dn.toLocaleString()} dòng ({overallTotals.dn > 0 ? (((row["Số_Dòng_Tổng_Hợp"] ?? 0) / overallTotals.dn) * 100).toFixed(2) : 0}%)
+                                            {formatNumberVi(row["Số_Dòng_Tổng_Hợp"] ?? 0)} / {formatNumberVi(overallTotals.dn)} dòng ({overallTotals.dn > 0 ? (((row["Số_Dòng_Tổng_Hợp"] ?? 0) / overallTotals.dn) * 100).toFixed(2) : 0}%)
                                           </strong>
                                         </div>
                                         <div className="bg-slate-100 h-1 rounded overflow-hidden">
@@ -626,7 +650,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                                             <div className="flex justify-between text-xs text-slate-700">
                                               <span>📊 Chỉ tiêu {ind}:</span>
                                               <strong className="text-emerald-700 font-mono">
-                                                {totVal.toLocaleString("vi-VN")} ({pct.toFixed(2)}%)
+                                                {formatNumberVi(totVal)} ({pct.toFixed(2)}%)
                                               </strong>
                                             </div>
                                             <div className="bg-slate-100 h-1 rounded overflow-hidden">
@@ -664,7 +688,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                                               return (
                                                 <div key={ind} className="bg-slate-50 p-1.5 rounded border border-slate-200 font-mono">
                                                   <span className="text-slate-500 block text-[9px] uppercase">{ind}:</span>
-                                                  <strong className="text-emerald-700 font-bold block">{val.toLocaleString("vi-VN")}</strong>
+                                                  <strong className="text-emerald-700 font-bold block">{formatNumberVi(val)}</strong>
                                                   <span className="text-slate-450 block text-[8px] mt-0.5">
                                                     Nhóm: {propOfCommune.toFixed(1)}% xã / {propOfGrand.toFixed(2)}% tổng
                                                   </span>
@@ -705,7 +729,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                           const sumVal = overallTotals.sectorStats[sector]?.[ind] || 0;
                           return (
                             <td key={ind} className="p-2.5 text-right border-r border-slate-200 bg-emerald-50/35 text-emerald-800 font-bold font-mono">
-                              {sumVal > 0 ? sumVal.toLocaleString("vi-VN") : "—"}
+                              {sumVal > 0 ? formatNumberVi(sumVal) : "—"}
                             </td>
                           );
                         })}
@@ -713,13 +737,13 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                     );
                   })}
                   <td className="p-2.5 text-right font-bold text-teal-800 border-r border-slate-200 bg-teal-50/40">
-                    {overallTotals.dn.toLocaleString("vi-VN")}
+                    {formatNumberVi(overallTotals.dn)}
                   </td>
                   {pivotAnalysis.indicators.map((ind) => {
                     const grandVal = overallTotals.totalsByIndicator[ind] || 0;
                     return (
                       <td key={`grand-tot-${ind}`} className="p-2.5 text-right font-extrabold text-teal-950 border-r border-slate-200 bg-teal-50/50 font-mono">
-                        {grandVal.toLocaleString("vi-VN")}
+                        {formatNumberVi(grandVal)}
                       </td>
                     );
                   })}
@@ -839,7 +863,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                     if (col === "Số_Lượng_Bản_Ghi") {
                       return (
                         <td key={col} className="p-3 text-right font-semibold text-teal-850 bg-teal-50/20">
-                          {overallTotals.dn.toLocaleString("vi-VN")} (100%)
+                          {formatNumberVi(overallTotals.dn)} (100%)
                         </td>
                       );
                     }
@@ -848,7 +872,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                       const totalVal = overallTotals.totalsByIndicator[ind] || 0;
                       return (
                         <td key={col} className="p-3 text-right font-bold text-teal-900 bg-teal-50/30 font-mono">
-                          {totalVal.toLocaleString("vi-VN")} (100%)
+                          {formatNumberVi(totalVal)} (100%)
                         </td>
                       );
                     }
