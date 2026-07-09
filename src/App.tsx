@@ -7547,7 +7547,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             }`}
           >
             <Database className="w-4 h-4 shrink-0 text-amber-500" />
-            📦 So sánh Liên kỳ &amp; Lưu kho lâu dài
+            📦 So sánh Dữ liệu giữa các kỳ
             <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0 animate-bounce">MỚI</span>
           </button>
 

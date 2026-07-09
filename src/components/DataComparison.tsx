@@ -148,7 +148,7 @@ export default function DataComparison({
   // Mode switcher: diff (2 separate files) vs time-series (Month-by-Month / YoY) vs saved-snapshots
   const [subMode, setSubMode] = useState<"diff" | "time-series" | "saved-snapshots">("diff");
 
-  // === PHẦN 3: KHO LƯU TRỮ VÀ SO SÁNH LIÊN KỲ ===
+  // === PHẦN 3: SO SÁNH GIỮA CÁC KỲ ===
   const [savedSnapshots, setSavedSnapshots] = useState<SavedSnapshot[]>([]);
   
   // State variables for saving new snapshot
@@ -186,7 +186,7 @@ export default function DataComparison({
   }, []);
 
   const uniqueCategories = useMemo(() => {
-    const cats = new Set<string>(["Mặc định", "Lưu Cá Thể", "Lưu Doanh Nghiệp", "Hợp Tác Xã"]);
+    const cats = new Set<string>(["Mặc định", "Lưu Cá Thể", "Lưu Doanh Nghiệp", "Xây dựng vốn"]);
     savedSnapshots.forEach(s => {
       if (s.category) cats.add(s.category);
     });
@@ -563,7 +563,7 @@ export default function DataComparison({
     }
   };
 
-  // === PHẦN 1: SO SÁNH HAI NIÊN ĐỘ (DIFF CŨ - MỚI) ===
+  // === PHẦN 1: SO SÁNH GIỮA CÁC THỜI KỲ ===
   const [oldData, setOldData] = useState<any[]>([]);
   const [oldFileName, setOldFileName] = useState<string>("");
   const [newData, setNewData] = useState<any[]>([]);
@@ -571,7 +571,7 @@ export default function DataComparison({
   const [diffKey, setDiffKey] = useState<string>("");
   const [compareResultData, setCompareResultData] = useState<any[] | null>(null);
 
-  // === PHẦN 2: SO SÁNH CHUỖI THỜI GIAN (Yêu cầu Mới) ===
+  // === PHẦN 2: SO SÁNH THEO THỜI GIAN (Yêu cầu Mới) ===
   const [tsData, setTsData] = useState<any[]>([]);
   const [tsFileName, setTsFileName] = useState<string>("");
   const [tsKey, setTsKey] = useState<string>(""); // Khóa định danh địa bàn/DN
@@ -1124,7 +1124,7 @@ export default function DataComparison({
         </button>
       </div>
 
-      {/* CHẾ ĐỘ 1: ĐỐI CHIẾU HAI NIÊN ĐỘ (DIFF CŨ - MỚI) */}
+      {/* CHẾ ĐỘ 1: ĐỐI CHIẾU HAI THỜI KỲ */}
       {subMode === "diff" && (
         <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 space-y-6 text-slate-800">
           <div>
@@ -1493,7 +1493,7 @@ export default function DataComparison({
         </div>
       )}
 
-      {/* CHẾ ĐỘ 3: KHO LƯU TRỮ VÀ SO SÁNH LIÊN KỲ ĐỘNG */}
+      {/* CHẾ ĐỘ 3: MỤC LƯU TRỮ VÀ SO SÁNH DỮ LIỆU CÁC THỜI KỲ */}
       {subMode === "saved-snapshots" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -2008,25 +2008,25 @@ export default function DataComparison({
           <MainDataInlinePreview
             data={snapCompareResult}
             columns={Object.keys(snapCompareResult[0] || {})}
-            title="KẾT QUẢ ĐỐI CHIẾU KHO LƯU TRỮ LIÊN KỲ"
+            title="KẾT QUẢ ĐỐI CHIẾU MỤC LƯU TRỮ CÁC KỲ"
             subtitle={`Đã hoàn tất phân tích đối chiếu chéo! Tìm thấy ${snapCompareResult.length} đơn vị có khóa liên kết tương ứng.`}
             onExportExcel={onExportExcel}
           />
         </div>
       )}
 
-      {/* HIỂN THỊ KẾT QUẢ SO SÁNH NIÊN ĐỘ TRUYỀN THỐNG */}
+      {/* HIỂN THỊ KẾT QUẢ SO SÁNH GIỮA CÁC KỲ */}
       {subMode === "diff" && compareResultData && compareResultData.length > 0 && (
         <MainDataInlinePreview
           data={compareResultData}
           columns={Object.keys(compareResultData[0] || {})}
-          title="KẾT QUẢ SO SÁNH ĐỐI CHIẾU HAI NIÊN ĐỘ"
+          title="KẾT QUẢ SO SÁNH ĐỐI CHIẾU CÁC KỲ"
           subtitle={`Đã so sánh đối chiếu thành công! Tìm thấy tổng số: ${compareResultData.length} dòng dữ liệu khóa liên kết với trạng thái thay đổi tương ứng.`}
           onExportExcel={onExportExcel}
         />
       )}
 
-      {/* HIỂN THỊ KẾT QUẢ SO SÁNH CHUỖI THỜI GIAN ĐỘNG */}
+      {/* HIỂN THỊ KẾT QUẢ SO SÁNH THEO THỜI GIAN */}
       {subMode === "time-series" && tsResultRows.length > 0 && (
         <div className="space-y-6">
           {/* Biểu đồ động đầy đủ */}
