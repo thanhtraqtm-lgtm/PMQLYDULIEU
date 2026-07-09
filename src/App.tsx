@@ -4347,21 +4347,27 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
 
       // Xây dựng danh sách chỉ tiêu cộng dồn động (không khoá cứng cột)
       const sumCols: string[] = [];
+      
+      // Bổ sung: Luôn thêm chỉ tiêu đếm "Số cơ sở" hàng đầu theo yêu cầu của người dùng
+      sumCols.push("Số cơ sở");
+
       const sumColsToCheck = Array.isArray(quickReportSumCols) ? quickReportSumCols : [];
       sumColsToCheck.forEach(col => {
-        if (col && (targetColumns.includes(col) || col === "Số lượng dòng")) {
-          sumCols.push(col);
+        if (col && (targetColumns.includes(col) || col === "Số lượng dòng" || col === "Số cơ sở")) {
+          if (col !== "Số cơ sở") {
+            sumCols.push(col);
+          }
         }
       });
 
       // Nếu không cấu hình chỉ tiêu phụ động, tự chuyển về tương thích ngược dựa vào lựa chọn Doanh Thu và Lao Động
-      if (sumCols.length === 0) {
+      if (sumCols.length === 1) {
         if (targetDoanhThu && targetColumns.includes(targetDoanhThu)) sumCols.push(targetDoanhThu);
         if (targetLaoDong && targetColumns.includes(targetLaoDong)) sumCols.push(targetLaoDong);
       }
 
       // Tự động tìm kiếm các cột số trong tệp dữ liệu nếu chưa chọn hoặc không tìm thấy cột doanh thu/lao động
-      if (sumCols.length === 0) {
+      if (sumCols.length === 1) {
         const firstRow = targetData[0] || {};
         const detectedNumericCols = targetColumns.filter(col => {
           if (col === targetManganh || col === targetXa) return false;
@@ -4374,7 +4380,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
       }
 
       // Nếu vẫn trống, lấy đại diện 1 cột số lượng dòng ảo làm chỉ tiêu cộng dồn
-      if (sumCols.length === 0) {
+      if (sumCols.length === 1) {
         sumCols.push("Số lượng dòng");
       }
 
@@ -4454,7 +4460,8 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
             ...row,
             _temNganhCap: tenNganhLabel,
             _tempXa: String(row[targetXa] || "Khác").trim(),
-            "Số lượng dòng": 1
+            "Số lượng dòng": 1,
+            "Số cơ sở": 1
           };
         },
         pct => {
@@ -5396,7 +5403,7 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
       return;
     }
 
-    const sumCols = secSumCols.filter(col => secondaryFile.columns.includes(col));
+    const sumCols = ["Số cơ sở", ...secSumCols.filter(col => secondaryFile.columns.includes(col) && col !== "Số cơ sở")];
     if (sumCols.length === 0) {
       alert("Vui lòng tích chọn ít nhất 1 chỉ tiêu cột số để cộng tổng!");
       return;
@@ -5441,7 +5448,8 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
           return {
             ...row,
             _temNganhCap: tenNganhLabel,
-            _tempXa: String(row[targetXa] || "Khác").trim()
+            _tempXa: String(row[targetXa] || "Khác").trim(),
+            "Số cơ sở": 1
           };
         },
         pct => {
