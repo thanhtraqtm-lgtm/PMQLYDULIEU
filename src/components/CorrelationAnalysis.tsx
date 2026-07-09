@@ -1,6 +1,73 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Activity, Search, AlertTriangle } from "lucide-react";
+import { Activity, Search, AlertTriangle, Edit2, Check, X, HelpCircle, RefreshCw, Sparkles, BookOpen } from "lucide-react";
 import * as XLSX from "xlsx";
+import { vsicRawData, lookupSectorNameWithFallback } from "../data/vsic";
+
+const VIETNAM_PROVINCE_CODES: Record<string, string> = {
+  "01": "Thành phố Hà Nội",
+  "02": "Tỉnh Hà Giang",
+  "04": "Tỉnh Cao Bằng",
+  "06": "Tỉnh Bắc Kạn",
+  "08": "Tỉnh Tuyên Quang",
+  "10": "Tỉnh Lào Cai",
+  "11": "Tỉnh Điện Biên",
+  "12": "Tỉnh Lai Châu",
+  "14": "Tỉnh Sơn La",
+  "15": "Tỉnh Yên Bái",
+  "17": "Tỉnh Hoà Bình",
+  "19": "Tỉnh Thái Nguyên",
+  "20": "Tỉnh Lạng Sơn",
+  "22": "Tỉnh Quảng Ninh",
+  "24": "Tỉnh Bắc Giang",
+  "25": "Tỉnh Phú Thọ",
+  "26": "Tỉnh Vĩnh Phúc",
+  "27": "Tỉnh Bắc Ninh",
+  "30": "Tỉnh Hải Dương",
+  "31": "Thành phố Hải Phòng",
+  "33": "Tỉnh Hưng Yên",
+  "34": "Tỉnh Thái Bình",
+  "35": "Tỉnh Hà Nam",
+  "36": "Tỉnh Nam Định",
+  "37": "Tỉnh Ninh Bình",
+  "38": "Tỉnh Thanh Hóa",
+  "40": "Tỉnh Nghệ An",
+  "42": "Tỉnh Hà Tĩnh",
+  "44": "Tỉnh Quảng Bình",
+  "45": "Tỉnh Quảng Trị",
+  "46": "Tỉnh Thừa Thiên Huế",
+  "48": "Thành phố Đà Nẵng",
+  "49": "Tỉnh Quảng Nam",
+  "51": "Tỉnh Quảng Ngãi",
+  "52": "Tỉnh Bình Định",
+  "54": "Tỉnh Phú Yên",
+  "56": "Tỉnh Khánh Hòa",
+  "58": "Tỉnh Ninh Thuận",
+  "60": "Tỉnh Bình Thuận",
+  "62": "Tỉnh Kon Tum",
+  "64": "Tỉnh Gia Lai",
+  "66": "Tỉnh Đắk Lắk",
+  "67": "Tỉnh Đắk Nông",
+  "68": "Tỉnh Lâm Đồng",
+  "70": "Tỉnh Bình Phước",
+  "72": "Tỉnh Tây Ninh",
+  "74": "Tỉnh Bình Dương",
+  "75": "Tỉnh Đồng Nai",
+  "77": "Tỉnh Bà Rịa - Vũng Tàu",
+  "79": "Thành phố Hồ Chí Minh",
+  "80": "Tỉnh Long An",
+  "82": "Tỉnh Tiền Giang",
+  "83": "Tỉnh Bến Tre",
+  "84": "Tỉnh Trà Vinh",
+  "86": "Tỉnh Vĩnh Long",
+  "87": "Tỉnh Đồng Tháp",
+  "89": "Tỉnh An Giang",
+  "91": "Thành phố Cần Thơ",
+  "92": "Tỉnh Hậu Giang",
+  "93": "Tỉnh Sóc Trăng",
+  "94": "Tỉnh Bạc Liêu",
+  "95": "Tỉnh Cà Mau",
+  "96": "Tỉnh Kiên Giang"
+};
 
 // Helper to calculate normal cumulative distribution function (CDF)
 function normalCDF(x: number): number {
@@ -67,6 +134,70 @@ export const CorrelationAnalysis = React.memo(function CorrelationAnalysis({
   // States for Tương quan tuyến tính (Linear/Comparison)
   const [tqSelectedCol1, setTqSelectedCol1] = useState<string>("");
   const [tqSelectedCol2, setTqSelectedCol2] = useState<string>("");
+
+  // States for code translation & custom description mapping
+  const [autoTranslateEnabled, setAutoTranslateEnabled] = useState<boolean>(true);
+  const [customCodeMappings, setCustomCodeMappings] = useState<Record<string, string>>({});
+  const [editingMappingFor, setEditingMappingFor] = useState<{ columnName: string; code: string } | null>(null);
+  const [editingMappingValue, setEditingMappingValue] = useState<string>("");
+
+  const getLabelForValue = (val: string, columnName: string) => {
+    const cleanVal = String(val ?? "").trim();
+    if (!cleanVal || cleanVal === "(Trống)") return "(Trống)";
+
+    // Try custom manual override first (saved in format: "columnName:::code")
+    const key = `${columnName}:::${cleanVal}`;
+    if (customCodeMappings[key]) {
+      return `${cleanVal} - ${customCodeMappings[key]}`;
+    }
+
+    if (!autoTranslateEnabled) {
+      return cleanVal;
+    }
+
+    // 1. Try VSIC lookup
+    const vsicResult = lookupSectorNameWithFallback(cleanVal);
+    if (vsicResult && vsicResult.name) {
+      return `${cleanVal} - ${vsicResult.name}`;
+    }
+
+    // 2. Try Vietnam Province lookup if column name suggests it
+    const colLower = columnName.toLowerCase();
+    if (colLower.includes("tỉnh") || colLower.includes("tinh") || colLower.includes("địa bàn") || colLower.includes("diaban") || colLower.includes("ma_tp") || colLower.includes("vùng") || colLower.includes("khu vực")) {
+      const padded = cleanVal.padStart(2, "0");
+      if (VIETNAM_PROVINCE_CODES[padded]) {
+        return `${cleanVal} - ${VIETNAM_PROVINCE_CODES[padded]}`;
+      }
+    }
+
+    // 3. Try boolean-like binary translations
+    if (cleanVal === "1" || cleanVal === "2" || cleanVal === "0") {
+      if (
+        colLower.includes("phương tiện") || 
+        colLower.includes("phuongtien") || 
+        colLower.includes("có") || 
+        colLower.includes("co_") || 
+        colLower.includes("dk") || 
+        colLower.includes("đăng ký") || 
+        colLower.includes("xe") || 
+        colLower.includes("hộ") || 
+        colLower.includes("ho_") ||
+        colLower.includes("chỉ tiêu") ||
+        colLower.includes("chitiêu")
+      ) {
+        if (cleanVal === "1") return "1 - Có";
+        if (cleanVal === "2") return "2 - Không";
+        if (cleanVal === "0") return "0 - Không";
+      }
+      if (colLower.includes("giới tính") || colLower.includes("gioi_tinh") || colLower.includes("sex") || colLower.includes("nam") || colLower.includes("nữ")) {
+        if (cleanVal === "1") return "1 - Nam";
+        if (cleanVal === "2") return "2 - Nữ";
+        if (cleanVal === "0") return "0 - Nữ/Khác";
+      }
+    }
+
+    return cleanVal;
+  };
 
   // Auto-detect default row/column variables for crosstab without overwriting active user selection
   useEffect(() => {
@@ -290,7 +421,11 @@ export const CorrelationAnalysis = React.memo(function CorrelationAnalysis({
               const handleExportCrosstab = () => {
                 try {
                   const tableRows: (string | number)[][] = [];
-                  const header = [`Chỉ tiêu hàng: ${col1} \\ Chỉ tiêu cột: ${col2}`, ...sortedCols, "Tổng cộng"];
+                  const header = [
+                    `Chỉ tiêu hàng: ${col1} \\ Chỉ tiêu cột: ${col2}`, 
+                    ...sortedCols.map(c => getLabelForValue(c, col2)), 
+                    "Tổng cộng"
+                  ];
                   tableRows.push(header);
                   
                   const colTotalsRow: (string | number)[] = ["Tổng cộng"];
@@ -301,7 +436,7 @@ export const CorrelationAnalysis = React.memo(function CorrelationAnalysis({
                   tableRows.push(colTotalsRow);
                   
                   sortedRows.forEach(rVal => {
-                    const rowArr: (string | number)[] = [rVal];
+                    const rowArr: (string | number)[] = [getLabelForValue(rVal, col1)];
                     sortedCols.forEach(cVal => {
                       rowArr.push(matrix[rVal]?.[cVal] || 0);
                     });
@@ -417,6 +552,243 @@ export const CorrelationAnalysis = React.memo(function CorrelationAnalysis({
                     </div>
                   </div>
 
+                  {/* PANEL QUẢN LÝ GIẢI THÍCH MÃ SỐ */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="bg-indigo-50 p-1.5 rounded-lg text-indigo-600 border border-indigo-100">
+                          <BookOpen className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider">
+                            Danh mục Giải thích Mã số sang Tên Chỉ tiêu
+                          </h4>
+                          <p className="text-[10px] text-slate-500">
+                            Hệ thống tự động tra cứu mã VSIC, tỉnh thành hoặc cho phép bạn tự định nghĩa tên giải thích.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          Tự động dịch mã:
+                        </label>
+                        <button
+                          onClick={() => setAutoTranslateEnabled(!autoTranslateEnabled)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            autoTranslateEnabled ? "bg-emerald-600" : "bg-slate-250"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              autoTranslateEnabled ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Row codes list */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-150">
+                          <span className="text-[10.5px] font-bold text-slate-700">
+                            Mã số của dòng (Cột: <strong className="text-indigo-700">{col1}</strong>)
+                          </span>
+                          <span className="text-[10px] bg-indigo-100 text-indigo-800 font-extrabold px-2 py-0.5 rounded-full">
+                            {sortedRows.length} mã
+                          </span>
+                        </div>
+
+                        <div className="max-h-[220px] overflow-y-auto border border-slate-150 rounded-xl divide-y divide-slate-100 bg-white custom-scrollbar">
+                          {sortedRows.map(code => {
+                            if (code === "(Trống)") return null;
+                            const currentTranslation = customCodeMappings[`${col1}:::${code}`] || "";
+                            const autoLabel = getLabelForValue(code, col1).replace(`${code} - `, "");
+                            const isAutoResolved = autoLabel !== code;
+                            
+                            const isEditing = editingMappingFor?.columnName === col1 && editingMappingFor?.code === code;
+
+                            return (
+                              <div key={code} className="p-3 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-black text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">
+                                      {code}
+                                    </span>
+                                    <span className="text-slate-500 font-bold text-xs">➔</span>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={editingMappingValue}
+                                        onChange={(e) => setEditingMappingValue(e.target.value)}
+                                        placeholder="Nhập tên giải thích..."
+                                        className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 w-full"
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") {
+                                            setCustomCodeMappings(prev => ({
+                                              ...prev,
+                                              [`${col1}:::${code}`]: editingMappingValue
+                                            }));
+                                            setEditingMappingFor(null);
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="text-xs font-extrabold text-slate-700 truncate">
+                                        {currentTranslation || (isAutoResolved ? autoLabel : <span className="text-slate-400 font-medium italic">Chưa giải thích</span>)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {!isEditing && isAutoResolved && !currentTranslation && (
+                                    <div className="text-[10px] text-emerald-600 font-bold mt-0.5 flex items-center gap-0.5">
+                                      <Sparkles className="w-3 h-3" /> Tự động tra cứu hệ thống
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="shrink-0">
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          setCustomCodeMappings(prev => ({
+                                            ...prev,
+                                            [`${col1}:::${code}`]: editingMappingValue
+                                          }));
+                                          setEditingMappingFor(null);
+                                        }}
+                                        className="p-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border-0 rounded-lg cursor-pointer"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingMappingFor(null)}
+                                        className="p-1 bg-rose-100 hover:bg-rose-200 text-rose-700 border-0 rounded-lg cursor-pointer"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setEditingMappingFor({ columnName: col1, code });
+                                        setEditingMappingValue(currentTranslation || (isAutoResolved ? autoLabel : ""));
+                                      }}
+                                      className="p-1 hover:bg-slate-100 text-slate-500 hover:text-indigo-600 border border-transparent hover:border-slate-200 rounded-lg cursor-pointer bg-transparent transition-colors"
+                                      title="Chỉnh sửa giải nghĩa"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column codes list */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-150">
+                          <span className="text-[10.5px] font-bold text-slate-700">
+                            Mã số của cột (Cột: <strong className="text-indigo-700">{col2}</strong>)
+                          </span>
+                          <span className="text-[10px] bg-indigo-100 text-indigo-800 font-extrabold px-2 py-0.5 rounded-full">
+                            {sortedCols.length} mã
+                          </span>
+                        </div>
+
+                        <div className="max-h-[220px] overflow-y-auto border border-slate-150 rounded-xl divide-y divide-slate-100 bg-white custom-scrollbar">
+                          {sortedCols.map(code => {
+                            if (code === "(Trống)") return null;
+                            const currentTranslation = customCodeMappings[`${col2}:::${code}`] || "";
+                            const autoLabel = getLabelForValue(code, col2).replace(`${code} - `, "");
+                            const isAutoResolved = autoLabel !== code;
+                            
+                            const isEditing = editingMappingFor?.columnName === col2 && editingMappingFor?.code === code;
+
+                            return (
+                              <div key={code} className="p-3 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-black text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">
+                                      {code}
+                                    </span>
+                                    <span className="text-slate-500 font-bold text-xs">➔</span>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={editingMappingValue}
+                                        onChange={(e) => setEditingMappingValue(e.target.value)}
+                                        placeholder="Nhập tên giải thích..."
+                                        className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 w-full"
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") {
+                                            setCustomCodeMappings(prev => ({
+                                              ...prev,
+                                              [`${col2}:::${code}`]: editingMappingValue
+                                            }));
+                                            setEditingMappingFor(null);
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="text-xs font-extrabold text-slate-700 truncate">
+                                        {currentTranslation || (isAutoResolved ? autoLabel : <span className="text-slate-400 font-medium italic">Chưa giải thích</span>)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {!isEditing && isAutoResolved && !currentTranslation && (
+                                    <div className="text-[10px] text-emerald-600 font-bold mt-0.5 flex items-center gap-0.5">
+                                      <Sparkles className="w-3 h-3" /> Tự động tra cứu hệ thống
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="shrink-0">
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          setCustomCodeMappings(prev => ({
+                                            ...prev,
+                                            [`${col2}:::${code}`]: editingMappingValue
+                                          }));
+                                          setEditingMappingFor(null);
+                                        }}
+                                        className="p-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border-0 rounded-lg cursor-pointer"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingMappingFor(null)}
+                                        className="p-1 bg-rose-100 hover:bg-rose-200 text-rose-700 border-0 rounded-lg cursor-pointer"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setEditingMappingFor({ columnName: col2, code });
+                                        setEditingMappingValue(currentTranslation || (isAutoResolved ? autoLabel : ""));
+                                      }}
+                                      className="p-1 hover:bg-slate-100 text-slate-500 hover:text-indigo-600 border border-transparent hover:border-slate-200 rounded-lg cursor-pointer bg-transparent transition-colors"
+                                      title="Chỉnh sửa giải nghĩa"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {tqShowResults && (
                     <div className="space-y-6">
                       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -438,7 +810,7 @@ export const CorrelationAnalysis = React.memo(function CorrelationAnalysis({
                                 </th>
                                 {sortedCols.map(colVal => (
                                   <th key={colVal} className="p-3.5 border-r border-slate-200 min-w-[120px] text-center">
-                                    {colVal}
+                                    {getLabelForValue(colVal, col2)}
                                   </th>
                                 ))}
                                 <th className="p-3.5 border-r border-slate-200 min-w-[120px] text-center bg-slate-50/80 text-slate-800 font-extrabold">
@@ -483,7 +855,7 @@ export const CorrelationAnalysis = React.memo(function CorrelationAnalysis({
                               {displayedRows.map(rVal => (
                                 <tr key={rVal} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
                                   <td className="p-3.5 border-r border-slate-200 text-left font-bold text-slate-700">
-                                    {rVal}
+                                    {getLabelForValue(rVal, col1)}
                                   </td>
                                   {sortedCols.map(colVal => {
                                     const count = matrix[rVal]?.[colVal] || 0;

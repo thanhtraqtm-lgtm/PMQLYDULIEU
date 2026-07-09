@@ -6216,11 +6216,11 @@ Hãy trả về một mảng JSON trực tiếp đại diện cho các trường
       const isIndustrialCode = (!isNaN(sub2Num) && sub2Num >= 10 && sub2Num <= 33) || dtvLinhVuc === "C";
 
       if (lookupResultDtv.level === 0) {
-        trangThai = "❌ Lỗi: Mã ngành ĐTV không tồn tại trên danh mục VSIC chuẩn";
+        trangThai = "❌ Lỗi: Lệch mâu thuẫn - Nội dung mô tả thực tế không ăn khớp với mã ngành điều tra viên chọn trên máy";
       } else if (hasTradeKeywords && !hasIndustrialKeywords && isIndustrialCode) {
-        trangThai = "❌ Lỗi: Ghi ngành thương mại/đại lý bán lẻ nhưng gán mã ngành Công nghiệp (Bắt đầu bằng 10-33, Nhóm C)";
+        trangThai = "❌ Lỗi ĐTV: Mô tả ngành thương mại/bán lẻ nhưng chọn mã ngành Công nghiệp chế biến chế tạo";
       } else if (hasIndustrialKeywords && !isIndustrialCode) {
-        trangThai = "❌ Lỗi: Ghi ngành Sản xuất/Gia công/Làm mộc nhưng lại gán mã ngành dịch vụ/thương mại (không phải công nghiệp)";
+        trangThai = "❌ Lỗi ĐTV: Mô tả ngành Sản xuất/Gia công nhưng chọn mã ngành dịch vụ/thương mại";
       } else if (linhvucSuggest && dtvLinhVuc && linhvucSuggest !== dtvLinhVuc) {
         trangThai = `❌ Lỗi (LỆCH LĨNH VỰC): Mô tả hoạt động kinh doanh thiên về Nhóm [${linhvucSuggest}] nhưng Mã đăng ký thuộc Nhóm [${dtvLinhVuc}]`;
       } else if (goiyMa && parseFloat(diemTuongDong) > 0.6) {
@@ -7527,11 +7527,29 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "sosanh" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <Combine className="w-4 h-4 text-amber-500 shrink-0" />
-                  Đối sánh Niên độ &amp; Chuỗi thời gian
+                  So sánh liên kỳ, Lưu kho &amp; Đối chiếu
                 </button>
               </div>
             )}
           </div>
+
+          {/* NÚT TẬP TRUNG CHUYÊN BIỆT: ĐỐI CHIẾU & LƯU KHO LÂU DÀI */}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveTab("sosanh");
+              setOpenDropdown(null);
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+              activeTab === "sosanh"
+                ? "bg-amber-500 text-white shadow-md border border-amber-600"
+                : "text-amber-800 bg-amber-50/70 hover:bg-amber-100/80 hover:text-amber-900 border border-amber-200"
+            }`}
+          >
+            <Database className="w-4 h-4 shrink-0 text-amber-500" />
+            📦 So sánh Liên kỳ &amp; Lưu kho lâu dài
+            <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0 animate-bounce">MỚI</span>
+          </button>
 
           {/* DROPDOWN 3: TRÍ TUỆ VSIC & AI */}
           <div className="relative">
@@ -7691,8 +7709,42 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
         </div>
 
-        {/* Nút Xóa dữ liệu duy nhất và gọn gàng ở góc phải menu ngang */}
-        <div className="flex items-center gap-2 text-[11px] font-sans">
+        {/* Nút Xóa dữ liệu và các chỉ mục chỉ đường trực quan cân bằng góc phải menu ngang */}
+        <div className="flex items-center gap-2.5 text-[11px] font-sans">
+          <button 
+            onClick={() => {
+              setActiveTab("trangchu");
+              setOpenDropdown(null);
+              setTimeout(() => {
+                const el = document.getElementById("interactive-scenario-finder");
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 120);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-750 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+            title="Nhảy nhanh đến trợ lý chỉ đường rà soát giải đáp các tình huống dữ liệu thực tế"
+          >
+            <Compass className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            CHỈ ĐƯỜNG THỰC TẾ
+          </button>
+
+          <button 
+            onClick={() => {
+              setActiveTab("trangchu");
+              setOpenDropdown(null);
+              setTimeout(() => {
+                const el = document.getElementById("interactive-pipeline-guide");
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 120);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-750 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+            title="Xem sơ đồ lộ trình 4 bước rà soát xử lý dữ liệu chuẩn"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+            BẢN ĐỒ QUY TRÌNH
+          </button>
+
+          <div className="w-px h-5 bg-slate-250 mx-0.5"></div>
+
           <button 
             onClick={clearData}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 hover:text-rose-700 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
@@ -7914,7 +7966,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 )}
 
                 {/* SCENARIO FINDER (GIẢI ĐÁP TÌNH HUỐNG THỰC TẾ) */}
-                <div className="bg-slate-50 rounded-2xl p-5 border border-slate-150 space-y-4">
+                <div id="interactive-scenario-finder" className="bg-slate-50 rounded-2xl p-5 border border-slate-150 space-y-4">
                   <div className="flex items-center gap-2">
                     <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase">Mới</span>
                     <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
@@ -7945,38 +7997,77 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                       const sc = GUIDE_SCENARIOS.find(s => s.id === selectedWizardScenario);
                       if (!sc) return null;
                       return (
-                        <div className="bg-white border border-slate-200 rounded-xl p-4.5 space-y-3 animate-fade-in text-xs text-slate-700 leading-relaxed shadow-sm">
-                          <div className="font-extrabold text-indigo-950 text-xs flex items-center gap-1.5">
-                            <span className="text-base">{sc.icon}</span> {sc.title}
+                        <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 space-y-4.5 animate-fade-in text-xs text-slate-700 leading-relaxed shadow-sm relative overflow-hidden">
+                          {/* Top ambient highlight line */}
+                          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-600" />
+                          
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                            <div className="font-black text-indigo-950 text-sm flex items-center gap-2">
+                              <span className="text-xl bg-indigo-50 p-1.5 rounded-lg text-indigo-600 border border-indigo-100/60">{sc.icon}</span> 
+                              <span>{sc.title}</span>
+                            </div>
+                            
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full uppercase tracking-wider self-start md:self-auto">
+                              🔍 Hướng dẫn chi tiết • {sc.steps.length} Bước hành động
+                            </span>
                           </div>
-                          <p>
+
+                          <p className="text-slate-600 text-[11px] md:text-xs font-medium leading-relaxed italic bg-indigo-50/20 p-3 rounded-xl border border-indigo-50/50">
                             {sc.intro}
                           </p>
-                          <ol className="list-decimal pl-4 space-y-1.5 font-medium text-slate-650">
+
+                          {/* Beautiful Bento-grid cards for Steps */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
                             {sc.steps.map((st, sIdx) => (
-                              <li key={sIdx} dangerouslySetInnerHTML={{ __html: st.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/“(.*?)”/g, '“<strong class="text-indigo-750 font-semibold">$1</strong>”') }} />
-                            ))}
-                          </ol>
-                          <div className="pt-2 flex flex-wrap gap-2">
-                            {sc.actionButtons.map((btn, bIdx) => (
-                              <button
-                                key={bIdx}
-                                onClick={() => {
-                                  setActiveTab(btn.tab);
-                                  if (btn.stepId) {
-                                    setSelectedPipelineStep(btn.stepId);
-                                  }
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                className={`font-extrabold text-[11px] px-3.5 py-2 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
-                                  btn.style === 'primary'
-                                    ? "bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-sm"
-                                    : "bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200"
-                                }`}
+                              <div 
+                                key={sIdx} 
+                                className="bg-slate-50 border border-slate-150 hover:border-indigo-350 hover:bg-gradient-to-b hover:from-white hover:to-indigo-50/20 rounded-2xl p-4.5 relative overflow-hidden flex flex-col justify-between group transition-all duration-300 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-md"
                               >
-                                {btn.text}
-                              </button>
+                                {/* Step number badge */}
+                                <div className="absolute top-0 right-0 w-9 h-9 bg-slate-100 text-slate-400 font-black text-xs flex items-center justify-center rounded-bl-2xl border-l border-b border-slate-150 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-300">
+                                  {sIdx + 1}
+                                </div>
+                                <div className="pr-4 space-y-2">
+                                  <div className="text-[10px] font-bold text-slate-400 group-hover:text-indigo-500 uppercase tracking-widest transition-colors">
+                                    Bước {sIdx + 1}
+                                  </div>
+                                  <p 
+                                    className="text-[11.5px] font-medium text-slate-700 leading-relaxed group-hover:text-slate-800 transition-colors"
+                                    dangerouslySetInnerHTML={{ 
+                                      __html: st.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                                 .replace(/“(.*?)”/g, '“<strong class="text-indigo-750 font-semibold">$1</strong>”') 
+                                    }} 
+                                  />
+                                </div>
+                              </div>
                             ))}
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                            <span className="text-[10.5px] font-bold text-slate-500 flex items-center gap-1">
+                              💡 Nhấp nút bên phải để đi thẳng tới tab chức năng:
+                            </span>
+                            <div className="flex flex-wrap gap-2.5">
+                              {sc.actionButtons.map((btn, bIdx) => (
+                                <button
+                                  key={bIdx}
+                                  onClick={() => {
+                                    setActiveTab(btn.tab);
+                                    if (btn.stepId) {
+                                      setSelectedPipelineStep(btn.stepId);
+                                    }
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  className={`font-black text-[11px] px-4.5 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${
+                                    btn.style === 'primary'
+                                      ? "bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-md shadow-indigo-600/10"
+                                      : "bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm"
+                                  }`}
+                                >
+                                  {btn.text}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       );

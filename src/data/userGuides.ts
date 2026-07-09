@@ -105,23 +105,23 @@ export const GUIDE_SCENARIOS: GuideScenario[] = [
   {
     id: "chuanhoamanganh",
     icon: "🏷️",
-    buttonText: "Tôi muốn sửa lỗi mã ngành VSIC",
-    title: "Lộ trình: Chuẩn hóa & Sửa lỗi mã ngành VSIC",
-    intro: "Có 2 trường hợp phổ biến khi chuẩn hóa mã ngành cho doanh nghiệp trong danh sách khảo sát của bạn:",
+    buttonText: "Tôi muốn rà soát lệch mã ngành VSIC",
+    title: "Lộ trình: Đối chiếu mâu thuẫn giữa Mô tả thực tế và Mã ngành đã chọn",
+    intro: "Trong thực tế điều tra, mã ngành do điều tra viên chọn trên máy chắc chắn hợp lệ về mặt cú pháp (vì hệ thống buộc phải chọn từ danh mục chuẩn). Tuy nhiên, lỗi rất dễ xảy ra ở việc áp sai mã so với mô tả thực tế, hoặc mô tả một kiểu nhưng mã chọn một đằng. Hãy xử lý theo 2 trường hợp:",
     steps: [
-      "Trường hợp A (Có sẵn mã nhưng sợ sai): Vào tab “Trí tuệ VSIC” ➔ “Kiểm tra mã ngành VSIC”. Chọn cột chứa mã ngành trong file của bạn. Hệ thống sẽ tự kiểm tra xem mã đó có khớp với bảng VSIC chuẩn hay không và đánh dấu đỏ các dòng sai.",
-      "Trường hợp B (Chỉ ghi chữ tiếng Việt, không có mã số): Vào tab “Trí tuệ VSIC” ➔ “Đối sánh danh mục (AI)”. Chọn cột chứa nội dung tiếng Việt mô tả công việc (ví dụ: 'Sản xuất phần mềm'). Trí tuệ nhân tạo AI (Gemini) sẽ quét tự động và gợi ý mã số VSIC cấp 5 chính xác cho bạn, tiết kiệm hàng tuần tra cứu thủ công!"
+      "Trường hợp A (Bất nhất giữa mô tả và mã ngành): Vào tab “Trí tuệ VSIC” ➔ “Rà soát lệch mã & mô tả”. Chọn cột Mô tả hoạt động và cột Mã ngành đã áp. Trí tuệ Nhân tạo AI (Gemini) sẽ quét chéo và phát hiện các trường hợp mâu thuẫn (Ví dụ: Mô tả ghi 'Trồng lúa' nhưng mã lại chọn 'Nuôi cá').",
+      "Trường hợp B (Định mã tự động từ mô tả chữ thô): Nếu tệp khảo sát chỉ có nội dung mô tả hoạt động bằng chữ viết tay tự do của điều tra viên mà chưa có mã ngành cụ thể, hãy vào tab “Trí tuệ VSIC” ➔ “Đối sánh danh mục (AI)”. AI sẽ phân tích ngữ nghĩa của mô tả tiếng Việt thô và tự động gợi ý mã VSIC cấp 5 chính xác cho bạn!"
     ],
     actionButtons: [
       {
-        text: "🤖 Sử dụng AI gán mã ngành tự động",
-        tab: "smartcatalog",
+        text: "🤖 Rà soát mâu thuẫn mã & mô tả",
+        tab: "chuanhoanganh",
         stepId: 2,
         style: "primary"
       },
       {
-        text: "🔍 Kiểm tra mã ngành đã có sẵn",
-        tab: "chuanhoanganh",
+        text: "🔍 Tự động định mã từ mô tả chữ thô",
+        tab: "smartcatalog",
         stepId: 2,
         style: "secondary"
       }
@@ -190,6 +190,112 @@ export const GUIDE_SCENARIOS: GuideScenario[] = [
         text: "📈 Thiết lập bảng Pivot & Vẽ biểu đồ ngay",
         tab: "tonghop",
         stepId: 4,
+        style: "primary"
+      }
+    ]
+  },
+  {
+    id: "sampling",
+    icon: "🎲",
+    buttonText: "Tôi muốn lấy mẫu thanh tra (Sampling)",
+    title: "Lộ trình: Thiết lập Lấy mẫu thanh tra phân tầng (Sampling)",
+    intro: "Khi số lượng doanh nghiệp khảo sát quá lớn (ví dụ: hàng vạn doanh nghiệp), việc kiểm tra thủ công toàn bộ là bất khả thi. Bạn cần lấy một tập mẫu đại diện nhưng vẫn đảm bảo tính khách quan và khoa học để thanh tra trực tiếp:",
+    steps: [
+      "Vào tab “Quản lý Tệp” ➔ “Chọn mẫu ngẫu nhiên” (hoặc nhấp trực tiếp vào nút hành động bên dưới).",
+      "Xác định phương pháp lấy mẫu: “Ngẫu nhiên đơn giản” (Simple Random) hoặc “Phân tầng tỉ lệ” (Stratified Sampling) theo ngành nghề/vị trí địa lý để đảm bảo nhóm nào cũng có đại diện phù hợp.",
+      "Chọn kích thước mẫu (ví dụ: lấy 5% tổng số dòng hoặc cố định 100 doanh nghiệp), sau đó hệ thống sẽ tự động rút trích và bôi đậm danh sách được chọn. Bạn có thể tải ngay tệp đã lấy mẫu về để thực thi!"
+    ],
+    actionButtons: [
+      {
+        text: "🎲 Đến công cụ Lấy mẫu thanh tra",
+        tab: "chonmau",
+        stepId: 1,
+        style: "primary"
+      }
+    ]
+  },
+  {
+    id: "yoy",
+    icon: "🔄",
+    buttonText: "Tôi muốn đối sánh dữ liệu liên năm (YoY)",
+    title: "Lộ trình: Đối sánh hiệu số giữa các năm & Phát hiện tăng trưởng đột biến",
+    intro: "Để phân tích tốc độ phát triển kinh tế xã hội và so sánh xem doanh nghiệp, địa bàn nào có doanh thu/lao động sụt giảm hoặc tăng vọt so với kỳ trước:",
+    steps: [
+      "Vào tab “Kiểm soát & Logic” ➔ “Đối sánh dữ liệu”. Tại đây, hãy tải lên biểu tổng hợp của Năm trước (Năm A) và Năm nay (Năm B).",
+      "Chọn Cột khóa liên kết chung (ví dụ: Địa bàn hoặc Mã Số Thuế) và thiết lập các cột muốn đối chiếu (Doanh thu, Lao động).",
+      "Hệ thống sẽ tự động ghép nối và tính ra “Tốc độ tăng trưởng %” cùng với “Giá trị tuyệt đối chênh lệch”. Bảng báo cáo phân tích biến động sẽ bôi màu xanh lá nếu tăng trưởng tốt và màu đỏ nếu sụt giảm bất thường!"
+    ],
+    actionButtons: [
+      {
+        text: "🔄 Đến công cụ Đối sánh YoY",
+        tab: "sosanh",
+        stepId: 3,
+        style: "primary"
+      }
+    ]
+  },
+  {
+    id: "collab",
+    icon: "👥",
+    buttonText: "Tôi muốn chia sẻ dữ liệu & Họp trực tuyến",
+    title: "Lộ trình: Nhập liệu đồng bộ đám mây & Họp trực tuyến liên ngành",
+    intro: "Thay vì gửi file Excel qua lại dễ thất lạc và nhầm lẫn phiên bản, bạn có thể đồng bộ hóa dữ liệu khảo sát trực tiếp lên máy chủ đám mây của Chính phủ và họp video trực tiếp để sửa lỗi:",
+    steps: [
+      "Vào tab “Cộng tác liên ngành” ➔ “Nhập liệu trực tuyến”. Tại đây, các thành viên thuộc các tỉnh thành khác nhau có thể đăng nhập bằng email đơn vị và cùng nhau nạp dữ liệu lên một bảng tổng hợp chung thời gian thực.",
+      "If phát hiện số liệu bất thường của một tỉnh, hãy mở tab “Phòng họp trực tuyến”, tạo một cuộc gọi video bảo mật để họp bàn trực tiếp với cán bộ phụ trách tỉnh đó.",
+      "Quản trị viên có thể vào “Quản trị hệ thống” (Admin Dashboard) để duyệt tài khoản, phân quyền thao tác và theo dõi hoạt động nạp dữ liệu của từng địa bàn."
+    ],
+    actionButtons: [
+      {
+        text: "📞 Vào phòng họp trực tuyến",
+        tab: "videoroom",
+        stepId: 1,
+        style: "primary"
+      },
+      {
+        text: "📝 Vào form nhập liệu đám mây",
+        tab: "dataentry",
+        stepId: 1,
+        style: "secondary"
+      }
+    ]
+  },
+  {
+    id: "outliers",
+    icon: "🚨",
+    buttonText: "Tôi muốn phát hiện doanh nghiệp bất thường (Outliers)",
+    title: "Lộ trình: Phát hiện bất thường & Đột biến số liệu (Statistical Outliers)",
+    intro: "Khi có hàng ngàn bản ghi khảo sát, việc các doanh nghiệp khai báo khống, ghi nhầm thêm chữ số 0, hoặc có số liệu bất thường về doanh thu/thu nhập bình quân là rất phổ biến. Thuật toán phân tích ngoại lai (Outliers) giúp lọc nhanh ra các nghi vấn để rà soát lại:",
+    steps: [
+      "Vào tab “Kiểm soát & Logic” ➔ “Phát hiện ngoại lai”. Chọn cột chỉ số cần kiểm tra (Ví dụ: Doanh thu, Lao động, Thu nhập).",
+      "Chọn phương pháp phân tích: “Z-Score” (Phù hợp phân phối chuẩn) hoặc “IQR / Boxplot” (Phù hợp với dữ liệu không đồng đều) và thiết lập hệ số nhạy cảm.",
+      "Hệ thống sẽ tự động vẽ biểu đồ Boxplot trực quan và lọc ra danh sách các doanh nghiệp nằm ngoài dải an toàn để điều tra viên phúc tra trực tiếp."
+    ],
+    actionButtons: [
+      {
+        text: "🚨 Phân tích ngoại lai ngay",
+        tab: "outliers",
+        stepId: 1,
+        style: "primary"
+      }
+    ]
+  },
+  {
+    id: "splitfile",
+    icon: "✂️",
+    buttonText: "Tôi muốn chia tách tệp Excel lớn thành nhiều tệp con",
+    title: "Lộ trình: Phân tách tệp tổng hợp Excel theo địa bàn/nhóm ngành",
+    intro: "Khi nhận được một tệp Excel tổng hợp quy mô cả nước hoặc toàn tỉnh, bạn cần chia nhỏ dữ liệu này thành từng tệp riêng biệt để gửi cho các quận, huyện hoặc các tổ điều tra độc lập xử lý:",
+    steps: [
+      "Vào tab “Quản lý Tệp” ➔ “Tách tệp Excel”. Tải lên tệp tổng hợp mà bạn muốn chia nhỏ.",
+      "Chọn Cột phân loại chính để tách (Ví dụ: Cột “Tỉnh/Thành phố”, “Quận/Huyện” hoặc “Mã ngành cấp 1”).",
+      "Hệ thống sẽ tự động quét toàn bộ tệp, nhóm dữ liệu và tạo ra danh sách các tệp con tương ứng. Bạn chỉ cần nhấp một nút duy nhất để tải xuống toàn bộ các tệp đã phân tách dưới dạng file nén ZIP!"
+    ],
+    actionButtons: [
+      {
+        text: "✂️ Đến công cụ Tách tệp Excel",
+        tab: "tachfile",
+        stepId: 1,
         style: "primary"
       }
     ]
