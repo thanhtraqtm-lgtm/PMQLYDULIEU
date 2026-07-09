@@ -41,6 +41,46 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
     setLocalRows(JSON.parse(JSON.stringify(rows)));
   }, [rows]);
 
+  // Tự động phát hiện cột địa bàn (Xã/Khu vực), cột nhóm phân loại và cột số lượng bản ghi
+  // để loại bỏ hoàn toàn việc gán cứng tên cột (giúp hoạt động với bất kỳ bộ dữ liệu nào)
+  const communeCol = useMemo(() => {
+    const standardKeys = ["Địa_Bàn_Xã", "Địa_bàn_Xã", "Xã", "Địa bàn", "Commune", "Phường", "Huyện", "Tỉnh", "Khu vực", "Area", "District"];
+    for (const key of standardKeys) {
+      const found = cols.find(c => c.toLowerCase() === key.toLowerCase());
+      if (found) return found;
+    }
+    const sectorKey = level === 0 ? "Nhóm_Phân_Loại" : (level === 6 ? "Nhóm_Ngành_Chính" : `Ngành_Cấp_${level}`);
+    const foundNonNumeric = cols.find(col => {
+      if (col === sectorKey || col.toLowerCase().includes("ngành") || col.toLowerCase().includes("vsic")) return false;
+      if (col.includes(" - Tổng ") || col.startsWith("Tổng_Cộng_") || col.startsWith("Tổng_")) return false;
+      if (/số.*dòng|số.*mẫu|số.*cơ.*sở|bản.*ghi|record|count|số_dòng|số_dn|số_lượng_bản_ghi|Số_Dòng_Tổng_Hợp|Số_Lượng_Bản_Ghi/i.test(col)) return false;
+      return true;
+    });
+    return foundNonNumeric || cols[0] || "Địa_Bàn_Xã";
+  }, [cols, level]);
+
+  const sectorKey = useMemo(() => {
+    const standardKeys = [
+      level === 0 ? "Nhóm_Phân_Loại" : (level === 6 ? "Nhóm_Ngành_Chính" : `Ngành_Cấp_${level}`),
+      "Nhóm_Phân_Loại", "Nhóm_Ngành_Chính", `Ngành_Cấp_${level}`,
+      "Ngành_Cấp_1", "Ngành_Cấp_2", "Ngành_Cấp_3", "Ngành_Cấp_4", "Ngành_Cấp_5", "Nhóm"
+    ];
+    for (const key of standardKeys) {
+      if (cols.includes(key)) return key;
+    }
+    const found = cols.find(col => /ngành|phân.*loại|nhóm|sector|group|category/i.test(col));
+    return found || cols[1] || cols[0] || "Nhóm_Phân_Loại";
+  }, [cols, level]);
+
+  const countCol = useMemo(() => {
+    const standardKeys = ["Số_Dòng_Tổng_Hợp", "Số_Lượng_Bản_Ghi", "Số lượng dòng", "Số cơ sở", "Số_DN_Địa_Phương", "Số_Lượng_Doanh_Nghiệp"];
+    for (const key of standardKeys) {
+      if (cols.includes(key)) return key;
+    }
+    const found = cols.find(col => /số.*dòng|số.*mẫu|số.*cơ.*sở|bản.*ghi|record|count|số_dòng|số_dn|số_lượng_bản_ghi/i.test(col));
+    return found || cols.find(col => !col.includes(" - Tổng ") && (col.toLowerCase().includes("số") || col.toLowerCase().includes("count"))) || "Số lượng dòng";
+  }, [cols]);
+
   // Extract sectors and indicators dynamically from column list based on localRows
   const pivotAnalysis = useMemo(() => {
     if (reportType !== "pivot" || localRows.length === 0) {
@@ -113,12 +153,11 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
     if (!searchTerm.trim()) return localRows;
     const term = searchTerm.toLowerCase();
     return localRows.filter((row) => {
-      const commune = String(row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "").toLowerCase();
-      const sectorKey = level === 0 ? "Nhóm_Phân_Loại" : (level === 6 ? "Nhóm_Ngành_Chính" : `Ngành_Cấp_${level}`);
+      const commune = String(row[communeCol] || "").toLowerCase();
       const sector = String(row[sectorKey] || "").toLowerCase();
       return commune.includes(term) || sector.includes(term);
     });
-  }, [localRows, searchTerm, level]);
+  }, [localRows, searchTerm, communeCol, sectorKey]);
 
   // Calculate dynamic totals across all columns
   const overallTotals = useMemo(() => {
@@ -128,13 +167,19 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
     
     localRows.forEach((row) => {
       if (reportType === "pivot") {
-        const dnRaw = row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"] ?? 0;
+        const dnRaw = row[countCol] ?? 0;
         const dnVal = typeof dnRaw === "number" ? dnRaw : parseFloat(String(dnRaw).replace(/[^0-9.\-]/g, "")) || 0;
         grandDN += isNaN(dnVal) ? 0 : dnVal;
         
         pivotAnalysis.indicators.forEach((ind) => {
           if (totalsByIndicator[ind] === undefined) totalsByIndicator[ind] = 0;
-          const rawVal = row[`Tổng_Cộng_${ind}_Toàn_Xã`] ?? row[`Tổng_Cộng_Toàn_Xã_${ind}`] ?? 0;
+          const key = row[`Tổng_Cộng_${ind}_Toàn_Xã`] !== undefined 
+            ? `Tổng_Cộng_${ind}_Toàn_Xã` 
+            : (row[`Tổng_Cộng_Toàn_Xã_${ind}`] !== undefined 
+               ? `Tổng_Cộng_Toàn_Xã_${ind}` 
+               : cols.find(c => c.includes(ind) && (c.startsWith("Tổng_Cộng_") || c.endsWith("_Toàn_Xã"))) || `Tổng_Cộng_${ind}_Toàn_Xã`);
+               
+          const rawVal = row[key] ?? 0;
           const val = typeof rawVal === "number" ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.\-]/g, "")) || 0;
           totalsByIndicator[ind] += isNaN(val) ? 0 : val;
         });
@@ -152,7 +197,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
         });
       } else {
         // Flat mode
-        const dnRaw = row["Số_Lượng_Bản_Ghi"] ?? row["Số_Lượng_Doanh_Nghiệp"] ?? 0;
+        const dnRaw = row[countCol] ?? 0;
         const dnVal = typeof dnRaw === "number" ? dnRaw : parseFloat(String(dnRaw).replace(/[^0-9.\-]/g, "")) || 0;
         grandDN += isNaN(dnVal) ? 0 : dnVal;
         cols.forEach((col) => {
@@ -172,7 +217,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
       totalsByIndicator,
       sectorStats
     };
-  }, [localRows, reportType, pivotAnalysis.sectors, pivotAnalysis.indicators, cols]);
+  }, [localRows, reportType, pivotAnalysis.sectors, pivotAnalysis.indicators, cols, countCol]);
 
   // Handle direct numeric input cell updates with instant calculations
   const handleCellChange = (rIdx: number, field: string, newValue: string) => {
@@ -195,8 +240,12 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               const v = typeof rawV === "number" ? rawV : parseFloat(String(rawV).replace(/[^0-9.\-]/g, "")) || 0;
               sum += isNaN(v) ? 0 : v;
             });
-            row[`Tổng_Cộng_${ind}_Toàn_Xã`] = Math.round(sum * 100) / 100;
-            row[`Tổng_Cộng_Toàn_Xã_${ind}`] = Math.round(sum * 100) / 100;
+            const keyToUpdate = row[`Tổng_Cộng_${ind}_Toàn_Xã`] !== undefined 
+              ? `Tổng_Cộng_${ind}_Toàn_Xã` 
+              : (row[`Tổng_Cộng_Toàn_Xã_${ind}`] !== undefined 
+                 ? `Tổng_Cộng_Toàn_Xã_${ind}` 
+                 : cols.find(c => c.includes(ind) && (c.startsWith("Tổng_Cộng_") || c.endsWith("_Toàn_Xã"))) || `Tổng_Cộng_${ind}_Toàn_Xã`);
+            row[keyToUpdate] = Math.round(sum * 100) / 100;
           }
         });
       }
@@ -281,15 +330,19 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               const exportRowsClean = localRows.map(row => {
                 const cleanRow: any = {};
                 if (reportType === "pivot") {
-                  cleanRow["Địa_Bàn_Xã"] = row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "";
+                  cleanRow[communeCol] = row[communeCol] || "";
                   visibleSectors.forEach(sector => {
                     pivotAnalysis.indicators.forEach(ind => {
                       cleanRow[`${sector} - Tổng ${ind}`] = row[`${sector} - Tổng ${ind}`] || 0;
                     });
                   });
-                  cleanRow["Số_Dòng_Tổng_Hợp"] = row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"] ?? 0;
+                  cleanRow[countCol] = row[countCol] ?? 0;
                   pivotAnalysis.indicators.forEach(ind => {
-                    const key = row[`Tổng_Cộng_${ind}_Toàn_Xã`] !== undefined ? `Tổng_Cộng_${ind}_Toàn_Xã` : `Tổng_Cộng_Toàn_Xã_${ind}`;
+                    const key = row[`Tổng_Cộng_${ind}_Toàn_Xã`] !== undefined 
+                      ? `Tổng_Cộng_${ind}_Toàn_Xã` 
+                      : (row[`Tổng_Cộng_Toàn_Xã_${ind}`] !== undefined 
+                         ? `Tổng_Cộng_Toàn_Xã_${ind}` 
+                         : cols.find(c => c.includes(ind) && (c.startsWith("Tổng_Cộng_") || c.endsWith("_Toàn_Xã"))) || `Tổng_Cộng_${ind}_Toàn_Xã`);
                     cleanRow[key] = row[key] || 0;
                   });
                 } else {
@@ -472,8 +525,8 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               <thead>
                 {/* FIRST HEADER ROW: GROUPED SECTORS */}
                 <tr className="bg-slate-100 border-b border-slate-200 text-slate-800 font-mono text-[10.5px] sticky top-0 z-20">
-                  <th rowSpan={2} className="p-3 font-bold whitespace-nowrap bg-slate-100 border-r border-slate-200 align-middle text-center sticky left-0 z-30">
-                    Địa Bàn Xã/Phường
+                  <th rowSpan={2} className="p-3 font-bold whitespace-nowrap bg-slate-100 border-r border-slate-200 align-middle text-center sticky left-0 z-30 capitalize">
+                    {communeCol.replace(/_/g, " ")}
                   </th>
                   {visibleSectors.map((sector) => (
                     <th 
@@ -510,8 +563,8 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                       ))}
                     </React.Fragment>
                   ))}
-                  <th className="p-2 font-semibold text-right border-r border-slate-200 bg-teal-50/40 text-teal-800 whitespace-nowrap w-20">
-                    Số mẫu
+                  <th className="p-2 font-semibold text-right border-r border-slate-200 bg-teal-50/40 text-teal-800 whitespace-nowrap w-20 capitalize">
+                    {countCol.replace(/_/g, " ")}
                   </th>
                   {pivotAnalysis.indicators.map((ind) => (
                     <th key={`hdr-tot-${ind}`} className="p-2 font-semibold text-right border-r border-slate-200 bg-teal-50/40 text-teal-800 whitespace-nowrap">
@@ -524,7 +577,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               <tbody className="divide-y divide-slate-100 text-slate-800 font-sans text-[11.5px]">
                 {filteredRows.map((row, rIdx) => {
                   const isSelected = selectedRowIndex === rIdx;
-                  const communeName = row["Địa_Bàn_Xã"] || row["Địa_bàn_Xã"] || "Khác";
+                  const communeName = row[communeCol] || "Khác";
                   return (
                     <React.Fragment key={`row-${rIdx}`}>
                       <tr
@@ -544,7 +597,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                           <input
                             type="text"
                             value={communeName}
-                            onChange={(e) => handleCellChangeText(rIdx, row["Địa_Bàn_Xã"] ? "Địa_Bàn_Xã" : "Địa_bàn_Xã", e.target.value)}
+                            onChange={(e) => handleCellChangeText(rIdx, communeCol, e.target.value)}
                             className="bg-transparent font-medium text-slate-900 outline-none focus:bg-amber-100/80 focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-1 text-xs border-0 w-28 font-sans"
                             title="Nhấp đúp chuột để đổi tên địa bàn"
                           />
@@ -581,8 +634,8 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                         <td className="p-1 text-right font-semibold text-indigo-700 border-r border-slate-200 bg-teal-50/10 whitespace-nowrap">
                           <input
                             type="text"
-                            value={row["Số_Dòng_Tổng_Hợp"] ?? row["Số_DN_Địa_Phương"] ?? ""}
-                            onChange={(e) => handleCellChange(rIdx, row["Số_Dòng_Tổng_Hợp"] !== undefined ? "Số_Dòng_Tổng_Hợp" : "Số_DN_Địa_Phương", e.target.value)}
+                            value={row[countCol] !== undefined && row[countCol] !== null ? row[countCol] : ""}
+                            onChange={(e) => handleCellChange(rIdx, countCol, e.target.value)}
                             className="w-full bg-transparent text-right font-sans font-bold text-indigo-700 outline-none focus:bg-amber-100/70 focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-1 text-xs border-0"
                             title="Sửa số lượng mẫu địa phương"
                           />
@@ -630,13 +683,13 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                                       {/* Record count percentage */}
                                       <div className="space-y-1">
                                         <div className="flex justify-between text-xs text-slate-700">
-                                          <span>🏢 Số dòng mẫu:</span>
+                                          <span className="capitalize">🏢 {countCol.replace(/_/g, " ")}:</span>
                                           <strong className="text-cyan-700 font-mono">
-                                            {formatNumberVi(row["Số_Dòng_Tổng_Hợp"] ?? 0)} / {formatNumberVi(overallTotals.dn)} dòng ({overallTotals.dn > 0 ? (((row["Số_Dòng_Tổng_Hợp"] ?? 0) / overallTotals.dn) * 100).toFixed(2) : 0}%)
+                                            {formatNumberVi(row[countCol] ?? 0)} / {formatNumberVi(overallTotals.dn)} dòng ({overallTotals.dn > 0 ? (((row[countCol] ?? 0) / overallTotals.dn) * 100).toFixed(2) : 0}%)
                                           </strong>
                                         </div>
                                         <div className="bg-slate-100 h-1 rounded overflow-hidden">
-                                          <div className="bg-cyan-500 h-full text-xs" style={{ width: `${overallTotals.dn > 0 ? (((row["Số_Dòng_Tổng_Hợp"] ?? 0) / overallTotals.dn) * 100) : 0}%` }} />
+                                          <div className="bg-cyan-500 h-full text-xs" style={{ width: `${overallTotals.dn > 0 ? (((row[countCol] ?? 0) / overallTotals.dn) * 100) : 0}%` }} />
                                         </div>
                                       </div>
 
@@ -811,10 +864,10 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                           if (overallVal > 0) {
                             proportionStr = ` (${((parsedNum / overallVal) * 105).toFixed(2)}%)`;
                           }
-                        } else if (col === "Số_Lượng_Bản_Ghi") {
+                        } else if (col === countCol) {
                           const overallVal = overallTotals.dn || 0;
                           if (overallVal > 0) {
-                            proportionStr = ` (${((parsedNum / overallVal) * 105).toFixed(2)}%)`;
+                            proportionStr = ` (${((parsedNum / overallVal) * 100).toFixed(2)}%)`;
                           }
                         }
                       }
@@ -823,7 +876,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                         <td
                           key={col}
                           className={`p-1 whitespace-nowrap ${
-                            col === "Địa_Bàn_Xã" || col === "Địa_bàn_Xã"
+                            col === communeCol
                               ? "font-semibold text-slate-900 bg-white"
                               : ""
                           }`}
@@ -857,12 +910,12 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
                     if (cIdx === 0) {
                       return <td key={col} colSpan={2} className="p-3 text-left">TỔNG CỘNG TOÀN BẢNG</td>;
                     }
-                    if (col === "Địa_Bàn_Xã" || col === "Địa_bàn_Xã") {
+                    if (col === communeCol) {
                       return null;
                     }
-                    if (col === "Số_Lượng_Bản_Ghi") {
+                    if (col === countCol) {
                       return (
-                        <td key={col} className="p-3 text-right font-semibold text-teal-850 bg-teal-50/20">
+                        <td key={col} className="p-3 text-right font-semibold text-teal-850 bg-teal-50/20 font-mono">
                           {formatNumberVi(overallTotals.dn)} (100%)
                         </td>
                       );

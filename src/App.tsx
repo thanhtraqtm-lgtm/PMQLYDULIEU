@@ -4347,27 +4347,22 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
 
       // Xây dựng danh sách chỉ tiêu cộng dồn động (không khoá cứng cột)
       const sumCols: string[] = [];
-      
-      // Bổ sung: Luôn thêm chỉ tiêu đếm "Số cơ sở" hàng đầu theo yêu cầu của người dùng
-      sumCols.push("Số cơ sở");
 
       const sumColsToCheck = Array.isArray(quickReportSumCols) ? quickReportSumCols : [];
       sumColsToCheck.forEach(col => {
         if (col && (targetColumns.includes(col) || col === "Số lượng dòng" || col === "Số cơ sở")) {
-          if (col !== "Số cơ sở") {
-            sumCols.push(col);
-          }
+          sumCols.push(col);
         }
       });
 
       // Nếu không cấu hình chỉ tiêu phụ động, tự chuyển về tương thích ngược dựa vào lựa chọn Doanh Thu và Lao Động
-      if (sumCols.length === 1) {
+      if (sumCols.length === 0) {
         if (targetDoanhThu && targetColumns.includes(targetDoanhThu)) sumCols.push(targetDoanhThu);
         if (targetLaoDong && targetColumns.includes(targetLaoDong)) sumCols.push(targetLaoDong);
       }
 
       // Tự động tìm kiếm các cột số trong tệp dữ liệu nếu chưa chọn hoặc không tìm thấy cột doanh thu/lao động
-      if (sumCols.length === 1) {
+      if (sumCols.length === 0) {
         const firstRow = targetData[0] || {};
         const detectedNumericCols = targetColumns.filter(col => {
           if (col === targetManganh || col === targetXa) return false;
@@ -4382,7 +4377,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
       }
 
       // Nếu vẫn trống, lấy đại diện 1 cột số lượng dòng ảo làm chỉ tiêu cộng dồn
-      if (sumCols.length === 1) {
+      if (sumCols.length === 0) {
         sumCols.push("Số lượng dòng");
       }
 
@@ -4495,7 +4490,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
 
         communes.forEach((commune) => {
           const communeObj: any = {
-            "Địa_Bàn_Xã": commune
+            [targetXa]: commune
           };
 
           let totalCommuneDN = 0;
@@ -4529,7 +4524,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
             totalCommuneDN += matchedRows.length;
           });
 
-          communeObj["Số_Dòng_Tổng_Hợp"] = totalCommuneDN;
+          communeObj["Số lượng dòng"] = totalCommuneDN;
           sumCols.forEach(col => {
             communeObj[`Tổng_Cộng_${col}_Toàn_Xã`] = Math.round(totalAccumulate[col] * 100) / 100;
           });
@@ -4551,14 +4546,14 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
 
           const rowObj: any = {};
           if (level === 0) {
-            rowObj["Nhóm_Phân_Loại"] = dims.Ngành;
+            rowObj[targetManganh] = dims.Ngành;
           } else if (level === 6) {
             rowObj["Nhóm_Ngành_Chính"] = dims.Ngành;
           } else {
             rowObj[`Ngành_Cấp_${level}`] = dims.Ngành;
           }
-          rowObj["Địa_Bàn_Xã"] = dims.Xã;
-          rowObj["Số_Lượng_Bản_Ghi"] = rowsObj.length;
+          rowObj[targetXa] = dims.Xã;
+          rowObj["Số lượng dòng"] = rowsObj.length;
 
           sumCols.forEach(col => {
             let sumCol = 0;
@@ -5405,7 +5400,7 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
       return;
     }
 
-    const sumCols = ["Số cơ sở", ...secSumCols.filter(col => secondaryFile.columns.includes(col) && col !== "Số cơ sở")];
+    const sumCols = secSumCols.filter(col => secondaryFile.columns.includes(col) || col === "Số lượng dòng" || col === "Số cơ sở");
     if (sumCols.length === 0) {
       alert("Vui lòng tích chọn ít nhất 1 chỉ tiêu cột số để cộng tổng!");
       return;
@@ -5451,6 +5446,7 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
             ...row,
             _temNganhCap: tenNganhLabel,
             _tempXa: String(row[targetXa] || "Khác").trim(),
+            "Số lượng dòng": 1,
             "Số cơ sở": 1
           };
         },
@@ -5478,7 +5474,7 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
         });
 
         communes.forEach((commune) => {
-          const communeObj: any = { "Địa_Bàn_Xã": commune };
+          const communeObj: any = { [targetXa]: commune };
           let totalCommuneDN = 0;
           const totalAccumulate: { [col: string]: number } = {};
           sumCols.forEach(col => { totalAccumulate[col] = 0; });
@@ -5501,7 +5497,7 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
             totalCommuneDN += matchedRows.length;
           });
 
-          communeObj["Số_Dòng_Tổng_Hợp"] = totalCommuneDN;
+          communeObj["Số lượng dòng"] = totalCommuneDN;
           sumCols.forEach(col => {
             communeObj[`Tổng_Cộng_${col}_Toàn_Xã`] = Math.round(totalAccumulate[col] * 100) / 100;
           });
@@ -5520,12 +5516,12 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
           const dims = JSON.parse(keyStr);
           const rowObj: any = {};
           if (level === 0) {
-            rowObj["Nhóm_Phân_Loại"] = dims.Ngành;
+            rowObj[targetManganh] = dims.Ngành;
           } else {
             rowObj[`Ngành_Cấp_${level}`] = dims.Ngành;
           }
-          rowObj["Địa_Bàn_Xã"] = dims.Xã;
-          rowObj["Số_Lượng_Bản_Ghi"] = rowsObj.length;
+          rowObj[targetXa] = dims.Xã;
+          rowObj["Số lượng dòng"] = rowsObj.length;
 
           sumCols.forEach(col => {
             let sumCol = 0;
@@ -5576,20 +5572,29 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
   };
 
   const getRowKey = (row: any, cols: string[]) => {
+    if (!row) return "";
     const parts: string[] = [];
-    if (row && "Địa_Bàn_Xã" in row) parts.push(String(row["Địa_Bàn_Xã"]));
-    if (row && "Ngành_Cấp_1" in row) parts.push(String(row["Ngành_Cấp_1"]));
-    if (row && "Ngành_Cấp_2" in row) parts.push(String(row["Ngành_Cấp_2"]));
-    if (row && "Nhóm_Phân_Loại" in row) parts.push(String(row["Nhóm_Phân_Loại"]));
     
-    // Fallback
-    if (parts.length === 0 && row) {
-      const firstStrCol = cols.find(c => {
-        const val = row[c];
-        return typeof val === "string" && isNaN(Number(val));
+    // Tìm các cột không phải số, không chứa tổng cộng và không phải cột chỉ số dòng để làm khoá ghép nối dòng
+    const nonNumericCols = cols.filter(col => {
+      if (col.includes(" - Tổng ") || col.startsWith("Tổng_") || col.startsWith("Tổng_Cộng_") || col.includes("_Toàn_Xã")) return false;
+      if (/số.*dòng|số.*mẫu|số.*cơ.*sở|bản.*ghi|record|count|số_dòng|số_dn|số_lượng_bản_ghi|Số_Dòng_Tổng_Hợp|Số_Lượng_Bản_Ghi/i.test(col)) return false;
+      const val = row[col];
+      return typeof val === "string" && isNaN(Number(val));
+    });
+
+    if (nonNumericCols.length > 0) {
+      nonNumericCols.forEach(col => {
+        parts.push(String(row[col] || ""));
       });
-      if (firstStrCol) parts.push(String(row[firstStrCol]));
+    } else {
+      // Fallback
+      const standardKeys = ["Địa_Bàn_Xã", "Địa_bàn_Xã", "Xã", "Ngành_Cấp_1", "Ngành_Cấp_2", "Nhóm_Phân_Loại", "Nhóm_Ngành_Chính"];
+      standardKeys.forEach(key => {
+        if (key in row) parts.push(String(row[key]));
+      });
     }
+    
     return parts.join("||");
   };
 
