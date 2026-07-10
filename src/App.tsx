@@ -7470,7 +7470,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             Trang chủ
           </button>
 
-          {/* NÚT CHÍNH: PHIẾU KHẢO SÁT & KÝ SỐ */}
+          {/* NÚT CHÍNH: Nhập Tin  */}
           <button 
             onClick={(e) => {
               e.stopPropagation();
