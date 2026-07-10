@@ -418,7 +418,7 @@ interface LogicRule {
 }
 
 export function AuthScreen() {
-  const { login, register, loading: authLoading } = useAuth();
+  const { login, register, loading: authLoading, setForceOfflineMode, forceOffline } = useAuth();
   
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
@@ -428,11 +428,13 @@ export function AuthScreen() {
   const [authRole, setAuthRole] = useState<"admin" | "user">("user");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
+  const [isOperationNotAllowed, setIsOperationNotAllowed] = useState(false);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     setAuthSuccess(null);
+    setIsOperationNotAllowed(false);
 
     if (!authEmail.trim() || !authPassword.trim()) {
       setAuthError("Vui lòng điền đầy đủ tài khoản và mật khẩu!");
@@ -459,14 +461,26 @@ export function AuthScreen() {
       }
     } catch (err: any) {
       console.error(err);
-      setAuthError(err.message || "Xử lý xác thực thất bại. Vui lòng thử lại!");
+      const errMsg = err.message || String(err);
+      if (errMsg.includes("operation-not-allowed") || err.code === "auth/operation-not-allowed") {
+        setIsOperationNotAllowed(true);
+        setAuthError(
+          "Lỗi Firebase (auth/operation-not-allowed): Tính năng Đăng nhập Email/Mật khẩu chưa được kích hoạt trong trang quản trị Firebase Console."
+        );
+      } else {
+        setAuthError(errMsg || "Xử lý xác thực thất bại. Vui lòng thử lại!");
+      }
     }
   };
 
   const handleQuickMockLogin = async (presetType: "hanoi" | "hcm" | "admin") => {
     setAuthError(null);
     setAuthSuccess(null);
+    setIsOperationNotAllowed(false);
     try {
+      // Vì đây là các nút đăng nhập nhanh mô phỏng, tự động bật offline mode để người dùng trải nghiệm ngay lập tức
+      setForceOfflineMode(true);
+      
       if (presetType === "admin") {
         await login("admin@chinhphu.gov.vn", "123456");
       } else if (presetType === "hanoi") {
@@ -475,7 +489,16 @@ export function AuthScreen() {
         await login("donvi_saigon@tphcm.gov.vn", "123456", "saigon");
       }
     } catch (err: any) {
-      setAuthError(err.message || "Lỗi đăng nhập nhanh mô phỏng.");
+      console.error("Lỗi đăng nhập nhanh:", err);
+      const errMsg = err.message || String(err);
+      if (errMsg.includes("operation-not-allowed") || err.code === "auth/operation-not-allowed") {
+        setIsOperationNotAllowed(true);
+        setAuthError(
+          "Lỗi Firebase (auth/operation-not-allowed): Tính năng Đăng nhập Email/Mật khẩu chưa được kích hoạt trong trang quản trị Firebase Console."
+        );
+      } else {
+        setAuthError(errMsg || "Lỗi đăng nhập nhanh mô phỏng.");
+      }
     }
   };
 
@@ -504,9 +527,35 @@ export function AuthScreen() {
         <form onSubmit={handleAuthSubmit} className="space-y-4">
           
           {authError && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-xl text-xs flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 shrink-0" />
-              <span>{authError}</span>
+            <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-xl text-xs space-y-2">
+              <div className="flex items-center gap-2 font-bold">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>{authError}</span>
+              </div>
+              {isOperationNotAllowed && (
+                <div className="text-[11px] text-slate-350 leading-relaxed pt-2 border-t border-rose-500/10 space-y-1.5">
+                  <p className="font-bold text-amber-400">💡 CÁCH KHẮC PHỤC:</p>
+                  <ol className="list-decimal pl-4 space-y-1">
+                    <li>Mở trang quản trị <b>Firebase Console</b> của dự án này.</li>
+                    <li>Vào mục <b>Authentication</b> &gt; chọn tab <b>Sign-in method</b>.</li>
+                    <li>Tìm <b>Email/Password</b> và nhấn <b>Enable</b> (Bật) rồi nhấn Lưu.</li>
+                  </ol>
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForceOfflineMode(true);
+                        setAuthSuccess("Đã kích hoạt chế độ Mô phỏng Offline thành công!");
+                        setAuthError(null);
+                        setIsOperationNotAllowed(false);
+                      }}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-lg text-xs transition cursor-pointer shadow-md animate-bounce mt-1"
+                    >
+                      🚀 Bật chế độ Mô Phỏng Offline để chạy ngay
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1005,7 +1054,7 @@ export function MainAppContent() {
 
   const [mathTreatMissingAsZero, setMathTreatMissingAsZero] = useState<boolean>(true);
 
-  // States mới cho nạp đa tệp tin, tính toán giữa các file và lưu lệnh
+  // States mới cho nạp đa tệp tin, tính toán liên file và lưu lệnh
   const [aggregateFiles, setAggregateFiles] = useState<{
     id: string;
     name: string;
@@ -1063,18 +1112,18 @@ export function MainAppContent() {
     return list;
   }, [mainData, fileName, columns, aggregateFiles]);
 
-  // Cấu hình so sánh giữa các thời kỳ
+  // Cấu hình đối sánh đa niên độ (YoY)
   const [compareDsIds, setCompareDsIds] = useState<string[]>([]);
   const [compareKeyCol, setCompareKeyCol] = useState<string>("Địa_Bàn_Xã");
   const [compareColMapping, setCompareColMapping] = useState<{ [dsId: string]: string }>({});
   const [selectedCompareRowKey, setSelectedCompareRowKey] = useState<string>("");
 
-  // Trạng thái tổng hợp báo cáo.
+  // Trạng thái cho Dual-Pane Mapping và double click, cùng kiểu định dạng báo cáo xoay Pivot
   const [selectedTargetKey, setSelectedTargetKey] = useState<keyof ColumnMapping>("mota");
   const [reportType, setReportType] = useState<"flat" | "pivot">("pivot");
   const [isConfigExpanded, setIsConfigExpanded] = useState<boolean>(true);
 
-  // Gọi AI để Đặt Tên Cột (Column Rule Learning)
+  // AI Học Đặt Tên Cột (Column Rule Learning)
   const [aiColLearnPrompt, setAiColLearnPrompt] = useState<string>("");
   const [isLearningColAi, setIsLearningColAi] = useState<boolean>(false);
   const [learningColLogs, setLearningColLogs] = useState<string[]>([]);
@@ -1097,7 +1146,7 @@ export function MainAppContent() {
     } catch (e) {
       console.warn("Lỗi đọc colLearnedCommands từ localStorage:", e);
     }
-    // Mục quy tắc mặc định
+    // Danh mục lệnh học mặc định
     return [
       {
         id: "default-thue",
@@ -1123,7 +1172,7 @@ export function MainAppContent() {
       {
         id: "default-rutgon",
         name: "🧹 Tối Giản Hóa (Chỉ giữ ID và Mô Tả Ngành)",
-        description: "Loại bỏ mọi cột không dùng đến 🔑 Mã định danh (MST) và 📝 Mô tả hoạt động kinh doanh để tối ưu hóa hiệu năng rà soát.",
+        description: "Loại bỏ mọi cột thừa ngoại trừ 🔑 Mã định danh (MST) và 📝 Mô tả hoạt động kinh doanh để tối ưu hóa hiệu năng rà soát.",
         createdAt: new Date().toISOString(),
         mappings: [
           { originalMatch: "MST", newName: "Mã Số Thuế", role: "idCol", use: true },
@@ -1137,7 +1186,7 @@ export function MainAppContent() {
   });
 
 
-  // Trang tách dữ liệu
+  // Trang phân tách
   const [splitCol, setSplitCol] = useState<string>("");
 
   // Trạng thái ghép nhiều sheet từ cùng một file Excel tải lên
@@ -1155,7 +1204,7 @@ export function MainAppContent() {
   const [crossReportLaoDongCol, setCrossReportLaoDongCol] = useState<string>("");
   const [crossReportLevel, setCrossReportLevel] = useState<number>(2); // 1: Cấp 1, 2: Cấp 2, 5: Giữ nguyên
 
-  // Quy tắc tổng hợp
+  // Quy tắc tổng hợp (Aggregate rules)
   const [groupByCols, setGroupByCols] = useState<string[]>([]);
   const [aggRules, setAggRules] = useState<{ col: string; op: string }[]>([]);
   const [newAggCol, setNewAggCol] = useState<string>("");
@@ -1169,7 +1218,7 @@ export function MainAppContent() {
   const [logicRuleMode, setLogicRuleMode] = useState<"conflict" | "must_satisfy">("conflict");
   const [logicFilterMode, setLogicFilterMode] = useState<"all" | "if_satisfied" | "violated">("if_satisfied");
 
-  // Trí tuệ Nhân tạo - Gọi AI và lưu quy tắc
+  // Trí tuệ Nhân tạo - Học và lưu lệnh qua AI
   const [aiRulePrompt, setAiRulePrompt] = useState<string>("");
   const [aiTranslatedExpression, setAiTranslatedExpression] = useState<string>("");
   const [customRuleName, setCustomRuleName] = useState<string>("");
@@ -1195,7 +1244,7 @@ export function MainAppContent() {
   const [newIfRule, setNewIfRule] = useState<LogicRule>({ col: "", op: "==", val: "", isFieldCompare: false });
   const [newThenRule, setNewThenRule] = useState<LogicRule>({ col: "", op: "==", val: "", isFieldCompare: false });
 
-  // States cho Phân Hệ 1: Tổng hợp ngành cấp 2
+  // States cho Phân Hệ 1: Tổng hợp ngành cấp 2 (Mới độc lập)
   const [t2IndustryCol, setT2IndustryCol] = useState<string>("");
   const [t2MetricCols, setT2MetricCols] = useState<string[]>([]);
   const [t2AggMethod, setT2AggMethod] = useState<"sum" | "avg">("sum");
@@ -7421,6 +7470,26 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             Trang chủ
           </button>
 
+          {/* NÚT CHÍNH: PHIẾU KHẢO SÁT & KÝ SỐ */}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveTab("dataentry");
+              setOpenDropdown(null);
+            }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+              activeTab === "dataentry" 
+                ? "bg-indigo-600 text-white shadow-md border border-indigo-700" 
+                : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 shadow-sm"
+            }`}
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>✍️ Phiếu Khảo sát &amp; Ký số Hưng Yên</span>
+          </button>
+
           {/* DROPDOWN 1: TRẠM DỮ LIỆU */}
           <div className="relative">
             <button 
@@ -7429,7 +7498,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 setOpenDropdown(openDropdown === "quanlytep" ? null : "quanlytep");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-                ["xemdulieu", "ghepnoi", "tachfile", "chonmau"].includes(activeTab)
+                ["xemdulieu", "ghepnoi", "tachfile", "chonmau", "sosanh", "dataentry"].includes(activeTab)
                   ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
                   : openDropdown === "quanlytep"
                     ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
@@ -7473,6 +7542,16 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   <FileCheck className="w-4 h-4 text-orange-500 shrink-0" />
                   Thiết lập Biểu mẫu khảo sát
                 </button>
+                <button 
+                  onClick={() => { setActiveTab("sosanh"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center justify-between px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "sosanh" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Database className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>So sánh Dữ liệu giữa các kỳ</span>
+                  </div>
+                  <span className="bg-red-500 text-white text-[8px] px-1 py-0.5 rounded-full font-bold uppercase shrink-0 animate-pulse">MỚI</span>
+                </button>
               </div>
             )}
           </div>
@@ -7485,7 +7564,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 setOpenDropdown(openDropdown === "kiemsoat" ? null : "kiemsoat");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-                ["rulesstudio", "kiemtralogic", "outliers", "sosanh"].includes(activeTab)
+                ["rulesstudio", "kiemtralogic", "outliers"].includes(activeTab)
                   ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
                   : openDropdown === "kiemsoat"
                     ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
@@ -7522,34 +7601,9 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
                   Quét Sai lệch &amp; Cá biệt (Outliers)
                 </button>
-                <button 
-                  onClick={() => { setActiveTab("sosanh"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "sosanh" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
-                >
-                  <Combine className="w-4 h-4 text-amber-500 shrink-0" />
-                  So sánh liên kỳ, Lưu kho &amp; Đối chiếu
-                </button>
               </div>
             )}
           </div>
-
-          {/* NÚT TẬP TRUNG CHUYÊN BIỆT: ĐỐI CHIẾU & LƯU KHO LÂU DÀI */}
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveTab("sosanh");
-              setOpenDropdown(null);
-            }}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-              activeTab === "sosanh"
-                ? "bg-amber-500 text-white shadow-md border border-amber-600"
-                : "text-amber-800 bg-amber-50/70 hover:bg-amber-100/80 hover:text-amber-900 border border-amber-200"
-            }`}
-          >
-            <Database className="w-4 h-4 shrink-0 text-amber-500" />
-            📦 So sánh Dữ liệu giữa các kỳ
-            <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0 animate-bounce">MỚI</span>
-          </button>
 
           {/* DROPDOWN 3: TRÍ TUỆ VSIC & AI */}
           <div className="relative">
@@ -7674,13 +7728,6 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 onClick={(e) => e.stopPropagation()}
               >
                 <button 
-                  onClick={() => { setActiveTab("dataentry"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "dataentry" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
-                >
-                  <Database className="w-4 h-4 text-indigo-500 shrink-0" />
-                  Nhập liệu Cloud (Real-time)
-                </button>
-                <button 
                   onClick={() => { setActiveTab("videoroom"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "videoroom" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
@@ -7709,7 +7756,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
         </div>
 
-        {/* Nút Xóa dữ liệu và các chỉ mục chỉ đường trực quan cân bằng góc phải menu ngang */}
+        {/* Nút Xóa dữ liệu và các chỉ mục trình tự thực hiện trực quan cân bằng góc phải menu ngang */}
         <div className="flex items-center gap-2.5 text-[11px] font-sans">
           <button 
             onClick={() => {
@@ -7721,26 +7768,10 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               }, 120);
             }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-750 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
-            title="Nhảy nhanh đến trợ lý chỉ đường rà soát giải đáp các tình huống dữ liệu thực tế"
+            title="Nhảy nhanh đến trình tự thực hiện rà soát giải đáp các tình huống dữ liệu thực tế"
           >
             <Compass className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            CHỈ ĐƯỜNG THỰC TẾ
-          </button>
-
-          <button 
-            onClick={() => {
-              setActiveTab("trangchu");
-              setOpenDropdown(null);
-              setTimeout(() => {
-                const el = document.getElementById("interactive-pipeline-guide");
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }, 120);
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-750 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
-            title="Xem sơ đồ lộ trình 4 bước rà soát xử lý dữ liệu chuẩn"
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-            BẢN ĐỒ QUY TRÌNH
+            TRÌNH TỰ THỰC HIỆN
           </button>
 
           <div className="w-px h-5 bg-slate-250 mx-0.5"></div>
@@ -7970,7 +8001,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   <div className="flex items-center gap-2">
                     <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase">Mới</span>
                     <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                      💡 Thông tin hỗ trợ: Bạn muốn làm gì hôm nay?
+                      💡 Trình tự thực hiện: Bạn muốn làm gì hôm nay?
                     </h4>
                   </div>
                   
@@ -8008,7 +8039,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                             </div>
                             
                             <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full uppercase tracking-wider self-start md:self-auto">
-                              🔍Chi tiết • {sc.steps.length} theo bước
+                              🔍 Hướng dẫn chi tiết • {sc.steps.length} Bước hành động
                             </span>
                           </div>
 

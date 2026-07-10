@@ -15,11 +15,16 @@ import {
   Sparkles,
   FolderOpen,
   AlertCircle,
-  Plus
+  Plus,
+  CloudLightning,
+  CheckCircle,
+  Loader2,
+  Upload
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { parseCSV } from "../utils/sharedHelpers";
 import { MainDataInlinePreview } from "./MainDataInlinePreview";
+import { useAuth } from "../context/AuthContext";
 import {
   ResponsiveContainer,
   LineChart,
@@ -150,6 +155,153 @@ export default function DataComparison({
 
   // === PHẦN 3: SO SÁNH GIỮA CÁC KỲ ===
   const [savedSnapshots, setSavedSnapshots] = useState<SavedSnapshot[]>([]);
+
+  // --- GOOGLE DRIVE INTEGRATION STATES ---
+  const { user: authUser, googleAccessToken, signInWithGoogle } = useAuth();
+  const [showDrivePanel, setShowDrivePanel] = useState(false);
+  const [isDriveSyncing, setIsDriveSyncing] = useState(false);
+  const [driveSyncLogs, setDriveSyncLogs] = useState<string[]>([]);
+  const [driveBackups, setDriveBackups] = useState<any[]>([]);
+  const [loadingDriveBackups, setLoadingDriveBackups] = useState(false);
+
+  const loadSnapshotsList = () => {
+    getAllSnapshotsFromDB().then((snaps) => {
+      setSavedSnapshots(snaps || []);
+    }).catch(err => {
+      console.error("Lỗi khi tải kho dữ liệu:", err);
+    });
+  };
+
+  const fetchDriveBackups = async () => {
+    if (!googleAccessToken) return;
+    setLoadingDriveBackups(true);
+    setDriveSyncLogs(prev => [...prev, "🔍 Đang quét các bản sao lưu kho lưu trữ trên Google Drive..."]);
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name+contains+'VTong_DB_Backup_'+and+mimeType='application/json'&fields=files(id,name,createdTime,size)&orderBy=createdTime+desc`,
+        {
+          headers: {
+            Authorization: `Bearer ${googleAccessToken}`
+          }
+        }
+      );
+      if (!response.ok) throw new Error("Không thể truy vấn Google Drive API.");
+      const data = await response.json();
+      setDriveBackups(data.files || []);
+      setDriveSyncLogs(prev => [...prev, `🎉 Đã tìm thấy ${data.files?.length || 0} bản sao lưu sẵn có.`]);
+    } catch (err: any) {
+      console.error(err);
+      setDriveSyncLogs(prev => [...prev, `❌ Lỗi tải danh sách sao lưu: ${err.message}`]);
+    } finally {
+      setLoadingDriveBackups(false);
+    }
+  };
+
+  useEffect(() => {
+    if (googleAccessToken && showDrivePanel) {
+      fetchDriveBackups();
+    }
+  }, [googleAccessToken, showDrivePanel]);
+
+  const handleBackupSnapshotsToDrive = async () => {
+    if (!googleAccessToken) {
+      setDriveSyncLogs(prev => [...prev, "❌ Vui lòng kết nối Google Drive trước!"]);
+      return;
+    }
+    if (savedSnapshots.length === 0) {
+      alert("Kho dữ liệu rỗng, không có gì để sao lưu!");
+      return;
+    }
+
+    setIsDriveSyncing(true);
+    setDriveSyncLogs(["🔄 Bắt đầu đóng gói toàn bộ snapshot từ IndexedDB..."]);
+
+    try {
+      const fileName = `VTong_DB_Backup_${new Date().toISOString().slice(0, 10)}_${Date.now()}.json`;
+      const contentStr = JSON.stringify(savedSnapshots, null, 2);
+
+      const boundary = "foo_bar_boundary";
+      const metadata = {
+        name: fileName,
+        mimeType: "application/json"
+      };
+
+      const multipartBody = 
+        `\r\n--${boundary}\r\n` +
+        `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+        `${JSON.stringify(metadata)}\r\n` +
+        `\r\n--${boundary}\r\n` +
+        `Content-Type: application/json\r\n\r\n` +
+        `${contentStr}\r\n` +
+        `--${boundary}--`;
+
+      setDriveSyncLogs(prev => [...prev, `📤 Đang truyền tải tệp "${fileName}" lên Google Drive...`]);
+      
+      const response = await fetch(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${googleAccessToken}`,
+            "Content-Type": `multipart/related; boundary=${boundary}`
+          },
+          body: multipartBody
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Lỗi Google API: ${errorText}`);
+      }
+
+      setDriveSyncLogs(prev => [...prev, "🎉 Sao lưu kho lưu trữ lên Google Drive thành công!"]);
+      fetchDriveBackups();
+    } catch (err: any) {
+      console.error(err);
+      setDriveSyncLogs(prev => [...prev, `❌ Thất bại: ${err.message}`]);
+    } finally {
+      setIsDriveSyncing(false);
+    }
+  };
+
+  const handleRestoreFromDrive = async (fileId: string, fileName: string) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn khôi phục kho dữ liệu từ bản sao lưu "${fileName}"? Thao tác này sẽ cập nhật các snapshot trùng ID trong máy của bạn.`)) {
+      return;
+    }
+
+    setIsDriveSyncing(true);
+    setDriveSyncLogs(prev => [...prev, `📥 Đang tải xuống dữ liệu từ tệp tin ID: ${fileId}...`]);
+
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+          headers: {
+            Authorization: `Bearer ${googleAccessToken}`
+          }
+        }
+      );
+      if (!response.ok) throw new Error("Tải tệp tin thất bại.");
+      const data = await response.json();
+      
+      if (!Array.isArray(data)) {
+        throw new Error("Dữ liệu sao lưu không đúng định dạng danh sách.");
+      }
+
+      setDriveSyncLogs(prev => [...prev, `💾 Đang ghi đè ${data.length} bản ghi vào IndexedDB cục bộ...`]);
+      for (const snap of data) {
+        await saveSnapshotToDB(snap);
+      }
+
+      setDriveSyncLogs(prev => [...prev, "🎉 Khôi phục kho dữ liệu thành công!"]);
+      loadSnapshotsList();
+    } catch (err: any) {
+      console.error(err);
+      setDriveSyncLogs(prev => [...prev, `❌ Khôi phục thất bại: ${err.message}`]);
+    } finally {
+      setIsDriveSyncing(false);
+    }
+  };
   
   // State variables for saving new snapshot
   const [newSnapFile, setNewSnapFile] = useState<any[] | null>(null);
@@ -1738,6 +1890,113 @@ export default function DataComparison({
                       Hệ thống <b>hoàn toàn không tải dữ liệu lên Máy chủ, Đám mây (Firebase) hay Đĩa cứng của bạn</b>, đảm bảo bảo mật tuyệt đối và không phát sinh bất kỳ đường dẫn vật lý nào xâm phạm hệ thống.
                     </p>
                   </div>
+                </div>
+
+                {/* Google Drive Cloud Sync Center */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-black text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
+                      <CloudLightning className="w-4 h-4 text-emerald-500 shrink-0" />
+                      Sao lưu &amp; Khôi phục bằng Google Drive
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowDrivePanel(!showDrivePanel)}
+                      className="text-[10px] text-indigo-600 hover:underline font-bold"
+                    >
+                      {showDrivePanel ? "Ẩn bảng điều khiển" : "Hiện bảng điều khiển"}
+                    </button>
+                  </div>
+
+                  {showDrivePanel && (
+                    <div className="space-y-3 text-xs border-t border-slate-200/60 pt-3">
+                      <p className="text-[10.5px] text-slate-500 leading-relaxed">
+                        Cho phép bạn lưu trữ toàn bộ kho dữ liệu IndexedDB của thiết bị này lên Google Drive cá nhân của bạn để bảo quản lâu dài hoặc tải về trên thiết bị khác.
+                      </p>
+
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {googleAccessToken ? (
+                          <div className="flex flex-wrap gap-2 items-center">
+                            <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Đã kết nối tài khoản Google
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleBackupSnapshotsToDrive}
+                              disabled={isDriveSyncing || savedSnapshots.length === 0}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10.5px] rounded-lg transition-colors cursor-pointer disabled:bg-slate-300"
+                            >
+                              {isDriveSyncing ? "Đang đẩy lên..." : "Sao lưu kho lên Google Drive"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={fetchDriveBackups}
+                              className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 border border-slate-250 cursor-pointer"
+                              title="Tải lại danh sách từ Drive"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={signInWithGoogle}
+                            className="flex items-center gap-2 bg-white text-slate-700 border border-slate-300 rounded-lg px-3.5 py-1.5 hover:bg-slate-50 transition shadow-xs font-bold text-[10.5px] cursor-pointer"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 48 48">
+                              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                            </svg>
+                            <span>Kết nối tài khoản Google Drive</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {driveSyncLogs.length > 0 && (
+                        <div className="bg-slate-900 text-slate-300 font-mono text-[9px] p-2 rounded-lg space-y-0.5 max-h-20 overflow-y-auto">
+                          {driveSyncLogs.map((log, idx) => (
+                            <div key={idx}>{log}</div>
+                          ))}
+                        </div>
+                      )}
+
+                      {googleAccessToken && (
+                        <div className="space-y-1.5 border-t border-slate-200/60 pt-2.5">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase block">Danh sách tệp sao lưu trên Google Drive:</span>
+                          {loadingDriveBackups ? (
+                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Đang tải danh sách...</span>
+                            </div>
+                          ) : driveBackups.length === 0 ? (
+                            <span className="text-[10px] text-slate-400 italic">Không tìm thấy bản sao lưu nào. Hãy nhấn nút sao lưu ở trên để tạo bản đầu tiên.</span>
+                          ) : (
+                            <div className="space-y-1 max-h-32 overflow-y-auto">
+                              {driveBackups.map((bk) => (
+                                <div key={bk.id} className="flex justify-between items-center bg-white border border-slate-200 rounded-lg p-2 hover:bg-slate-100/50 transition">
+                                  <div className="space-y-0.5">
+                                    <span className="font-mono text-[10px] font-bold text-indigo-700 block truncate max-w-[250px]">{bk.name}</span>
+                                    <span className="text-[9px] text-slate-400 block">{new Date(bk.createdTime).toLocaleString()} • {bk.size ? `${(bk.size / 1024).toFixed(1)} KB` : "Chưa rõ dung lượng"}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRestoreFromDrive(bk.id, bk.name)}
+                                    disabled={isDriveSyncing}
+                                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[9.5px] rounded-md border border-emerald-200 cursor-pointer transition"
+                                  >
+                                    Khôi phục về máy
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {savedSnapshots.length === 0 ? (

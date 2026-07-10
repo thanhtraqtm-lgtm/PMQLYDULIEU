@@ -97,6 +97,7 @@ export default function SamplingSelection({
 
   const [corpShowFilter, setCorpShowFilter] = useState<"all" | "selected" | "backup">("all");
   const [indShowFilter, setIndShowFilter] = useState<"all" | "selected" | "backup">("all");
+  const [indMethod, setIndMethod] = useState<"gso_standard" | "industrial_2level">("gso_standard");
 
   // --- FINAL CALCULATED RESULTS ---
   const [corpSelectedList, setCorpSelectedList] = useState<any[]>([]);
@@ -445,14 +446,14 @@ export default function SamplingSelection({
             const isCentralForce = entForceMonthly && row.originalRow && Object.entries(row.originalRow).some(([key, val]) => {
               const kLow = key.toLowerCase();
               const vLow = String(val || "").toLowerCase();
-              const matchesKey = kLow.includes("mẫu trung ương") || kLow.includes("mẫu tu") || kLow.includes("mau tu") || kLow.includes("mẫu t.ư");
-              const matchesVal = vLow === "có" || vLow === "co" || vLow === "yes" || vLow === "1" || vLow === "true" || vLow.includes("trung ương");
+              const matchesKey = kLow.includes("mẫu trung ương") || kLow.includes("mẫu tu") || kLow.includes("mau tu") || kLow.includes("mẫu t.ư") || kLow.includes("trọng điểm") || kLow.includes("trong diem");
+              const matchesVal = vLow === "có" || vLow === "co" || vLow === "yes" || vLow === "1" || vLow === "true" || vLow.includes("trung ương") || vLow.includes("trọng điểm") || vLow.includes("trong diem");
               return matchesKey && matchesVal;
             });
 
             if (isCentralForce || runningSum < targetCutoffRevenue) {
               runningSum += row.revenue;
-              groupSelected.push({ ...row, selectionType: isCentralForce ? "Ưu tiên mẫu trung ương" : "Doanh thu lũy kế" });
+              groupSelected.push({ ...row, selectionType: isCentralForce ? "Ưu tiên mẫu T.Ư / DN trọng điểm" : "Doanh thu lũy kế" });
               selectedSet.add(row.id);
             } else {
               groupBackup.push({ ...row, selectionType: "Dự phòng" });
@@ -495,7 +496,7 @@ export default function SamplingSelection({
     }
 
     setLoading(true);
-    setStatusMessage("Đang thực hiện lọc & chọn mẫu hộ cá thể theo chuẩn GSO...");
+    setStatusMessage("Đang thực hiện lọc & chọn mẫu hộ cá thể...");
 
     setTimeout(() => {
       try {
@@ -530,73 +531,308 @@ export default function SamplingSelection({
           };
         });
 
-        // 2. Filter rows by selected industry sectors
-        const filteredBySector = processedRows.filter(row => isSectorSelected(row.vsicL2, indSectors));
-
-        // 3. Group by Ward (Địa bàn xã) + Industry Level 2
-        const groups: Record<string, any[]> = {};
-        filteredBySector.forEach(row => {
-          const groupKey = `${row.xaCode}-${row.vsicL2}`;
-          if (!groups[groupKey]) groups[groupKey] = [];
-          groups[groupKey].push(row);
-        });
-
         const selectedSet = new Set<string>();
         const backupSet = new Set<string>();
         const resultsGroupStats: Record<string, any> = {};
 
-        // 4. Calculate target sample sizes for each commune-VSIC group according to GSO rules
-        Object.entries(groups).forEach(([groupKey, list]) => {
-          const [xaCode, vsicL2] = groupKey.split("-");
-          const sorted = [...list].sort((a, b) => b.revenue - a.revenue);
-          const totalN = sorted.length;
-          const totalRevenue = sorted.reduce((sum, item) => sum + item.revenue, 0);
-
-          let targetSize = 0;
-          const isTransport = ["49", "50", "51", "52", "53"].includes(vsicL2);
-
-          if (totalN <= 5) {
-            targetSize = indSize1To5All ? totalN : Math.min(indSize1To5Value, totalN);
-          } else if (totalN <= 100) {
-            targetSize = Math.min(indSize6To100Value, totalN);
-          } else if (totalN <= 1000) {
-            targetSize = Math.min(indSize101To1000Value, totalN);
-          } else {
-            // Over 1001
-            if (isTransport) {
-              targetSize = Math.min(indTransportMaxCap, Math.max(8, Math.round(totalN * (indTransportPercent / 100))));
-            } else {
-              targetSize = Math.max(8, Math.round(totalN * (indSize1001PlusPercent / 100)));
-            }
-          }
-
-          // Assign official samples and replacements based on sorted revenue rank
-          sorted.forEach((row, rank) => {
-            if (rank < targetSize) {
-              selectedSet.add(row.id);
-            } else {
-              backupSet.add(row.id);
-            }
+        if (indMethod === "industrial_2level") {
+          // --- PHƯƠNG PHÁP 2: CHỌN MẪU CÁ THỂ CÔNG NGHIỆP 2 CẤP TIÊU CHUẨN ---
+          // Lọc riêng các cơ sở công nghiệp (Mã ngành cấp 2 từ 05 đến 39)
+          const industrialRows = processedRows.filter(row => {
+            const num = parseInt(row.vsicL2, 10);
+            return !isNaN(num) && num >= 5 && num <= 39;
           });
 
-          resultsGroupStats[groupKey] = {
-            totalN,
-            totalRevenue,
-            selectedCount: Math.min(targetSize, totalN),
-            backupCount: Math.max(0, totalN - targetSize)
+          if (industrialRows.length === 0) {
+            alert("⚠️ Không tìm thấy cơ sở Công nghiệp cá thể nào (VSIC từ 05 đến 39) trong bảng dữ liệu nguồn!");
+            setLoading(false);
+            return;
+          }
+
+          // Phân nhóm theo Cấp Xã
+          const communeGroups: Record<string, typeof industrialRows> = {};
+          industrialRows.forEach(row => {
+            const xa = row.xaCode;
+            if (!communeGroups[xa]) communeGroups[xa] = [];
+            communeGroups[xa].push(row);
+          });
+
+          const getVsicL1 = (l2: string): string => {
+            const num = parseInt(l2, 10);
+            if (isNaN(num)) return "";
+            if (num >= 5 && num <= 9) return "B";
+            if (num >= 10 && num <= 33) return "C";
+            if (num === 35) return "D";
+            if (num >= 36 && num <= 39) return "E";
+            return "";
           };
-        });
 
-        // 5. Save output lists
-        const finalSelected = filteredBySector.filter(row => selectedSet.has(row.id));
-        const finalBackup = filteredBySector.filter(row => backupSet.has(row.id));
+          const getCommuneSampleSize = (N: number): number => {
+            if (N <= 0) return 0;
+            let pct = 0.25;
+            if (N < 100) pct = 0.25;
+            else if (N < 150) pct = 0.22;
+            else if (N < 200) pct = 0.20;
+            else if (N < 300) pct = 0.18;
+            else if (N < 400) pct = 0.16;
+            else if (N < 600) pct = 0.14;
+            else if (N < 900) pct = 0.12;
+            else if (N < 1200) pct = 0.10;
+            else if (N < 1500) pct = 0.08;
+            else if (N < 2000) pct = 0.06;
+            else if (N < 5000) pct = 0.05;
+            else pct = 0.04;
+            return Math.max(1, Math.min(N, Math.round(N * pct)));
+          };
 
-        setIndSelectedList(finalSelected);
-        setIndBackupList(finalBackup);
-        setIndGroupStats(resultsGroupStats);
-        setIndHasFiltered(true);
+          // Lọc mẫu cho từng địa bàn xã
+          Object.entries(communeGroups).forEach(([xaCode, communeRows]) => {
+            const N_commune = communeRows.length;
+            const n_commune = getCommuneSampleSize(N_commune);
 
-        setStatusMessage(`Đã lọc xong Hộ cá thể: Chọn ${finalSelected.length} mẫu chính thức, ${finalBackup.length} mẫu dự phòng.`);
+            // MẪU CẤP 1: Xác định các ngành cấp 2 đại diện có tỷ trọng doanh thu cộng dồn đạt ít nhất 75% trong từng ngành cấp 1
+            const l1Groups: Record<string, typeof industrialRows> = {};
+            communeRows.forEach(row => {
+              const l1 = getVsicL1(row.vsicL2);
+              if (l1) {
+                if (!l1Groups[l1]) l1Groups[l1] = [];
+                l1Groups[l1].push(row);
+              }
+            });
+
+            const representativeL2sInCommune: Record<string, typeof industrialRows> = {};
+
+            Object.entries(l1Groups).forEach(([l1Code, rowsInL1]) => {
+              // Nhóm theo ngành cấp 2
+              const l2Groups: Record<string, typeof industrialRows> = {};
+              rowsInL1.forEach(row => {
+                if (!l2Groups[row.vsicL2]) l2Groups[row.vsicL2] = [];
+                l2Groups[row.vsicL2].push(row);
+              });
+
+              // Tính tổng doanh thu từng ngành cấp 2
+              const l2Stats = Object.entries(l2Groups).map(([l2Code, list]) => {
+                const totalRev = list.reduce((sum, item) => sum + item.revenue, 0);
+                return { l2Code, list, totalRev };
+              });
+
+              // Sắp xếp ngành cấp 2 giảm dần theo tổng doanh thu
+              l2Stats.sort((a, b) => b.totalRev - a.totalRev);
+
+              const totalL1Rev = l2Stats.reduce((sum, item) => sum + item.totalRev, 0);
+
+              let cumulativeRev = 0;
+              const selectedL2sForThisL1: string[] = [];
+
+              for (const stat of l2Stats) {
+                selectedL2sForThisL1.push(stat.l2Code);
+                cumulativeRev += stat.totalRev;
+                const ratio = totalL1Rev > 0 ? (cumulativeRev / totalL1Rev) : 1;
+                if (ratio >= 0.75) {
+                  break; // Đạt tỷ trọng cộng dồn từ 75% trở lên
+                }
+              }
+
+              // Ghi nhận các ngành cấp 2 đại diện được chọn
+              selectedL2sForThisL1.forEach(l2Code => {
+                representativeL2sInCommune[l2Code] = l2Groups[l2Code];
+              });
+
+              // Đưa những cơ sở thuộc các ngành cấp 2 KHÔNG được chọn đại diện vào diện dự phòng
+              Object.entries(l2Groups).forEach(([l2Code, list]) => {
+                if (!selectedL2sForThisL1.includes(l2Code)) {
+                  list.forEach(row => {
+                    backupSet.add(row.id);
+                  });
+                }
+              });
+            });
+
+            // MẪU CẤP 2: Phân bổ cỡ mẫu tổng của xã (n_commune) cho các ngành cấp 2 đại diện đã chọn
+            const representativeL2sList = Object.entries(representativeL2sInCommune).map(([l2Code, list]) => ({
+              l2Code,
+              N: list.length,
+              revenue: list.reduce((sum, item) => sum + item.revenue, 0)
+            }));
+
+            representativeL2sList.sort((a, b) => b.N - a.N || b.revenue - a.revenue);
+
+            const numSelectedL2s = representativeL2sList.length;
+            const allocations: Record<string, number> = {};
+
+            if (numSelectedL2s > 0 && n_commune > 0) {
+              representativeL2sList.forEach(item => {
+                allocations[item.l2Code] = 0;
+              });
+
+              if (n_commune >= numSelectedL2s) {
+                // Đảm bảo mỗi ngành cấp 2 đại diện có ít nhất 1 mẫu
+                representativeL2sList.forEach(item => {
+                  allocations[item.l2Code] = 1;
+                });
+                let remaining = n_commune - numSelectedL2s;
+                if (remaining > 0) {
+                  const totalN_rep = representativeL2sList.reduce((sum, item) => sum + item.N, 0);
+                  const residuals = representativeL2sList.map(item => {
+                    const ideal = (item.N / totalN_rep) * remaining;
+                    return {
+                      l2Code: item.l2Code,
+                      idealFloor: Math.floor(ideal),
+                      fraction: ideal - Math.floor(ideal)
+                    };
+                  });
+
+                  residuals.forEach(res => {
+                    allocations[res.l2Code] += res.idealFloor;
+                    remaining -= res.idealFloor;
+                  });
+
+                  residuals.sort((a, b) => b.fraction - a.fraction);
+                  for (let i = 0; i < remaining && i < residuals.length; i++) {
+                    allocations[residuals[i].l2Code] += 1;
+                  }
+                }
+              } else {
+                // n_commune nhỏ hơn số ngành đại diện, ưu tiên cho các ngành có quy mô cơ sở lớn nhất
+                for (let i = 0; i < n_commune; i++) {
+                  allocations[representativeL2sList[i].l2Code] = 1;
+                }
+              }
+
+              // Giới hạn không vượt quá số lượng cơ sở thực tế của ngành đó
+              representativeL2sList.forEach(item => {
+                allocations[item.l2Code] = Math.min(item.N, allocations[item.l2Code]);
+              });
+            }
+
+            // Tiến hành chọn mẫu hệ thống ngẫu nhiên rải đều cho từng ngành cấp 2 đại diện
+            Object.entries(representativeL2sInCommune).forEach(([l2Code, list]) => {
+              const sortedByRevDesc = [...list].sort((a, b) => b.revenue - a.revenue);
+              const N_l2 = sortedByRevDesc.length;
+              const n_l2 = allocations[l2Code] || 0;
+
+              if (n_l2 <= 0) {
+                sortedByRevDesc.forEach(row => {
+                  backupSet.add(row.id);
+                });
+              } else if (n_l2 >= N_l2) {
+                sortedByRevDesc.forEach(row => {
+                  selectedSet.add(row.id);
+                });
+              } else {
+                // Phương pháp ngẫu nhiên rải đều theo khoảng cách mẫu I = N_l2 / n_l2
+                const interval = N_l2 / n_l2;
+                // Chọn điểm khởi đầu ngẫu nhiên trong khoảng [0, interval)
+                const startOffset = Math.random() * interval;
+
+                const selectedIndices = new Set<number>();
+                for (let m = 0; m < n_l2; m++) {
+                  const calculatedIdx = Math.floor(startOffset + m * interval);
+                  const finalIdx = Math.max(0, Math.min(N_l2 - 1, calculatedIdx));
+                  selectedIndices.add(finalIdx);
+                }
+
+                sortedByRevDesc.forEach((row, idx) => {
+                  if (selectedIndices.has(idx)) {
+                    selectedSet.add(row.id);
+                  } else {
+                    backupSet.add(row.id);
+                  }
+                });
+              }
+
+              // Lưu thống kê chi tiết cho từng nhóm đại diện
+              const groupKey = `${xaCode}-${l2Code}`;
+              resultsGroupStats[groupKey] = {
+                totalN: N_commune,
+                communeTargetSize: n_commune,
+                l2N: N_l2,
+                l2Revenue: sortedByRevDesc.reduce((sum, item) => sum + item.revenue, 0),
+                selectedCount: n_l2,
+                backupCount: Math.max(0, N_l2 - n_l2),
+                interval: (N_l2 / Math.max(1, n_l2)).toFixed(2),
+                isRepresentative: true,
+                isIndustrial2Level: true
+              };
+            });
+          });
+
+          const finalSelected = industrialRows.filter(row => selectedSet.has(row.id));
+          const finalBackup = industrialRows.filter(row => backupSet.has(row.id));
+
+          setIndSelectedList(finalSelected);
+          setIndBackupList(finalBackup);
+          setIndGroupStats(resultsGroupStats);
+          setIndHasFiltered(true);
+
+          setStatusMessage(`Đã chọn mẫu Cá thể Công nghiệp 2 Cấp thành công! Chọn ${finalSelected.length} mẫu chính thức, ${finalBackup.length} mẫu dự phòng.`);
+
+        } else {
+          // --- PHƯƠNG PHÁP 1: STANDARD GSO BRACKETS ---
+          // 2. Filter rows by selected industry sectors
+          const filteredBySector = processedRows.filter(row => isSectorSelected(row.vsicL2, indSectors));
+
+          // 3. Group by Ward (Địa bàn xã) + Industry Level 2
+          const groups: Record<string, any[]> = {};
+          filteredBySector.forEach(row => {
+            const groupKey = `${row.xaCode}-${row.vsicL2}`;
+            if (!groups[groupKey]) groups[groupKey] = [];
+            groups[groupKey].push(row);
+          });
+
+          // 4. Calculate target sample sizes for each commune-VSIC group according to GSO rules
+          Object.entries(groups).forEach(([groupKey, list]) => {
+            const [xaCode, vsicL2] = groupKey.split("-");
+            const sorted = [...list].sort((a, b) => b.revenue - a.revenue);
+            const totalN = sorted.length;
+            const totalRevenue = sorted.reduce((sum, item) => sum + item.revenue, 0);
+
+            let targetSize = 0;
+            const isTransport = ["49", "50", "51", "52", "53"].includes(vsicL2);
+
+            if (totalN <= 5) {
+              targetSize = indSize1To5All ? totalN : Math.min(indSize1To5Value, totalN);
+            } else if (totalN <= 100) {
+              targetSize = Math.min(indSize6To100Value, totalN);
+            } else if (totalN <= 1000) {
+              targetSize = Math.min(indSize101To1000Value, totalN);
+            } else {
+              // Over 1001
+              if (isTransport) {
+                targetSize = Math.min(indTransportMaxCap, Math.max(8, Math.round(totalN * (indTransportPercent / 100))));
+              } else {
+                targetSize = Math.max(8, Math.round(totalN * (indSize1001PlusPercent / 100)));
+              }
+            }
+
+            // Assign official samples and replacements based on sorted revenue rank
+            sorted.forEach((row, rank) => {
+              if (rank < targetSize) {
+                selectedSet.add(row.id);
+              } else {
+                backupSet.add(row.id);
+              }
+            });
+
+            resultsGroupStats[groupKey] = {
+              totalN,
+              totalRevenue,
+              selectedCount: Math.min(targetSize, totalN),
+              backupCount: Math.max(0, totalN - targetSize)
+            };
+          });
+
+          // 5. Save output lists
+          const finalSelected = filteredBySector.filter(row => selectedSet.has(row.id));
+          const finalBackup = filteredBySector.filter(row => backupSet.has(row.id));
+
+          setIndSelectedList(finalSelected);
+          setIndBackupList(finalBackup);
+          setIndGroupStats(resultsGroupStats);
+          setIndHasFiltered(true);
+
+          setStatusMessage(`Đã lọc xong Hộ cá thể: Chọn ${finalSelected.length} mẫu chính thức, ${finalBackup.length} mẫu dự phòng.`);
+        }
       } catch (err: any) {
         alert("Lỗi khi tính toán chọn mẫu hộ cá thể: " + err.message);
       } finally {
@@ -963,7 +1199,7 @@ export default function SamplingSelection({
                       }}
                       className="accent-indigo-600 h-3.5 w-3.5 rounded"
                     />
-                    <span>Ưu tiên mẫu T.Ư</span>
+                    <span>Ưu tiên mẫu T.Ư / DN trọng điểm</span>
                   </label>
                 </div>
 
@@ -1287,190 +1523,291 @@ export default function SamplingSelection({
               </div>
             </div>
 
-            {/* BƯỚC 3: CẤU HÌNH THAM SỐ GSO CHỌN MẪU */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <label className="block text-xs font-extrabold text-amber-950 tracking-wide uppercase">
-                  Bước 3: Định Mức Phân Tầng Chọn Mẫu (Chuẩn GSO)
-                </label>
+            {/* LỰA CHỌN PHƯƠNG PHÁP CHỌN MẪU HỘ CÁ THỂ */}
+            <div className="bg-amber-50/50 border border-amber-200 rounded-2xl p-4.5 space-y-3 shadow-xs">
+              <span className="block text-xs font-black text-amber-950 uppercase tracking-wide">
+                📌 PHƯƠNG PHÁP CHỌN MẪU HỘ CÁ THỂ
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => {
-                    setIndSize1To5Value(5);
-                    setIndSize1To5All(true);
-                    setIndSize6To100Value(5);
-                    setIndSize101To1000Value(8);
-                    setIndSize1001PlusPercent(1);
-                    setIndTransportPercent(1.5);
-                    setIndTransportMaxCap(50);
+                    setIndMethod("gso_standard");
                     setIndHasFiltered(false);
                   }}
-                  className="text-[10px] text-amber-800 font-bold hover:underline"
+                  className={`p-3.5 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                    indMethod === "gso_standard"
+                      ? "bg-amber-800 text-white border-amber-950 shadow-md animate-pulse-subtle"
+                      : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200"
+                  }`}
                 >
-                  🔄 Khôi phục mặc định
+                  <span className="font-extrabold text-xs flex items-center gap-1">
+                    🏡 Phân tầng Quy mô (Mặc định)
+                  </span>
+                  <span className={`text-[10px] leading-relaxed ${indMethod === "gso_standard" ? "text-amber-100" : "text-slate-500"}`}>
+                    Gom nhóm xã &amp; mã ngành, chọn mẫu định mức quy mô tùy chọn (1-5, 6-100...).
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIndMethod("industrial_2level");
+                    setIndHasFiltered(false);
+                    setIndSectors(["congnghiep"]);
+                  }}
+                  className={`p-3.5 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                    indMethod === "industrial_2level"
+                      ? "bg-amber-800 text-white border-amber-950 shadow-md animate-pulse-subtle"
+                      : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200"
+                  }`}
+                >
+                  <span className="font-extrabold text-xs flex items-center gap-1">
+                    🏭 Cá thể Công nghiệp 2 Cấp (Quy chuẩn)
+                  </span>
+                  <span className={`text-[10px] leading-relaxed ${indMethod === "industrial_2level" ? "text-amber-100" : "text-slate-500"}`}>
+                    Cấp 1: Chọn ngành cấp 2 đạt từ 75% doanh thu cộng dồn. Cấp 2: Cỡ mẫu theo lũy tiến xã &amp; Ngẫu nhiên rải đều.
+                  </span>
                 </button>
               </div>
+            </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4.5 space-y-3 text-xs font-sans">
-                {/* 1 - 5 cơ sở */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">1. Nhóm cực nhỏ (1-5 cơ sở):</span>
-                    <label className="flex items-center gap-1 font-bold text-[10px] cursor-pointer text-amber-800">
-                      <input
-                        type="checkbox"
-                        checked={indSize1To5All}
-                        onChange={(e) => {
-                          setIndSize1To5All(e.target.checked);
-                          setIndHasFiltered(false);
-                        }}
-                        className="accent-amber-600 rounded"
-                      />
-                      <span>Lấy hết 100%</span>
-                    </label>
-                  </div>
-                  {!indSize1To5All && (
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min="1"
-                        max="5"
-                        value={indSize1To5Value}
-                        onChange={(e) => {
-                          setIndSize1To5Value(parseInt(e.target.value));
-                          setIndHasFiltered(false);
-                        }}
-                        className="flex-1 accent-amber-600"
-                      />
-                      <span className="font-mono font-bold bg-white border px-1.5 py-0.5 rounded text-[10.5px] shrink-0 text-amber-800">{indSize1To5Value} hộ</span>
+            {indMethod === "gso_standard" ? (
+              /* BƯỚC 3: CẤU HÌNH THAM SỐ GSO CHỌN MẪU MẶC ĐỊNH */
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <label className="block text-xs font-extrabold text-amber-950 tracking-wide uppercase">
+                    Bước 3: Định Mức Phân Tầng Chọn Mẫu (Chuẩn GSO)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIndSize1To5Value(5);
+                      setIndSize1To5All(true);
+                      setIndSize6To100Value(5);
+                      setIndSize101To1000Value(8);
+                      setIndSize1001PlusPercent(1);
+                      setIndTransportPercent(1.5);
+                      setIndTransportMaxCap(50);
+                      setIndHasFiltered(false);
+                    }}
+                    className="text-[10px] text-amber-800 font-bold hover:underline"
+                  >
+                    🔄 Khôi phục mặc định
+                  </button>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4.5 space-y-3 text-xs font-sans">
+                  {/* 1 - 5 cơ sở */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800">1. Nhóm cực nhỏ (1-5 cơ sở):</span>
+                      <label className="flex items-center gap-1 font-bold text-[10px] cursor-pointer text-amber-800">
+                        <input
+                          type="checkbox"
+                          checked={indSize1To5All}
+                          onChange={(e) => {
+                            setIndSize1To5All(e.target.checked);
+                            setIndHasFiltered(false);
+                          }}
+                          className="accent-amber-600 rounded"
+                        />
+                        <span>Lấy hết 100%</span>
+                      </label>
                     </div>
-                  )}
-                </div>
-
-                {/* 6 - 100 cơ sở */}
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-slate-700">2. Nhóm nhỏ (6-100 cơ sở):</span>
-                    <span className="font-mono font-bold text-amber-700">{indSize6To100Value} hộ</span>
+                    {!indSize1To5All && (
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min="1"
+                          max="5"
+                          value={indSize1To5Value}
+                          onChange={(e) => {
+                            setIndSize1To5Value(parseInt(e.target.value));
+                            setIndHasFiltered(false);
+                          }}
+                          className="flex-1 accent-amber-600"
+                        />
+                        <span className="font-mono font-bold bg-white border px-1.5 py-0.5 rounded text-[10.5px] shrink-0 text-amber-800">{indSize1To5Value} hộ</span>
+                      </div>
+                    )}
                   </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="30"
-                    value={indSize6To100Value}
-                    onChange={(e) => {
-                      setIndSize6To100Value(parseInt(e.target.value));
-                      setIndHasFiltered(false);
-                    }}
-                    className="w-full accent-amber-600"
-                  />
-                </div>
 
-                {/* 101 - 1000 cơ sở */}
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-slate-700">3. Nhóm vừa (101-1000 cơ sở):</span>
-                    <span className="font-mono font-bold text-amber-700">{indSize101To1000Value} hộ</span>
+                  {/* 6 - 100 cơ sở */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-slate-700">2. Nhóm nhỏ (6-100 cơ sở):</span>
+                      <span className="font-mono font-bold text-amber-700">{indSize6To100Value} hộ</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="30"
+                      value={indSize6To100Value}
+                      onChange={(e) => {
+                        setIndSize6To100Value(parseInt(e.target.value));
+                        setIndHasFiltered(false);
+                      }}
+                      className="w-full accent-amber-600"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    value={indSize101To1000Value}
-                    onChange={(e) => {
-                      setIndSize101To1000Value(parseInt(e.target.value));
-                      setIndHasFiltered(false);
-                    }}
-                    className="w-full accent-amber-600"
-                  />
-                </div>
 
-                {/* Lớn 1001+ */}
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-slate-700">4. Nhóm lớn (&gt;1001 cơ sở):</span>
-                    <span className="font-mono font-bold text-amber-700">{indSize1001PlusPercent}%</span>
+                  {/* 101 - 1000 cơ sở */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-slate-700">3. Nhóm vừa (101-1000 cơ sở):</span>
+                      <span className="font-mono font-bold text-amber-700">{indSize101To1000Value} hộ</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="100"
+                      value={indSize101To1000Value}
+                      onChange={(e) => {
+                        setIndSize101To1000Value(parseInt(e.target.value));
+                        setIndHasFiltered(false);
+                      }}
+                      className="w-full accent-amber-600"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="0.1"
-                    max="10"
-                    step="0.1"
-                    value={indSize1001PlusPercent}
-                    onChange={(e) => {
-                      setIndSize1001PlusPercent(parseFloat(e.target.value));
-                      setIndHasFiltered(false);
-                    }}
-                    className="w-full accent-amber-600"
-                  />
-                </div>
 
-                {/* Vận tải đặc thù */}
-                <div className="bg-amber-50/40 p-2.5 rounded-xl border border-amber-200/50 space-y-1.5">
-                  <div className="flex justify-between text-[11px] font-extrabold text-amber-900">
-                    <span>📍 Riêng Vận tải (VSIC 49):</span>
-                    <span>{indTransportPercent}% (Tối đa {indTransportMaxCap})</span>
+                  {/* Lớn 1001+ */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-slate-700">4. Nhóm lớn (&gt;1001 cơ sở):</span>
+                      <span className="font-mono font-bold text-amber-700">{indSize1001PlusPercent}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="10"
+                      step="0.1"
+                      value={indSize1001PlusPercent}
+                      onChange={(e) => {
+                        setIndSize1001PlusPercent(parseFloat(e.target.value));
+                        setIndHasFiltered(false);
+                      }}
+                      className="w-full accent-amber-600"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="15"
-                    step="0.1"
-                    value={indTransportPercent}
-                    onChange={(e) => {
-                      setIndTransportPercent(parseFloat(e.target.value));
-                      setIndHasFiltered(false);
-                    }}
-                    className="w-full accent-amber-700"
-                  />
-                  <input
-                    type="range"
-                    min="10"
-                    max="150"
-                    value={indTransportMaxCap}
-                    onChange={(e) => {
-                      setIndTransportMaxCap(parseInt(e.target.value));
-                      setIndHasFiltered(false);
-                    }}
-                    className="w-full accent-amber-700"
-                  />
-                </div>
 
-                {/* Nhóm ngành chọn lọc */}
-                <div className="pt-2.5 border-t border-slate-200">
-                  <span className="block text-slate-700 font-extrabold mb-1.5">Lọc nhóm ngành khảo sát:</span>
-                  <div className="flex flex-wrap gap-2.5">
-                    {["congnghiep", "xaydung", "thuongmai", "vantai", "dichvu"].map(sec => {
-                      const labels: Record<string, string> = {
-                        congnghiep: "Công nghiệp (05-39)",
-                        xaydung: "Xây dựng (41-43)",
-                        thuongmai: "Thương mại (45-47)",
-                        vantai: "Vận tải (49-53)",
-                        dichvu: "Dịch vụ (55-99)"
-                      };
-                      return (
-                        <label key={sec} className="flex items-center gap-1.5 cursor-pointer text-[10.5px]">
-                          <input
-                            type="checkbox"
-                            checked={indSectors.includes(sec)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setIndSectors(prev => [...prev, sec]);
-                              } else {
-                                setIndSectors(prev => prev.filter(x => x !== sec));
-                              }
-                              setIndHasFiltered(false);
-                            }}
-                            className="accent-amber-600 rounded"
-                          />
-                          <span>{labels[sec]}</span>
-                        </label>
-                      );
-                    })}
+                  {/* Vận tải đặc thù */}
+                  <div className="bg-amber-50/40 p-2.5 rounded-xl border border-amber-200/50 space-y-1.5">
+                    <div className="flex justify-between text-[11px] font-extrabold text-amber-900">
+                      <span>📍 Riêng Vận tải (VSIC 49):</span>
+                      <span>{indTransportPercent}% (Tối đa {indTransportMaxCap})</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="15"
+                      step="0.1"
+                      value={indTransportPercent}
+                      onChange={(e) => {
+                        setIndTransportPercent(parseFloat(e.target.value));
+                        setIndHasFiltered(false);
+                      }}
+                      className="w-full accent-amber-700"
+                    />
+                    <input
+                      type="range"
+                      min="10"
+                      max="150"
+                      value={indTransportMaxCap}
+                      onChange={(e) => {
+                        setIndTransportMaxCap(parseInt(e.target.value));
+                        setIndHasFiltered(false);
+                      }}
+                      className="w-full accent-amber-700"
+                    />
+                  </div>
+
+                  {/* Nhóm ngành chọn lọc */}
+                  <div className="pt-2.5 border-t border-slate-200">
+                    <span className="block text-slate-700 font-extrabold mb-1.5">Lọc nhóm ngành khảo sát:</span>
+                    <div className="flex flex-wrap gap-2.5">
+                      {["congnghiep", "xaydung", "thuongmai", "vantai", "dichvu"].map(sec => {
+                        const labels: Record<string, string> = {
+                          congnghiep: "Công nghiệp (05-39)",
+                          xaydung: "Xây dựng (41-43)",
+                          thuongmai: "Thương mại (45-47)",
+                          vantai: "Vận tải (49-53)",
+                          dichvu: "Dịch vụ (55-99)"
+                        };
+                        return (
+                          <label key={sec} className="flex items-center gap-1.5 cursor-pointer text-[10.5px]">
+                            <input
+                              type="checkbox"
+                              checked={indSectors.includes(sec)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setIndSectors(prev => [...prev, sec]);
+                                } else {
+                                  setIndSectors(prev => prev.filter(x => x !== sec));
+                                }
+                                setIndHasFiltered(false);
+                              }}
+                              className="accent-amber-600 rounded"
+                            />
+                            <span>{labels[sec]}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* BƯỚC 3: QUY TRÌNH CHỌN MẪU CÔNG NGHIỆP 2 CẤP TỰ ĐỘNG */
+              <div id="industrial-2level-info" className="space-y-3 font-sans">
+                <span className="block text-xs font-black text-amber-950 uppercase tracking-wide">
+                  ⚙️ THÔNG SỐ CHỌN MẪU CÁ THỂ CÔNG NGHIỆP (TỰ ĐỘNG)
+                </span>
+                
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4.5 space-y-3.5 text-xs text-slate-700 leading-relaxed">
+                  <div className="space-y-1">
+                    <span className="font-extrabold text-amber-900 block flex items-center gap-1">
+                      ⭐ 1. Xác định cỡ mẫu Xã (n):
+                    </span>
+                    <p className="text-[11px] text-slate-500">
+                      Cỡ mẫu tổng cho xã được xác định lũy tiến dựa trên tổng số cơ sở công nghiệp hiện có tại xã:
+                    </p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-mono bg-white border border-slate-200/60 rounded-xl p-2.5 mt-1.5">
+                      <div>• Dưới 100 cơ sở: <span className="font-bold text-amber-700">25%</span></div>
+                      <div>• Từ 100 – dưới 150: <span className="font-bold text-amber-700">22%</span></div>
+                      <div>• Từ 150 – dưới 200: <span className="font-bold text-amber-700">20%</span></div>
+                      <div>• Từ 200 – dưới 300: <span className="font-bold text-amber-700">18%</span></div>
+                      <div>• Từ 300 – dưới 400: <span className="font-bold text-amber-700">16%</span></div>
+                      <div>• Từ 400 – dưới 600: <span className="font-bold text-amber-700">14%</span></div>
+                      <div>• Từ 600 – dưới 900: <span className="font-bold text-amber-700">12%</span></div>
+                      <div>• Từ 900 – dưới 1200: <span className="font-bold text-amber-700">10%</span></div>
+                      <div>• Từ 1200 – dưới 1500: <span className="font-bold text-amber-700">8%</span></div>
+                      <div>• Từ 1500 – dưới 2000: <span className="font-bold text-amber-700">6%</span></div>
+                      <div>• Từ 2000 – dưới 5000: <span className="font-bold text-amber-700">5%</span></div>
+                      <div>• Trên 5000 cơ sở: <span className="font-bold text-amber-700">4%</span></div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200 space-y-1">
+                    <span className="font-extrabold text-amber-900 block flex items-center gap-1">
+                      ⭐ 2. Mẫu Cấp 1 (Chọn Ngành đại diện):
+                    </span>
+                    <p className="text-[11.5px]">
+                      Sắp xếp các ngành cấp 2 trong từng ngành cấp 1 (B, C, D, E) của xã giảm dần theo doanh thu. Lần lượt chọn các ngành có doanh thu cao nhất cho đến khi doanh thu cộng dồn đạt ít nhất <span className="font-bold text-amber-700">75%</span> tổng doanh thu của ngành cấp 1 đó.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200 space-y-1">
+                    <span className="font-extrabold text-amber-900 block flex items-center gap-1">
+                      ⭐ 3. Mẫu Cấp 2 (Chọn Cơ sở đại diện):
+                    </span>
+                    <p className="text-[11.5px]">
+                      Cỡ mẫu xã <span className="font-bold font-mono">n</span> được phân bổ tỉ lệ cho các ngành cấp 2 đại diện đã chọn. Tại từng ngành đại diện, cơ sở được sắp xếp giảm dần theo doanh thu và chọn mẫu hệ thống rải đều với khoảng cách mẫu <span className="font-bold font-mono text-amber-700">I = N / n</span>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* CHẠY LỌC HỘ CÁ THỂ ACTION BUTTON */}
@@ -1509,6 +1846,45 @@ export default function SamplingSelection({
                     <span className="block text-xl font-black text-orange-500 font-mono mt-0.5">{indBackupList.length}</span>
                   </div>
                 </div>
+
+                {indMethod === "industrial_2level" && Object.keys(indGroupStats).length > 0 && (
+                  <div id="ind-stats-breakdown" className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2">
+                    <span className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      📊 Chi Tiết Phân Bổ Ngành Đại Diện &amp; Khoảng Cách Lấy Mẫu
+                    </span>
+                    <div className="overflow-auto max-h-[220px] border border-slate-150 rounded-lg custom-scrollbar">
+                      <table className="w-full text-left text-[10.5px] text-slate-700 border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-extrabold text-slate-500 uppercase sticky top-0 z-10">
+                            <th className="p-2 border-r border-slate-200 bg-slate-50">Mã Xã</th>
+                            <th className="p-2 border-r border-slate-200 bg-slate-50">Ngành cấp 2 đại diện</th>
+                            <th className="p-2 border-r border-slate-200 text-center bg-slate-50">Tổng cơ sở xã (N)</th>
+                            <th className="p-2 border-r border-slate-200 text-center bg-slate-50">Cỡ mẫu xã (n)</th>
+                            <th className="p-2 border-r border-slate-200 text-center bg-slate-50">Cơ sở trong ngành (Nj)</th>
+                            <th className="p-2 border-r border-slate-200 text-center bg-slate-50">Số mẫu chọn (nj)</th>
+                            <th className="p-2 text-center bg-slate-50">Khoảng cách mẫu (I)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {Object.entries(indGroupStats).map(([key, stat]: [string, any]) => {
+                            const [xaCode, l2Code] = key.split("-");
+                            return (
+                              <tr key={key} className="hover:bg-amber-50/20 text-[10.5px]">
+                                <td className="p-2 border-r border-slate-150 font-semibold text-slate-700">{xaCode}</td>
+                                <td className="p-2 border-r border-slate-150 font-bold text-amber-900">VSIC {l2Code}</td>
+                                <td className="p-2 border-r border-slate-150 text-center font-mono font-medium text-slate-600">{stat.totalN}</td>
+                                <td className="p-2 border-r border-slate-150 text-center font-mono font-black text-amber-700">{stat.communeTargetSize}</td>
+                                <td className="p-2 border-r border-slate-150 text-center font-mono font-medium text-slate-600">{stat.l2N}</td>
+                                <td className="p-2 border-r border-slate-150 text-center font-mono font-black text-emerald-600">{stat.selectedCount}</td>
+                                <td className="p-2 text-center font-mono bg-slate-50/30 text-slate-600 font-semibold">{stat.interval}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 {/* FILTERS AND SEARCH */}
                 <div className="space-y-3 pt-1">

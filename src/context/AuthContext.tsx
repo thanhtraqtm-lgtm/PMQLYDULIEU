@@ -5,23 +5,24 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut, 
+  signInWithPopup,
+  GoogleAuthProvider,
   User 
 } from "firebase/auth";
 import { initializeApp, getApps, initializeApp as initFirebaseApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import firebaseAppletConfig from "../../firebase-applet-config.json";
 
 // ==========================================
-// CẤU HÌNH FIREBASE (FIREBASE CONFIGURATION)
+// CẤU HÌNH FIREBASE THỰC TẾ (REAL FIREBASE CONFIG)
 // ==========================================
-// THAY THẾ CÁC THÔNG TIN DƯỚI ĐÂY BẰNG CẤU HÌNH THỰC TẾ TỪ FIREBASE CONSOLE CỦA BẠN:
-// REPLACE THESE VALUES WITH YOUR REAL FIREBASE PROJECTS CONFIG FROM FIREBASE CONSOLE:
 export const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: firebaseAppletConfig.apiKey || "YOUR_FIREBASE_API_KEY",
+  authDomain: firebaseAppletConfig.authDomain || "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: firebaseAppletConfig.projectId || "YOUR_PROJECT_ID",
+  storageBucket: firebaseAppletConfig.storageBucket || "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: firebaseAppletConfig.messagingSenderId || "YOUR_SENDER_ID",
+  appId: firebaseAppletConfig.appId || "YOUR_APP_ID"
 };
 
 // Khởi tạo Firebase
@@ -68,6 +69,10 @@ interface AuthContextType {
   login: (email: string, password: string, mockUnitID?: string) => Promise<void>;
   register: (email: string, password: string, unitID: string, displayName: string, role: "admin" | "user") => Promise<void>;
   logout: () => Promise<void>;
+  signInWithGoogle: () => Promise<{ user: any; accessToken: string }>;
+  googleAccessToken: string | null;
+  setForceOfflineMode: (offline: boolean) => void;
+  forceOffline: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -107,10 +112,21 @@ export function determineUnitInfo(email: string | null, uid: string): { unitID: 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<SystemUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [forceOffline, setForceOffline] = useState<boolean>(() => {
+    return localStorage.getItem("force_offline_mode") === "true";
+  });
+
+  const setForceOfflineMode = (offline: boolean) => {
+    setForceOffline(offline);
+    localStorage.setItem("force_offline_mode", String(offline));
+    // Clear user if we switch mode to avoid weird mismatches
+    setUser(null);
+    localStorage.removeItem("system_auth_user");
+  };
 
   // Đọc phiên mock user đã lưu từ localStorage khi khởi động
   useEffect(() => {
-    if (isFirebaseInitialized && auth) {
+    if (isFirebaseInitialized && auth && !forceOffline) {
       const unsubscribe = onAuthStateChanged(auth, (firebaseUser: User | null) => {
         if (firebaseUser) {
           const info = determineUnitInfo(firebaseUser.email, firebaseUser.uid);
@@ -140,14 +156,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setLoading(false);
     }
-  }, []);
+  }, [forceOffline]);
 
   const login = async (email: string, password: string, mockUnitID?: string) => {
     setLoading(true);
     try {
-      if (isFirebaseInitialized && auth) {
+      const isActualFirebase = isFirebaseInitialized && auth && !forceOffline && localStorage.getItem("force_offline_mode") !== "true";
+      if (isActualFirebase) {
         // Đăng nhập Firebase thực tế
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth!, email, password);
         const fbUser = userCredential.user;
         const info = determineUnitInfo(fbUser.email, fbUser.uid);
         setUser({
@@ -196,9 +213,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     setLoading(true);
     try {
-      if (isFirebaseInitialized && auth) {
+      const isActualFirebase = isFirebaseInitialized && auth && !forceOffline && localStorage.getItem("force_offline_mode") !== "true";
+      if (isActualFirebase) {
         // Tạo tài khoản Firebase thực tế
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth!, email, password);
         const fbUser = userCredential.user;
         setUser({
           uid: fbUser.uid,
@@ -229,6 +247,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+
+  const signInWithGoogle = async (): Promise<{ user: any; accessToken: string }> => {
+    if (!auth) {
+      throw new Error("Firebase Auth chưa được cấu hình hoặc khởi tạo!");
+    }
+    const provider = new GoogleAuthProvider();
+    provider.addScope("https://www.googleapis.com/auth/drive.file");
+    provider.addScope("https://www.googleapis.com/auth/userinfo.email");
+    provider.addScope("https://www.googleapis.com/auth/userinfo.profile");
+
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken || null;
+      if (!token) {
+        throw new Error("Không thể lấy Google Access Token từ kết quả đăng nhập!");
+      }
+      setGoogleAccessToken(token);
+
+      const info = determineUnitInfo(result.user.email, result.user.uid);
+      const systemUser: SystemUser = {
+        uid: result.user.uid,
+        email: result.user.email,
+        unitID: info.unitID,
+        role: info.role,
+        displayName: result.user.displayName || info.displayName,
+        isMock: false
+      };
+      setUser(systemUser);
+      localStorage.setItem("system_auth_user", JSON.stringify(systemUser));
+
+      return { user: result.user, accessToken: token };
+    } catch (error: any) {
+      console.error("Lỗi đăng nhập Google:", error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -236,6 +293,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await signOut(auth);
       }
       setUser(null);
+      setGoogleAccessToken(null);
       localStorage.removeItem("system_auth_user");
     } catch (error: any) {
       console.error("Lỗi đăng xuất:", error);
@@ -249,10 +307,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         loading,
-        isFirebaseMode: isFirebaseInitialized,
+        isFirebaseMode: isFirebaseInitialized && !forceOffline && localStorage.getItem("force_offline_mode") !== "true",
         login,
         register,
-        logout
+        logout,
+        signInWithGoogle,
+        googleAccessToken,
+        setForceOfflineMode,
+        forceOffline
       }}
     >
       {children}
