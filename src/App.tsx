@@ -7970,7 +7970,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   <div className="flex items-center gap-2">
                     <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase">Mới</span>
                     <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                      💡 Trợ lý chỉ đường: Bạn muốn làm gì hôm nay?
+                      💡 Thông tin hỗ trợ: Bạn muốn làm gì hôm nay?
                     </h4>
                   </div>
                   
@@ -8008,7 +8008,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                             </div>
                             
                             <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full uppercase tracking-wider self-start md:self-auto">
-                              🔍 Hướng dẫn chi tiết • {sc.steps.length} Bước hành động
+                              🔍Chi tiết • {sc.steps.length} theo bước
                             </span>
                           </div>
 
