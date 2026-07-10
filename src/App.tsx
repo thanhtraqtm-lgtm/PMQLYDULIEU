@@ -1005,7 +1005,7 @@ export function MainAppContent() {
 
   const [mathTreatMissingAsZero, setMathTreatMissingAsZero] = useState<boolean>(true);
 
-  // States mới cho nạp đa tệp tin, tính toán liên file và lưu lệnh
+  // States mới cho nạp đa tệp tin, tính toán giữa các file và lưu lệnh
   const [aggregateFiles, setAggregateFiles] = useState<{
     id: string;
     name: string;
@@ -1063,18 +1063,18 @@ export function MainAppContent() {
     return list;
   }, [mainData, fileName, columns, aggregateFiles]);
 
-  // Cấu hình đối sánh đa niên độ (YoY)
+  // Cấu hình so sánh giữa các thời kỳ
   const [compareDsIds, setCompareDsIds] = useState<string[]>([]);
   const [compareKeyCol, setCompareKeyCol] = useState<string>("Địa_Bàn_Xã");
   const [compareColMapping, setCompareColMapping] = useState<{ [dsId: string]: string }>({});
   const [selectedCompareRowKey, setSelectedCompareRowKey] = useState<string>("");
 
-  // Trạng thái cho Dual-Pane Mapping và double click, cùng kiểu định dạng báo cáo xoay Pivot
+  // Trạng thái tổng hợp báo cáo.
   const [selectedTargetKey, setSelectedTargetKey] = useState<keyof ColumnMapping>("mota");
   const [reportType, setReportType] = useState<"flat" | "pivot">("pivot");
   const [isConfigExpanded, setIsConfigExpanded] = useState<boolean>(true);
 
-  // AI Học Đặt Tên Cột (Column Rule Learning)
+  // Gọi AI để Đặt Tên Cột (Column Rule Learning)
   const [aiColLearnPrompt, setAiColLearnPrompt] = useState<string>("");
   const [isLearningColAi, setIsLearningColAi] = useState<boolean>(false);
   const [learningColLogs, setLearningColLogs] = useState<string[]>([]);
@@ -1097,7 +1097,7 @@ export function MainAppContent() {
     } catch (e) {
       console.warn("Lỗi đọc colLearnedCommands từ localStorage:", e);
     }
-    // Danh mục lệnh học mặc định
+    // Mục quy tắc mặc định
     return [
       {
         id: "default-thue",
@@ -1123,7 +1123,7 @@ export function MainAppContent() {
       {
         id: "default-rutgon",
         name: "🧹 Tối Giản Hóa (Chỉ giữ ID và Mô Tả Ngành)",
-        description: "Loại bỏ mọi cột thừa ngoại trừ 🔑 Mã định danh (MST) và 📝 Mô tả hoạt động kinh doanh để tối ưu hóa hiệu năng rà soát.",
+        description: "Loại bỏ mọi cột không dùng đến 🔑 Mã định danh (MST) và 📝 Mô tả hoạt động kinh doanh để tối ưu hóa hiệu năng rà soát.",
         createdAt: new Date().toISOString(),
         mappings: [
           { originalMatch: "MST", newName: "Mã Số Thuế", role: "idCol", use: true },
@@ -1137,7 +1137,7 @@ export function MainAppContent() {
   });
 
 
-  // Trang phân tách
+  // Trang tách dữ liệu
   const [splitCol, setSplitCol] = useState<string>("");
 
   // Trạng thái ghép nhiều sheet từ cùng một file Excel tải lên
@@ -1155,7 +1155,7 @@ export function MainAppContent() {
   const [crossReportLaoDongCol, setCrossReportLaoDongCol] = useState<string>("");
   const [crossReportLevel, setCrossReportLevel] = useState<number>(2); // 1: Cấp 1, 2: Cấp 2, 5: Giữ nguyên
 
-  // Quy tắc tổng hợp (Aggregate rules)
+  // Quy tắc tổng hợp
   const [groupByCols, setGroupByCols] = useState<string[]>([]);
   const [aggRules, setAggRules] = useState<{ col: string; op: string }[]>([]);
   const [newAggCol, setNewAggCol] = useState<string>("");
@@ -1169,7 +1169,7 @@ export function MainAppContent() {
   const [logicRuleMode, setLogicRuleMode] = useState<"conflict" | "must_satisfy">("conflict");
   const [logicFilterMode, setLogicFilterMode] = useState<"all" | "if_satisfied" | "violated">("if_satisfied");
 
-  // Trí tuệ Nhân tạo - Học và lưu lệnh qua AI
+  // Trí tuệ Nhân tạo - Gọi AI và lưu quy tắc
   const [aiRulePrompt, setAiRulePrompt] = useState<string>("");
   const [aiTranslatedExpression, setAiTranslatedExpression] = useState<string>("");
   const [customRuleName, setCustomRuleName] = useState<string>("");
@@ -1195,7 +1195,7 @@ export function MainAppContent() {
   const [newIfRule, setNewIfRule] = useState<LogicRule>({ col: "", op: "==", val: "", isFieldCompare: false });
   const [newThenRule, setNewThenRule] = useState<LogicRule>({ col: "", op: "==", val: "", isFieldCompare: false });
 
-  // States cho Phân Hệ 1: Tổng hợp ngành cấp 2 (Mới độc lập)
+  // States cho Phân Hệ 1: Tổng hợp ngành cấp 2
   const [t2IndustryCol, setT2IndustryCol] = useState<string>("");
   const [t2MetricCols, setT2MetricCols] = useState<string[]>([]);
   const [t2AggMethod, setT2AggMethod] = useState<"sum" | "avg">("sum");
