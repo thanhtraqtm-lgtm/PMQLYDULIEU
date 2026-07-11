@@ -42,19 +42,6 @@ export const PIPELINE_STEPS: PipelineStep[] = [
   },
   {
     id: 2,
-    title: "Chuẩn hóa VSIC (AI)",
-    shortDesc: "Đối chiếu mã ngành, dùng Trí tuệ Nhân tạo dịch ngôn ngữ sang mã.",
-    fullTitle: "Chuẩn hóa VSIC & Trí tuệ Nhân tạo AI",
-    fullDesc: "Mã ngành đăng ký kinh doanh thường bị sai sót hoặc chỉ ghi chữ mô tả tiếng Việt không có mã số chuẩn. Công cụ này đối sánh với danh mục VSIC chuẩn quốc gia. Đặc biệt, mô hình AI tích hợp sẽ tự động phân tích câu từ tiếng Việt và dịch sang mã số chính xác (Ví dụ: 'Nuôi cá nước ngọt' ➔ 03210).",
-    highlights: [
-      "Quét mã sai, tìm ngành phù hợp",
-      "Sử dụng AI tự động dịch mô tả sang mã số"
-    ],
-    actionText: "🤖 SỬ DỤNG AI ĐỐI SÁNH",
-    targetTab: "smartcatalog"
-  },
-  {
-    id: 3,
     title: "Kiểm soát & Logic",
     shortDesc: "Đặt quy tắc logic, quét phát hiện mâu thuẫn doanh thu & lao động.",
     fullTitle: "Rà soát Quy tắc Logic & Phát hiện Lệch quy luật",
@@ -67,11 +54,11 @@ export const PIPELINE_STEPS: PipelineStep[] = [
     targetTab: "rulesstudio"
   },
   {
-    id: 4,
+    id: 3,
     title: "Tổng hợp & Xuất",
     shortDesc: "Lập bảng đa chiều Pivot, tính tần suất và tải báo cáo sạch Excel.",
     fullTitle: "Tổng hợp Báo cáo đa chiều & Xuất Excel Sạch",
-    fullDesc: "Sau khi dữ liệu đã được nạp, chuẩn hóa mã ngành và lọc sạch lỗi logic, đây là lúc tạo ra sản phẩm cuối cùng. Thiết lập các trục dòng (Row), trục cột (Column) và chỉ tiêu tính toán (Doanh thu, Lao động, Số đơn vị) để hệ thống tự động vẽ bảng Pivot đa chiều và kết xuất file Excel chuẩn báo cáo.",
+    fullDesc: "Sau khi dữ liệu đã được nạp và lọc sạch lỗi logic, đây là lúc tạo ra sản phẩm cuối cùng. Thiết lập các trục dòng (Row), trục cột (Column) và chỉ tiêu tính toán (Doanh thu, Lao động, Số đơn vị) để hệ thống tự động vẽ bảng Pivot đa chiều và kết xuất file Excel chuẩn báo cáo.",
     highlights: [
       "Lập bảng thống kê Pivot nhanh trong 3 giây",
       "Xuất file báo cáo sạch không tì vết"
@@ -107,10 +94,10 @@ export const GUIDE_SCENARIOS: GuideScenario[] = [
     icon: "🏷️",
     buttonText: "Tôi muốn rà soát lệch mã ngành VSIC",
     title: "Lộ trình: Đối chiếu mâu thuẫn giữa Mô tả thực tế và Mã ngành đã chọn",
-    intro: "Trong thực tế điều tra, mã ngành do điều tra viên chọn trên máy chắc chắn hợp lệ về mặt cú pháp (vì hệ thống buộc phải chọn từ danh mục chuẩn). Tuy nhiên, lỗi rất dễ xảy ra ở việc áp sai mã so với mô tả thực tế, hoặc mô tả một kiểu nhưng mã chọn một đằng. Hãy xử lý theo 2 trường hợp:",
+    intro: "Trong thực tế điều tra, mã ngành do điều tra viên chọn trên máy chắc chắn hợp lệ về mặt cú pháp (vì hệ thống buộc phải chọn từ danh mục chuẩn). Tuy nhiên, lỗi rất dễ xảy ra ở việc áp sai mã so với mô tả thực tế, hoặc mô tả một kiểu nhưng mã chọn một đằng. Hãy xử lý theo quy trình rà soát:",
     steps: [
-      "Trường hợp A (Bất nhất giữa mô tả và mã ngành): Vào tab “Trí tuệ VSIC” ➔ “Rà soát lệch mã & mô tả”. Chọn cột Mô tả hoạt động và cột Mã ngành đã áp. Trí tuệ Nhân tạo AI (Gemini) sẽ quét chéo và phát hiện các trường hợp mâu thuẫn (Ví dụ: Mô tả ghi 'Trồng lúa' nhưng mã lại chọn 'Nuôi cá').",
-      "Trường hợp B (Định mã tự động từ mô tả chữ thô): Nếu tệp khảo sát chỉ có nội dung mô tả hoạt động bằng chữ viết tay tự do của điều tra viên mà chưa có mã ngành cụ thể, hãy vào tab “Trí tuệ VSIC” ➔ “Đối sánh danh mục (AI)”. AI sẽ phân tích ngữ nghĩa của mô tả tiếng Việt thô và tự động gợi ý mã VSIC cấp 5 chính xác cho bạn!"
+      "Vào tab “Trí tuệ VSIC” ➔ “Kiểm tra mã ngành VSIC”. Chọn cột Mô tả hoạt động và cột Mã ngành đã áp. Hệ thống sẽ quét chéo và phát hiện các trường hợp mâu thuẫn (Ví dụ: Mô tả ghi 'Trồng lúa' nhưng mã lại chọn 'Nuôi cá').",
+      "Xem chi tiết lỗi để điều phối điều tra viên phúc tra trực tiếp nhằm đảm bảo tính thống nhất dữ liệu."
     ],
     actionButtons: [
       {
@@ -118,12 +105,6 @@ export const GUIDE_SCENARIOS: GuideScenario[] = [
         tab: "chuanhoanganh",
         stepId: 2,
         style: "primary"
-      },
-      {
-        text: "🔍 Tự động định mã từ mô tả chữ thô",
-        tab: "smartcatalog",
-        stepId: 2,
-        style: "secondary"
       }
     ]
   },

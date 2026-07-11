@@ -7451,7 +7451,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
   const renderHorizontalMenu = () => {
     return (
       <div className="bg-indigo-50/95 backdrop-blur-md border-b border-indigo-200/80 shadow-md relative z-30 px-6 py-1.5 flex flex-nowrap items-center justify-between gap-3 overflow-x-auto lg:overflow-visible select-none animate-fade-in custom-scrollbar">
-        <div className="flex items-center gap-1 flex-nowrap shrink-0">
+        <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
           
           {/* Nút TRANG CHỦ */}
           <button 
@@ -7470,7 +7470,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             Trang chủ
           </button>
 
-          {/* NÚT CHÍNH: Nhập Tin  */}
+          {/* NÚT CHÍNH: PHIẾU KHẢO SÁT & KÝ SỐ */}
           <button 
             onClick={(e) => {
               e.stopPropagation();
@@ -7498,7 +7498,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 setOpenDropdown(openDropdown === "quanlytep" ? null : "quanlytep");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-                ["xemdulieu", "ghepnoi", "tachfile", "chonmau", "sosanh", "dataentry"].includes(activeTab)
+                ["xemdulieu", "ghepnoi", "tachfile", "chonmau", "sosanh"].includes(activeTab)
                   ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
                   : openDropdown === "quanlytep"
                     ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
@@ -7556,154 +7556,147 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             )}
           </div>
 
-          {/* DROPDOWN 2: KIỂM TOÁN & LÔ-GÍCH */}
+          {/* DROPDOWN 2: RÀ SOÁT & KIỂM TRA */}
           <div className="relative">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                setOpenDropdown(openDropdown === "kiemsoat" ? null : "kiemsoat");
+                setOpenDropdown(openDropdown === "rasoat" ? null : "rasoat");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-                ["rulesstudio", "kiemtralogic", "outliers"].includes(activeTab)
+                ["kiemtralogic", "outliers", "rulesstudio"].includes(activeTab)
                   ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
-                  : openDropdown === "kiemsoat"
+                  : openDropdown === "rasoat"
                     ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
                     : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
               }`}
             >
-              <CheckSquare className="w-4 h-4 shrink-0 text-teal-600" />
-              📊 Kiểm toán &amp; Lô-gích
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "kiemsoat" ? "rotate-180" : ""}`} />
+              <CheckSquare className="w-4 h-4 shrink-0 text-indigo-500" />
+              🔍 Rà soát &amp; Kiểm tra
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "rasoat" ? "rotate-180" : ""}`} />
             </button>
-            {openDropdown === "kiemsoat" && (
+            {openDropdown === "rasoat" && (
               <div 
                 className="absolute left-0 mt-1.5 w-64 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button 
-                  onClick={() => { setActiveTab("rulesstudio"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "rulesstudio" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
-                >
-                  <CheckSquare className="w-4 h-4 text-teal-500 shrink-0" />
-                  Phòng quy tắc (Rules Studio)
-                </button>
-                <button 
                   onClick={() => { setActiveTab("kiemtralogic"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "kiemtralogic" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
-                  <Sliders className="w-4 h-4 text-indigo-500 shrink-0" />
-                  Rà soát Lô-gích Toán học
+                  <Brain className="w-4 h-4 text-rose-500 shrink-0" />
+                  Kiểm tra logic đa điều kiện
                 </button>
                 <button 
                   onClick={() => { setActiveTab("outliers"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "outliers" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
-                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-                  Quét Sai lệch &amp; Cá biệt (Outliers)
+                  <Activity className="w-4 h-4 text-amber-500 shrink-0" />
+                  Quét lệch quy luật phân phối
+                </button>
+                <button 
+                  onClick={() => { setActiveTab("rulesstudio"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "rulesstudio" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
+                >
+                  <Sliders className="w-4 h-4 text-blue-500 shrink-0" />
+                  Quản trị quy tắc logic
                 </button>
               </div>
             )}
           </div>
 
-          {/* DROPDOWN 3: TRÍ TUỆ VSIC & AI */}
+          {/* DROPDOWN 3: TRA CỨU & CHUẨN HÓA VSIC */}
           <div className="relative">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                setOpenDropdown(openDropdown === "tritue" ? null : "tritue");
+                setOpenDropdown(openDropdown === "vsic" ? null : "vsic");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-                ["smartcatalog", "chuanhoanganh", "danhmucvsic"].includes(activeTab)
+                ["chuanhoanganh", "danhmucvsic"].includes(activeTab)
                   ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
-                  : openDropdown === "tritue"
+                  : openDropdown === "vsic"
                     ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
                     : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
               }`}
             >
-              <Brain className="w-4 h-4 shrink-0 text-emerald-600" />
-              🤖 Trí tuệ VSIC &amp; AI
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "tritue" ? "rotate-180" : ""}`} />
+              <BrainCircuit className="w-4 h-4 shrink-0 text-indigo-500" />
+              🏷️ Chuẩn hóa VSIC
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "vsic" ? "rotate-180" : ""}`} />
             </button>
-            {openDropdown === "tritue" && (
+            {openDropdown === "vsic" && (
               <div 
-                className="absolute left-0 mt-1.5 w-64 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
+                className="absolute left-0 mt-1.5 w-60 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button 
-                  onClick={() => { setActiveTab("smartcatalog"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "smartcatalog" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
-                >
-                  <Brain className="w-4 h-4 text-emerald-500 shrink-0 animate-pulse" />
-                  Đối sánh danh mục (AI)
-                </button>
                 <button 
                   onClick={() => { setActiveTab("chuanhoanganh"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "chuanhoanganh" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
-                  <Sliders className="w-4 h-4 text-sky-500 shrink-0" />
-                  Kiểm tra mã ngành VSIC
+                  <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
+                  Chuẩn hóa khớp ngành VSIC
                 </button>
                 <button 
                   onClick={() => { setActiveTab("danhmucvsic"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "danhmucvsic" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
-                  <Database className="w-4 h-4 text-teal-500 shrink-0" />
-                  Danh mục ngành VSIC
+                  <Search className="w-4 h-4 text-sky-500 shrink-0" />
+                  Tra cứu danh mục VSIC chuẩn
                 </button>
               </div>
             )}
           </div>
 
-          {/* DROPDOWN 4: TỔNG HỢP BÁO CÁO */}
+          {/* DROPDOWN 4: PHÂN TÍCH & TỔNG HỢP */}
           <div className="relative">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                setOpenDropdown(openDropdown === "tonghop" ? null : "tonghop");
+                setOpenDropdown(openDropdown === "phantich" ? null : "phantich");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
                 ["tonghop", "tansuat", "tuongquan"].includes(activeTab)
                   ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
-                  : openDropdown === "tonghop"
+                  : openDropdown === "phantich"
                     ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
                     : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
               }`}
             >
-              <BarChart3 className="w-4 h-4 shrink-0 text-violet-600" />
-              📈 Tổng hợp Báo cáo
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "tonghop" ? "rotate-180" : ""}`} />
+              <BarChart3 className="w-4 h-4 shrink-0 text-indigo-500" />
+              📊 Phân tích &amp; Tổng hợp
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "phantich" ? "rotate-180" : ""}`} />
             </button>
-            {openDropdown === "tonghop" && (
+            {openDropdown === "phantich" && (
               <div 
-                className="absolute left-0 mt-1.5 w-64 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
+                className="absolute left-0 mt-1.5 w-60 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button 
                   onClick={() => { setActiveTab("tonghop"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "tonghop" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
-                  <BarChart3 className="w-4 h-4 text-indigo-600 shrink-0" />
-                  Tổng hợp báo cáo đa chiều
+                  <PieChart className="w-4 h-4 text-sky-500 shrink-0" />
+                  Báo cáo &amp; Tổng hợp biểu đồ
                 </button>
                 <button 
                   onClick={() => { setActiveTab("tansuat"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "tansuat" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
-                  <Sliders className="w-4 h-4 text-purple-600 shrink-0" />
-                  Tần suất xuất hiện
+                  <Activity className="w-4 h-4 text-rose-500 shrink-0" />
+                  Phân tích tần suất mẫu
                 </button>
                 <button 
                   onClick={() => { setActiveTab("tuongquan"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "tuongquan" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
-                  <Activity className="w-4 h-4 text-emerald-600 shrink-0" />
-                  Phân tích tương quan
+                  <ArrowRightLeft className="w-4 h-4 text-purple-500 shrink-0" />
+                  Phân tích tương quan dữ liệu
                 </button>
               </div>
             )}
           </div>
 
-          {/* DROPDOWN 5: CỘNG TÁC CLOUD & TIỆN ÍCH */}
+          {/* DROPDOWN 5: TIỆN ÍCH & CỘNG TÁC */}
           <div className="relative">
             <button 
               onClick={(e) => {
@@ -7711,79 +7704,49 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 setOpenDropdown(openDropdown === "congtac" ? null : "congtac");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-                ["dataentry", "videoroom", "pdf2word", "admindashboard"].includes(activeTab)
+                ["pdf2word", "videoroom", "admindashboard"].includes(activeTab)
                   ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
                   : openDropdown === "congtac"
                     ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
                     : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
               }`}
             >
-              <Radio className="w-4 h-4 shrink-0 animate-pulse text-indigo-500" />
-              🤝 Cộng tác &amp; Tiện ích
+              <Users className="w-4 h-4 shrink-0 text-indigo-500" />
+              🛠️ Tiện ích &amp; Cộng tác
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "congtac" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "congtac" && (
               <div 
-                className="absolute left-0 mt-1.5 w-64 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
+                className="absolute right-0 lg:left-auto mt-1.5 w-60 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button 
-                  onClick={() => { setActiveTab("videoroom"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "videoroom" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
-                >
-                  <Users className="w-4 h-4 text-sky-500 shrink-0" />
-                  Họp trực tuyến liên ngành
-                </button>
                 <button 
                   onClick={() => { setActiveTab("pdf2word"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "pdf2word" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
-                  <FileText className="w-4 h-4 text-slate-600 shrink-0" />
-                  Đọc PDF &amp; Sang Word
+                  <FileText className="w-4 h-4 text-amber-500 shrink-0" />
+                  Đọc PDF &amp; Chuyển sang Word
+                </button>
+                <button 
+                  onClick={() => { setActiveTab("videoroom"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "videoroom" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
+                >
+                  <Video className="w-4 h-4 text-emerald-500 shrink-0" />
+                  Phòng họp video trực tuyến
                 </button>
                 {userRole === "admin" && (
                   <button 
                     onClick={() => { setActiveTab("admindashboard"); setOpenDropdown(null); }}
                     className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "admindashboard" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                   >
-                    <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
-                    Giám sát Admin &amp; Cấp phát
+                    <Shield className="w-4 h-4 text-indigo-500 shrink-0" />
+                    Trình quản trị hệ thống
                   </button>
                 )}
               </div>
             )}
           </div>
 
-        </div>
-
-        {/* Nút Xóa dữ liệu và các chỉ mục trình tự thực hiện trực quan cân bằng góc phải menu ngang */}
-        <div className="flex items-center gap-2.5 text-[11px] font-sans">
-          <button 
-            onClick={() => {
-              setActiveTab("trangchu");
-              setOpenDropdown(null);
-              setTimeout(() => {
-                const el = document.getElementById("interactive-scenario-finder");
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }, 120);
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-750 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
-            title="Nhảy nhanh đến trình tự thực hiện rà soát giải đáp các tình huống dữ liệu thực tế"
-          >
-            <Compass className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            TRÌNH TỰ THỰC HIỆN
-          </button>
-
-          <div className="w-px h-5 bg-slate-250 mx-0.5"></div>
-
-          <button 
-            onClick={clearData}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 hover:text-rose-700 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
-            title="Xóa nhanh toàn bộ các file dữ liệu đã nạp (Tệp chính, tệp nạp thêm, tệp chọn mẫu...). Danh mục ngành VSIC và quy tắc AI giữ nguyên."
-          >
-            <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-            XÓA DỮ LIỆU ĐÃ NẠP
-          </button>
         </div>
       </div>
     );
@@ -7867,546 +7830,192 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           {/* 1. TAB TRANG CHỦ */}
           {activeTab === "trangchu" && (
             <div className="space-y-8 animate-fade-in">
-              
-              {/* BẢN ĐỒ LỘ TRÌNH THAO TÁC HỆ THỐNG TRỰC QUAN (INTERACTIVE PIPELINE MAP) */}
-              <div id="interactive-pipeline-guide" className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl opacity-60"></div>
-                
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                  <div>
-                    <span className="bg-indigo-50 text-indigo-700 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border border-indigo-100">
-                      Bản đồ Lộ trình Hệ thống
-                    </span>
-                    <h3 className="text-lg font-black text-slate-800 tracking-tight mt-1.5 flex items-center gap-2">
-                      <Compass className="w-5 h-5 text-indigo-500 shrink-0" />
-                      Quy trình Thao tác 4 Bước Tiêu chuẩn
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Nhập môn nhanh: Nhấp chọn từng bước dưới đây để xem hướng dẫn thao tác chi tiết, các tệp cần chuẩn bị và phím tắt chuyển nhanh.
-                    </p>
-                  </div>
-                  
-                  {/* Quick toggle to reset scenario */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 font-medium">Bật trợ giúp:</span>
-                    <button
-                      onClick={() => {
-                        setSelectedPipelineStep(1);
-                        setSelectedWizardScenario("naptiep");
-                      }}
-                      className="bg-slate-50 border border-slate-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
-                    >
-                      <Zap className="w-3.5 h-3.5" /> Thiết lập lại từ đầu
-                    </button>
-                  </div>
+              {/* 2. PIPELINE STEPS */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-150 pb-2">
+                  <Layers className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">
+                    ⚙️ Quy trình xử lý dữ liệu khép kín
+                  </h3>
                 </div>
-
-                {/* Flow steps container */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative">
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {PIPELINE_STEPS.map((step) => {
-                    const isSelected = selectedPipelineStep === step.id;
+                    const isActive = selectedPipelineStep === step.id;
                     return (
-                      <button 
+                      <div 
                         key={step.id}
                         onClick={() => setSelectedPipelineStep(step.id)}
-                        className={`text-left w-full cursor-pointer p-4 rounded-2xl border transition-all relative ${
-                          getStepColors(step.id, isSelected)
+                        className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer text-left relative overflow-hidden ${
+                          isActive 
+                            ? "bg-indigo-600 text-white border-indigo-700 shadow-md ring-2 ring-indigo-500/20" 
+                            : "bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/20"
                         }`}
                       >
                         <div className="flex items-start justify-between">
-                          <div className={`p-2 rounded-xl border ${getIconBadgeStyles(step.id, isSelected)}`}>
-                            {getStepIcon(step.id)}
-                          </div>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">BƯỚC {step.id}</span>
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                            isActive ? "bg-indigo-700 text-white" : "bg-slate-100 text-slate-600"
+                          }`}>
+                            BƯỚC 0{step.id}
+                          </span>
+                          {isActive && <CheckCircle className="w-4 h-4 text-emerald-300 shrink-0" />}
                         </div>
-                        <div className="mt-3">
-                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">{step.title}</h4>
-                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{step.shortDesc}</p>
-                        </div>
-                        {/* Active dot indicator */}
-                        {isSelected && (
-                          <span className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 ${getActiveDotColor(step.id)} rounded-full`}></span>
-                        )}
-                      </button>
+                        <h4 className="font-bold text-sm mt-3 tracking-tight">{step.title}</h4>
+                        <p className={`text-[11px] mt-1 leading-snug ${isActive ? "text-indigo-100" : "text-slate-500"}`}>
+                          {step.shortDesc}
+                        </p>
+                      </div>
                     );
                   })}
                 </div>
 
-                {/* DETAILED MICRO-GUIDE CARD BASED ON SELECTED STEP */}
-                {selectedPipelineStep && (
-                  (() => {
-                    const step = PIPELINE_STEPS.find(s => s.id === selectedPipelineStep);
-                    if (!step) return null;
-                    return (
-                      <div className={`p-5 rounded-2xl border transition-all duration-300 animate-fade-in ${getDetailStepBgColor(step.id)}`}>
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                          <div className="space-y-2 flex-1">
-                            <h5 className="text-sm font-extrabold text-slate-950 flex items-center gap-2">
-                              <span className={`${getDetailStepBadgeColor(step.id)} text-xs px-2 py-0.5 rounded-lg`}>BƯỚC {step.id}</span> 
-                              {step.fullTitle}
-                            </h5>
-                            <p className="text-xs text-slate-650 leading-relaxed">
-                              {step.fullDesc}
-                            </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-[11px] text-slate-500">
-                              {step.highlights.map((hl, hlIdx) => (
-                                <div key={hlIdx} className="flex items-center gap-1.5">
-                                  <CheckCircle className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                  {hl}
-                                </div>
-                              ))}
+                {/* Step Details display */}
+                {selectedPipelineStep && (() => {
+                  const activeStepObj = PIPELINE_STEPS.find(s => s.id === selectedPipelineStep);
+                  if (!activeStepObj) return null;
+                  return (
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 md:p-6 space-y-4 animate-slide-up">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                            <span className="bg-indigo-100 text-indigo-700 text-xs font-mono font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                              {activeStepObj.id}
+                            </span>
+                            {activeStepObj.fullTitle}
+                          </h4>
+                          <p className="text-xs text-slate-600 max-w-3xl leading-relaxed">
+                            {activeStepObj.fullDesc}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setActiveTab(activeStepObj.targetTab as any)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md flex items-center justify-center gap-1.5 shrink-0 cursor-pointer border-0 transition-colors"
+                        >
+                          {activeStepObj.actionText}
+                        </button>
+                      </div>
+
+                      <div className="border-t border-slate-200/60 pt-4">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2 font-mono">Điểm nhấn quy trình:</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {activeStepObj.highlights.map((h, i) => (
+                            <div key={i} className="flex items-start gap-2 bg-white border border-slate-200/50 p-2.5 rounded-xl">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                              <span className="text-xs text-slate-700 font-medium leading-relaxed">{h}</span>
                             </div>
-                          </div>
-                          <div className="shrink-0 flex flex-col gap-2">
-                            <button
-                              onClick={() => {
-                                setActiveTab(step.targetTab);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                              className={`w-full md:w-auto ${getDetailActionBtnColor(step.id)} font-extrabold text-xs px-5 py-3 rounded-xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer`}
-                            >
-                              {step.actionText} <ArrowRight className="w-4 h-4" />
-                            </button>
-                            {step.id === 2 && (
-                              <button
-                                onClick={() => {
-                                  setActiveTab("chuanhoanganh");
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                className="w-full bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-xs px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
-                              >
-                                🔍 KIỂM TRA MÃ NGÀNH VSIC
-                              </button>
-                            )}
-                            {step.id === 3 && (
-                              <button
-                                onClick={() => {
-                                  setActiveTab("kiemtralogic");
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                className="w-full bg-white hover:bg-teal-50 text-teal-750 border border-teal-200 font-extrabold text-xs px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
-                              >
-                                📊 CHẠY KIỂM TRA LOGIC
-                              </button>
-                            )}
-                          </div>
+                          ))}
                         </div>
                       </div>
-                    );
-                  })()
-                )}
+                    </div>
+                  );
+                })()}
+              </div>
 
-                {/* SCENARIO FINDER (GIẢI ĐÁP TÌNH HUỐNG THỰC TẾ) */}
-                <div id="interactive-scenario-finder" className="bg-slate-50 rounded-2xl p-5 border border-slate-150 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase">Mới</span>
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                      💡 Trình tự thực hiện: Bạn muốn làm gì hôm nay?
-                    </h4>
-                  </div>
-                  
-                  {/* Selector Scenario Buttons */}
-                  <div className="flex flex-wrap gap-2">
-                    {GUIDE_SCENARIOS.map((sc) => (
-                      <button
-                        key={sc.id}
-                        onClick={() => setSelectedWizardScenario(sc.id)}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                          selectedWizardScenario === sc.id
-                            ? "bg-indigo-600 text-white border-indigo-700 shadow-sm"
-                            : "bg-white text-slate-750 border-slate-200 hover:bg-indigo-50/50 hover:text-indigo-900"
-                        }`}
-                      >
-                        {sc.icon} {sc.buttonText}
-                      </button>
-                    ))}
-                  </div>
+              {/* 3. SCENARIOS GUIDE WITH OPERATIONAL SEQUENCE */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-150 pb-2">
+                  <Compass className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">
+                    🎯 Trình tự thao tác và hướng dẫn theo tình huống
+                  </h3>
+                </div>
 
-                  {/* Expanded Scenario Content Walkthrough */}
-                  {selectedWizardScenario && (
-                    (() => {
-                      const sc = GUIDE_SCENARIOS.find(s => s.id === selectedWizardScenario);
-                      if (!sc) return null;
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Left Column: List of scenarios */}
+                  <div className="lg:col-span-5 space-y-2 max-h-[500px] overflow-y-auto pr-1 scrollbar-thin">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block px-1 font-mono">Chọn nhu cầu của bạn:</span>
+                    {GUIDE_SCENARIOS.map((scenario) => {
+                      const isActive = selectedWizardScenario === scenario.id;
                       return (
-                        <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 space-y-4.5 animate-fade-in text-xs text-slate-700 leading-relaxed shadow-sm relative overflow-hidden">
-                          {/* Top ambient highlight line */}
-                          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-600" />
-                          
-                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                            <div className="font-black text-indigo-950 text-sm flex items-center gap-2">
-                              <span className="text-xl bg-indigo-50 p-1.5 rounded-lg text-indigo-600 border border-indigo-100/60">{sc.icon}</span> 
-                              <span>{sc.title}</span>
-                            </div>
-                            
-                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full uppercase tracking-wider self-start md:self-auto">
-                              🔍 Hướng dẫn chi tiết • {sc.steps.length} Bước hành động
-                            </span>
-                          </div>
+                        <button
+                          key={scenario.id}
+                          onClick={() => setSelectedWizardScenario(scenario.id)}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
+                            isActive 
+                              ? "bg-purple-50 text-purple-950 border-purple-300 shadow-sm" 
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                          }`}
+                        >
+                          <span className="text-xl shrink-0">{scenario.icon}</span>
+                          <span className={`text-xs font-bold leading-tight ${isActive ? "text-purple-800" : "text-slate-700"}`}>
+                            {scenario.buttonText}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                          <p className="text-slate-600 text-[11px] md:text-xs font-medium leading-relaxed italic bg-indigo-50/20 p-3 rounded-xl border border-indigo-50/50">
-                            {sc.intro}
-                          </p>
-
-                          {/* Beautiful Bento-grid cards for Steps */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-                            {sc.steps.map((st, sIdx) => (
-                              <div 
-                                key={sIdx} 
-                                className="bg-slate-50 border border-slate-150 hover:border-indigo-350 hover:bg-gradient-to-b hover:from-white hover:to-indigo-50/20 rounded-2xl p-4.5 relative overflow-hidden flex flex-col justify-between group transition-all duration-300 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-md"
-                              >
-                                {/* Step number badge */}
-                                <div className="absolute top-0 right-0 w-9 h-9 bg-slate-100 text-slate-400 font-black text-xs flex items-center justify-center rounded-bl-2xl border-l border-b border-slate-150 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-300">
-                                  {sIdx + 1}
-                                </div>
-                                <div className="pr-4 space-y-2">
-                                  <div className="text-[10px] font-bold text-slate-400 group-hover:text-indigo-500 uppercase tracking-widest transition-colors">
-                                    Bước {sIdx + 1}
-                                  </div>
-                                  <p 
-                                    className="text-[11.5px] font-medium text-slate-700 leading-relaxed group-hover:text-slate-800 transition-colors"
-                                    dangerouslySetInnerHTML={{ 
-                                      __html: st.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                                 .replace(/“(.*?)”/g, '“<strong class="text-indigo-750 font-semibold">$1</strong>”') 
-                                    }} 
-                                  />
-                                </div>
+                  {/* Right Column: Detailed sequence of actions */}
+                  <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
+                    {selectedWizardScenario ? (() => {
+                      const activeScenarioObj = GUIDE_SCENARIOS.find(s => s.id === selectedWizardScenario);
+                      if (!activeScenarioObj) return null;
+                      return (
+                        <div className="space-y-5 flex-1 flex flex-col justify-between">
+                          <div className="space-y-4">
+                            {/* Scenario Title */}
+                            <div className="flex items-start gap-3 pb-3 border-b border-slate-100">
+                              <span className="text-3xl shrink-0">{activeScenarioObj.icon}</span>
+                              <div className="space-y-1">
+                                <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                                  {activeScenarioObj.title}
+                                </h4>
+                                <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                                  {activeScenarioObj.intro}
+                                </p>
                               </div>
-                            ))}
+                            </div>
+
+                            {/* Detailed steps timeline */}
+                            <div className="space-y-4">
+                              <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block font-mono">Trình tự thực hiện chi tiết:</span>
+                              <div className="relative border-l border-slate-200/80 ml-3.5 pl-5 space-y-4">
+                                {activeScenarioObj.steps.map((stepText, idx) => (
+                                  <div key={idx} className="relative">
+                                    {/* Number Circle Badge */}
+                                    <span className="absolute -left-[29px] top-0 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-mono font-extrabold w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
+                                      {idx + 1}
+                                    </span>
+                                    <div className="space-y-1">
+                                      <p className="text-xs text-slate-700 leading-relaxed font-medium font-sans">
+                                        {stepText}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                            <span className="text-[10.5px] font-bold text-slate-500 flex items-center gap-1">
-                              💡 Nhấp nút bên phải để đi thẳng tới tab chức năng:
-                            </span>
-                            <div className="flex flex-wrap gap-2.5">
-                              {sc.actionButtons.map((btn, bIdx) => (
-                                <button
-                                  key={bIdx}
-                                  onClick={() => {
-                                    setActiveTab(btn.tab);
-                                    if (btn.stepId) {
-                                      setSelectedPipelineStep(btn.stepId);
-                                    }
-                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                  }}
-                                  className={`font-black text-[11px] px-4.5 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${
-                                    btn.style === 'primary'
-                                      ? "bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-md shadow-indigo-600/10"
-                                      : "bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm"
-                                  }`}
-                                >
-                                  {btn.text}
-                                </button>
-                              ))}
-                            </div>
+                          {/* Action Buttons */}
+                          <div className="pt-4 border-t border-slate-100 mt-6 flex flex-wrap items-center gap-3">
+                            {activeScenarioObj.actionButtons.map((btn, btnIdx) => (
+                              <button
+                                key={btnIdx}
+                                onClick={() => {
+                                  setActiveTab(btn.tab as any);
+                                  if (btn.stepId) {
+                                    setSelectedPipelineStep(btn.stepId);
+                                  }
+                                }}
+                                className={`font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md cursor-pointer border-0 flex items-center gap-2 ${
+                                  btn.style === "secondary" 
+                                    ? "bg-slate-100 hover:bg-slate-200 text-slate-800" 
+                                    : "bg-purple-600 hover:bg-purple-700 text-white"
+                                }`}
+                              >
+                                {btn.text} <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            ))}
                           </div>
                         </div>
                       );
-                    })()
-                  )}
-                </div>
-              </div>
-
-              {/* SƠ ĐỒ LUỒNG XỬ LÝ DỮ LIỆU THỐNG KÊ CHUẨN HÓA (VISIC ARCHITECTURAL FLOWCHART) - LIGHT BLUE/SLATE MODERN PRESETS */}
-              <div className="bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 text-slate-800 rounded-3xl p-6 md:p-10 shadow-lg relative overflow-hidden border-2 border-indigo-100 w-full max-w-none">
-                {/* Background decorative glows */}
-                <div className="absolute -top-12 -right-12 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl opacity-60"></div>
-                <div className="absolute -bottom-12 -left-12 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl opacity-60"></div>
-                <div className="absolute top-1/2 left-1/3 w-80 h-80 bg-purple-500/3 rounded-full blur-3xl opacity-40"></div>
-                
-                {/* Top border ambient line */}
-                <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-emerald-500 via-indigo-500 via-purple-500 to-amber-500"></div>
-
-                <div className="border-b border-indigo-100 pb-6 mb-8 relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <span className="bg-indigo-100 text-indigo-700 text-[10px] font-extrabold uppercase tracking-widest px-3.5 py-1.5 rounded-full border border-indigo-200">
-                      Bản Đồ Kiến Trúc Hệ Thống Toàn Diện
-                    </span>
-                    <h3 className="text-xl md:text-2xl font-black tracking-tight mt-2 text-indigo-950 flex items-center gap-2.5">
-                      <BrainCircuit className="w-6.5 h-6.5 text-indigo-650 animate-pulse" />
-                      Quy Trình Xử Lý &amp; Kiểm Soát Dữ Liệu Khép Kín VSIC
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-1 max-w-3xl leading-relaxed">
-                      Mọi dữ liệu khảo sát thô đều bắt buộc đi qua trạm kiểm soát trung tâm (Nạp danh mục ngành VSIC và Định nghĩa cột) trước khi phân rã sang các công cụ nghiệp vụ chuyên biệt hoặc đưa vào phòng hội chẩn trực tuyến.
-                    </p>
-                  </div>
-                  
-                  {/* AI & Video room quick highlights */}
-                  <div className="flex flex-wrap gap-2">
-                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" /> AI-Powered Engine
-                    </span>
-                    <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
-                      <Video className="w-3.5 h-3.5 text-purple-600 animate-bounce" /> Live Room Active
-                    </span>
-                  </div>
-                </div>
-
-                {/* Sơ đồ Visual Grid - Expanded to 12 cols with spacious spacing */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-stretch relative z-10">
-                  
-                  {/* CỘT 1: ĐẦU VÀO THÔ (lg:col-span-2) */}
-                  <div className="lg:col-span-2 flex flex-col justify-start space-y-3">
-                    <div className="text-center lg:text-left">
-                      <span className="text-[10px] font-bold text-slate-450 uppercase tracking-widest font-mono">BƯỚC ĐẦU</span>
-                      <h4 className="text-xs font-black text-indigo-850 uppercase tracking-wider mt-0.5">1. Dữ Liệu Đầu Vào</h4>
-                    </div>
-                    
-                    <div className="bg-white border border-indigo-50 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
-                      <p className="text-[10px] text-slate-550 font-extrabold uppercase tracking-wider text-center border-b border-indigo-50/50 pb-1.5 mb-1.5">
-                        Nguồn Khảo Sát Thô
-                      </p>
-                      
-                      <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:border-indigo-350 transition-colors">
-                        <FileSpreadsheet className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
-                        <div>
-                          <div className="text-[11px] font-extrabold text-slate-800">Excel / XML</div>
-                          <div className="text-[9px] text-slate-500 font-medium">Doanh nghiệp</div>
-                        </div>
+                    })() : (
+                      <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400 space-y-2">
+                        <Compass className="w-10 h-10 stroke-1 text-slate-300" />
+                        <p className="text-xs font-bold">Hãy chọn một tình huống ở cột bên trái để hiển thị trình tự thao tác!</p>
                       </div>
-                      
-                      <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:border-indigo-350 transition-colors">
-                        <Database className="w-4.5 h-4.5 text-sky-600 shrink-0" />
-                        <div>
-                          <div className="text-[11px] font-extrabold text-slate-800">CSV / DB Dump</div>
-                          <div className="text-[9px] text-slate-500 font-mono font-medium">Hàng triệu dòng</div>
-                        </div>
-                      </div>
-
-                      {/* Mũi tên chỉ ra luồng (a) và (b) */}
-                      <div className="mt-3 pt-2.5 border-t border-indigo-100 space-y-1.5 text-[9.5px] font-bold">
-                        <div className="flex items-center gap-1.5 text-indigo-700">
-                          <span className="text-indigo-555">➔</span> Truyền sang (a) VSIC
-                        </div>
-                        <div className="flex items-center gap-1.5 text-teal-700">
-                          <span className="text-teal-555">➔</span> Truyền sang (b) Cột/Vai trò
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* CỘT 2: TRẠM CHUẨN HÓA VSIC (a) (lg:col-span-3) */}
-                  <div className="lg:col-span-3 flex flex-col justify-start bg-indigo-50/30 border border-indigo-100 rounded-3xl p-5 space-y-4 relative">
-                    <div className="absolute -top-3 left-6">
-                      <span className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" /> Trạm Chuẩn Hóa
-                      </span>
-                    </div>
-                    
-                    <div className="text-center pt-2">
-                      <span className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-widest font-mono">GIAI ĐOẠN TRỌNG TÂM A</span>
-                      <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider mt-0.5">(a) Xử Lý Ngành VSIC</h4>
-                    </div>
-
-                    {/* BOX 1: NẠP & CHUẨN HÓA DANH MỤC VSIC */}
-                    <button 
-                      onClick={() => setActiveTab("smartcatalog")}
-                      className="w-full text-left bg-white hover:bg-indigo-50/40 border-2 border-indigo-200 hover:border-indigo-400 rounded-2xl p-4 transition-all hover:scale-[1.02] shadow-sm group relative cursor-pointer grow flex flex-col justify-center min-h-[220px]"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 group-hover:scale-110 transition-transform">
-                          <BrainCircuit className="w-5.5 h-5.5 text-indigo-600" />
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-1.5 flex-wrap">
-                            📌 1. Nạp Danh Mục Ngành VSIC
-                            <span className="bg-indigo-100 text-indigo-700 text-[8px] font-extrabold px-1.5 py-0.2 rounded font-mono">VSIC 5 Cấp</span>
-                          </div>
-                          <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                            Pháp lý hóa dữ liệu theo chuẩn Danh mục ngành kinh tế Việt Nam. Khớp mã tự động dựa trên từ điển hệ thống lưu trữ.
-                          </p>
-                        </div>
-                      </div>
-                      <span className="absolute bottom-3 right-3 text-[9px] font-mono text-indigo-600 group-hover:text-indigo-800 font-extrabold">Bắt đầu nạp ngay ➔</span>
-                    </button>
-                  </div>
-
-                  {/* CỘT 3: CẤU TRÚC VÀ ĐỊNH NGHĨA CỘT (b) (lg:col-span-3) */}
-                  <div className="lg:col-span-3 flex flex-col justify-start bg-teal-50/20 border border-teal-100/80 rounded-3xl p-5 space-y-4 relative">
-                    <div className="text-center">
-                      <span className="text-[10px] font-extrabold text-teal-700 uppercase tracking-widest font-mono">GIAI ĐOẠN TRỌNG TÂM B</span>
-                      <h4 className="text-xs font-black text-teal-950 uppercase tracking-wider mt-0.5">(b) Xử Lý Cấu Trúc Bảng</h4>
-                    </div>
-
-                    {/* BOX 2: ĐỊNH NGHĨA TÊN CỘT & VAI TRÒ */}
-                    <button 
-                      onClick={() => setActiveTab("xemdulieu")}
-                      className="w-full text-left bg-white hover:bg-teal-50/40 border-2 border-teal-200 hover:border-teal-400 rounded-2xl p-4 transition-all hover:scale-[1.02] shadow-sm group relative cursor-pointer grow flex flex-col justify-center min-h-[220px]"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl border border-teal-100 group-hover:scale-110 transition-transform">
-                          <FileSpreadsheet className="w-5.5 h-5.5 text-teal-600" />
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                            🏷️ 2. Định Nghĩa Tên Cột &amp; Vai Trò
-                          </div>
-                          <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                            Ánh xạ tiêu đề cột (Doanh thu, Lao động, Thuế, Xã/Phường, Mã ngành) thống nhất các file thô về một mô hình định dạng chuẩn nhất quán.
-                          </p>
-                        </div>
-                      </div>
-                      <span className="absolute bottom-3 right-3 text-[9px] font-mono text-teal-600 group-hover:text-teal-800 font-extrabold">Vào Định nghĩa cột ➔</span>
-                    </button>
-                  </div>
-
-                  {/* CỘT 4: CÁC CÔNG CỤ CHUYÊN SÂU & ĐẦU RA + VIDEO ROOM (lg:col-span-4) */}
-                  <div className="lg:col-span-4 flex flex-col justify-between space-y-4">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-450 uppercase tracking-widest font-mono">BƯỚC CUỐI</span>
-                      <h4 className="text-xs font-black text-purple-850 uppercase tracking-wider mt-0.5">3. Khớp AI &amp; Nghiệp Vụ Chuyên Sâu</h4>
-                    </div>
-
-                    {/* BOX 1b DI CHUYỂN SANG ĐÂY: KHỚP & SO SÁNH TÊN NGÀNH BẰNG AI */}
-                    <button 
-                      onClick={() => setActiveTab("smartcatalog")}
-                      className="w-full text-left bg-white hover:bg-purple-50/40 border-2 border-purple-200 hover:border-purple-400 rounded-2xl p-3.5 transition-all hover:scale-[1.02] shadow-sm group relative cursor-pointer"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-purple-50 text-purple-650 rounded-xl border border-purple-100 group-hover:scale-110 transition-transform">
-                          <Search className="w-5 h-5 text-purple-650 animate-pulse" />
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-1.5 flex-wrap">
-                            ✨ 1b. Khớp &amp; So Sánh Tên Ngành
-                            <span className="bg-purple-100 text-purple-700 text-[8px] font-extrabold px-1.5 py-0.5 rounded-full font-mono uppercase border border-purple-200/50 shadow-sm">
-                              AI Đối Chiếu
-                            </span>
-                          </div>
-                          <p className="text-[10.5px] text-slate-600 leading-relaxed font-medium">
-                            Thuật toán AI đối chiếu mô tả hoạt động thực tế với tên ngành chuẩn hóa sau khi đã gán mã ngành và cấu trúc lại cột.
-                          </p>
-                        </div>
-                      </div>
-                      <span className="absolute bottom-2 right-3 text-[9px] font-mono text-purple-600 group-hover:text-purple-800 font-extrabold">Chạy kiểm tra AI ➔</span>
-                    </button>
-
-                    {/* Grid các công cụ nhỏ */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        onClick={() => setActiveTab("ghepnoi")}
-                        className="text-left bg-indigo-50/95 hover:bg-white border-2 border-indigo-250 hover:border-indigo-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-sm group/btn"
-                      >
-                        <div className="p-1.5 bg-indigo-650 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
-                          <GitMerge className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-extrabold text-indigo-950 text-[10px] uppercase truncate">Hợp nhất</div>
-                          <div className="text-[8px] text-indigo-600 font-bold truncate">Gộp &amp; Ghép cột</div>
-                        </div>
-                      </button>
-
-                      <button 
-                        onClick={() => setActiveTab("tachfile")}
-                        className="text-left bg-pink-50/95 hover:bg-white border-2 border-pink-250 hover:border-pink-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-sm group/btn"
-                      >
-                        <div className="p-1.5 bg-pink-650 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
-                          <Scissors className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-extrabold text-pink-950 text-[10px] uppercase truncate">Phân rã tệp</div>
-                          <div className="text-[8px] text-pink-600 font-bold truncate">Chia theo địa bàn</div>
-                        </div>
-                      </button>
-
-                      <button 
-                        onClick={() => setActiveTab("kiemtralogic")}
-                        className="text-left bg-emerald-50/95 hover:bg-white border-2 border-emerald-250 hover:border-emerald-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-sm group/btn"
-                      >
-                        <div className="p-1.5 bg-emerald-650 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
-                          <CheckSquare className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-extrabold text-emerald-950 text-[10px] uppercase truncate">Rà soát Logic</div>
-                          <div className="text-[8px] text-emerald-600 font-bold truncate">Quy luật số học</div>
-                        </div>
-                      </button>
-
-                      <button 
-                        onClick={() => setActiveTab("sosanh")}
-                        className="text-left bg-amber-50/95 hover:bg-white border-2 border-amber-250 hover:border-amber-400 rounded-xl p-2 transition-all hover:scale-[1.03] flex items-center gap-2.5 cursor-pointer text-xs shadow-sm group/btn"
-                      >
-                        <div className="p-1.5 bg-amber-600 text-white rounded-lg shrink-0 group-hover/btn:scale-110 transition-transform shadow-sm">
-                          <ArrowLeftRight className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-extrabold text-amber-950 text-[10px] uppercase truncate">Đối chiếu</div>
-                          <div className="text-[8px] text-amber-600 font-bold truncate">Chuỗi thời gian</div>
-                        </div>
-                      </button>
-                    </div>
-
-                    {/* VIRTUAL CONFERENCE / COLLABORATION VIDEO ROOM */}
-                    <button 
-                      onClick={() => setActiveTab("videoroom")}
-                      className="w-full text-left bg-gradient-to-r from-violet-50 to-indigo-50 border-2 border-purple-200 hover:border-purple-400 rounded-2xl p-3 transition-all hover:scale-[1.02] cursor-pointer text-center group shadow-sm relative overflow-hidden"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-purple-100/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                      <div className="text-xs font-black text-purple-950 uppercase tracking-wider flex items-center justify-center gap-2">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                        </span>
-                        <Video className="w-4.5 h-4.5 text-purple-650 animate-pulse" />
-                        PHÒNG HỌP TRỰC TUYẾN 
-                      </div>
-                      <p className="text-[10px] text-slate-600 mt-1 leading-normal font-medium">
-                        Hội ý trực tuyến, duyệt biểu mẫu &amp; đối thoại xử lý bất cập số liệu.
-                      </p>
-                      <span className="inline-block mt-1 text-[8px] font-black tracking-widest text-white bg-red-500/90 px-2 py-0.2 rounded-full uppercase border border-white/20 animate-pulse">
-                        🔥 TRỰC TUYẾN LIVE
-                      </span>
-                    </button>
-
-                    {/* ĐẦU RA SẠCH */}
-                    <button 
-                      onClick={() => setActiveTab("tonghop")}
-                      className="w-full text-left bg-white hover:bg-emerald-50/40 border-2 border-emerald-200 hover:border-emerald-400 rounded-xl p-3 transition-all cursor-pointer text-center group shadow-sm"
-                    >
-                      <div className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-center gap-1.5">
-                        <BarChart3 className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
-                        KẾT QUẢ: BIỂU TỔNG HỢP SẠCH
-                      </div>
-                      <p className="text-[9.5px] text-slate-600 mt-1 leading-normal font-medium">
-                        Tích hợp phân tích dữ liệu chuẩn mực, an toàn và sẵn sàng báo cáo.
-                      </p>
-                    </button>
-                  </div>
-
-                </div>
-              </div>
-
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 justify-between shadow-sm">
-                <div className="space-y-3 max-w-2xl">
-                  <span className="bg-purple-50 border border-purple-200 text-purple-700 text-xs font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    HỆ THỐNG VSIC 2025
-                  </span>
-                  <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
-                    Công cụ xử lý so sánh kiểm tra tổng hợp dữ liệu.
-                  </h2>
-                  <p className="text-slate-600 text-sm leading-relaxed">
-                    Là công cụ hỗ trợ người dùng xử lý so sánh kiểm tra và tổng hợp. Cho phép người dùng nạp tất cả các loai file excel/csv với mọi cấu trúc mà không phải chỉnh sửa thủ công. Hệ thống tự động nhận diện thông minh, dù tên cột hoặc thứ tự cột trong file của bạn khác nhau.
-                  </p>
-                  <div className="pt-2 flex items-center gap-4">
-                    <button 
-                      onClick={() => setActiveTab("xemdulieu")}
-                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer"
-                    >
-                      📂 Nạp file dữ liệu của bạn để bắt đầu <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="w-full md:w-auto flex justify-center">
-                  <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl text-center space-y-2 min-w-[200px] shadow-inner">
-                    <div className="text-4xl font-extrabold text-slate-800 font-mono">
-                      {Object.keys(vsicRawData).length}
-                    </div>
-                    <div className="text-[11px] font-bold text-slate-500 tracking-wider uppercase font-mono">Mã ngành VSIC hiện có</div>
-                    <div className="text-[10px] text-emerald-600 font-mono font-semibold">
-                      {localStorage.getItem("custom_vsic_is_pure") === "true" 
-                        ? "Danh mục nạp riêng (Sạch 100%)" 
-                        : "Bao gồm mã mẫu tích hợp"}
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -10337,27 +9946,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             </div>
           )}
 
-          {/* KHỐI 3: BỘ ĐỐI SÁNH DANH MỤC THÔNG MINH */}
-          {activeTab === "smartcatalog" && (
-            <div className="space-y-6 animate-fade-in">
-              <SmartCatalogMatcher 
-                mainData={mainData} 
-                columns={columns} 
-                mapping={mapping} 
-                onUpdateMainData={(newData) => {
-                  setMainData(newData);
-                  saveAppState({
-                    mainData: newData,
-                    rawImportedData,
-                    columns,
-                    fileName,
-                    mapping,
-                    customColConfigs
-                  }, true);
-                }}
-              />
-            </div>
-          )}
+
 
           {/* KHỐI 4: TRUNG TÂM QUẢN TRỊ QUY TẮC LOGIC */}
           {activeTab === "rulesstudio" && (
