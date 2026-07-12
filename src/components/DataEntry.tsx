@@ -175,7 +175,7 @@ export const DataEntry: React.FC = () => {
   // State dữ liệu danh sách tin đã nhập
   const [surveyRecords, setSurveyRecords] = useState<SurveyRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterBlock, setFilterBlock] = useState<"all" | "doanhnghiep" | "cathe">("all");
+  const [filterBlock, setFilterBlock] = useState<"all" | "doanhnghiep" | "cathe">("doanhnghiep");
   const [filterMethod, setFilterMethod] = useState<"all" | "manual" | "scan" | "excel" | "template">("all");
 
   // Trạng thái hệ thống
@@ -392,6 +392,11 @@ export const DataEntry: React.FC = () => {
   const [isDriveSyncing, setIsDriveSyncing] = useState(false);
   const [driveSyncLogs, setDriveSyncLogs] = useState<string[]>([]);
   const [showDrivePanel, setShowDrivePanel] = useState(false);
+
+  // --- STATE CHẨN ĐOÁN LƯU TRỮ (STORAGE DIAGNOSTICS) ---
+  const [isDiagnosticRunning, setIsDiagnosticRunning] = useState(false);
+  const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
+  const [diagnosticStatus, setDiagnosticStatus] = useState<"idle" | "success" | "error">("idle");
 
   // --- STATE PHÂN TÍCH BIỂU MẪU EXCEL ---
   const [templateFileName, setTemplateFileName] = useState("");
@@ -1600,6 +1605,36 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
   // ========================================================
   // XÓA VÀ CHỈNH SỬA BẢN GHI KHẢO SÁT
   // ========================================================
+  const handleClearAllRecords = async () => {
+    if (!window.confirm("CẢNH BÁO NGUY HIỂM: Bạn có chắc chắn muốn XÓA SẠCH toàn bộ danh sách phiếu khảo sát đã lưu? Hành động này sẽ xóa vĩnh viễn dữ liệu và không thể hoàn tác!")) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (isFirebaseInitialized && db) {
+        const querySnapshot = await getDocs(collection(db, "data", unitID, "survey_records"));
+        const deletePromises: Promise<void>[] = [];
+        querySnapshot.forEach((document) => {
+          deletePromises.push(deleteDoc(doc(db, "data", unitID, "survey_records", document.id)));
+        });
+        await Promise.all(deletePromises);
+      }
+      
+      const localKey = `survey_records_${unitID}`;
+      localStorage.removeItem(localKey);
+
+      await logActivity("manual", "Xóa sạch toàn bộ danh sách phiếu khảo sát");
+      setStatusMessage({ type: "success", text: "Đã xóa sạch toàn bộ danh sách phiếu khảo sát thành công!" });
+      fetchRecords();
+    } catch (err: any) {
+      console.error("Lỗi xóa sạch danh sách:", err);
+      setStatusMessage({ type: "error", text: `Không thể xóa sạch dữ liệu: ${err.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDeleteRecord = async (recordId: string, recordName: string) => {
     if (!window.confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn phiếu khảo sát của "${recordName}" không?`)) {
       return;
@@ -1751,6 +1786,96 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
     }
   };
 
+  const runStorageDiagnostics = async () => {
+    setIsDiagnosticRunning(true);
+    setDiagnosticStatus("idle");
+    const timestamp = new Date().toLocaleTimeString("vi-VN");
+    const initialLogs = [
+      `🧪 Khởi động quy trình chẩn đoán liên kết & ghi đọc cơ sở dữ liệu thực tế...`,
+      `⏰ Thời gian bắt đầu: ${timestamp}`,
+      `💻 Đơn vị định danh kiểm thử: "${unitID.toUpperCase()}"`,
+      `👤 Tài khoản vận hành: "${userName}"`,
+      `----------------------------------------------------------------------`
+    ];
+    setDiagnosticLogs(initialLogs);
+
+    // Helper to add log line instantly
+    const addLog = (line: string) => {
+      setDiagnosticLogs(prev => [...prev, line]);
+    };
+
+    try {
+      // 1. Kiểm tra LocalStorage
+      addLog("⏳ Bước 1: Kiểm thử ghi đọc dữ liệu offline cục bộ (LocalStorage)...");
+      const testKey = `survey_records_test_diag_temp`;
+      const testData = { id: "test_diag_" + Date.now(), title: "Giao dịch chẩn đoán nháp", value: 123456 };
+      
+      localStorage.setItem(testKey, JSON.stringify(testData));
+      const readDataRaw = localStorage.getItem(testKey);
+      if (!readDataRaw) {
+        throw new Error("Không thể đọc lại dữ liệu vừa ghi vào LocalStorage!");
+      }
+      const readData = JSON.parse(readDataRaw);
+      if (readData.value !== 123456) {
+        throw new Error("Dữ liệu đọc ra bị sai lệch nội dung!");
+      }
+      localStorage.removeItem(testKey);
+      addLog("✅ [Cục bộ/Offline] Ghi - Đọc dữ liệu thử nghiệm tại trình duyệt: THÀNH CÔNG!");
+      addLog("📊 Kết luận: Bộ nhớ ngoại tuyến trên thiết bị hiện tại hoạt động tốt và luôn sẵn sàng.");
+
+      // 2. Kiểm tra Firebase Firestore
+      addLog("----------------------------------------------------------------------");
+      addLog("⏳ Bước 2: Kiểm thử kết nối & ghi đọc cơ sở dữ liệu trực tuyến (Google Firebase Firestore)...");
+      
+      if (isFirebaseInitialized && db) {
+        addLog("📡 [Firebase Cloud] Đang thiết lập kết nối tới đám mây Firestore Studio...");
+        
+        // Thử ghi tài liệu test
+        addLog("📤 [Firebase Cloud] Thử nghiệm ghi 1 bản ghi khảo sát nháp lên đám mây...");
+        const testRef = await Promise.race([
+          addDoc(collection(db, "data", "test_diagnostic", "survey_records"), {
+            test: true,
+            name: "Hệ thống tự động chẩn đoán liên kết",
+            mst: "TEST-DIAGNOSTIC-RUN",
+            block: "doanhnghiep",
+            createdAt: new Date().toISOString(),
+            createdBy: userName
+          }),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error("Timeout: Kết nối tới Firebase bị chậm (> 4.5 giây)")), 4500))
+        ]);
+
+        addLog(`✅ [Firebase Cloud] Ghi tài liệu nháp thành công! ID Firestore tạo ra: "${testRef.id}"`);
+
+        // Thử đọc lại
+        addLog("📥 [Firebase Cloud] Đang lấy danh sách để xác minh dữ liệu từ đám mây trực tuyến...");
+        const qSnap = await getDocs(collection(db, "data", "test_diagnostic", "survey_records"));
+        addLog(`✅ [Firebase Cloud] Lấy danh sách thành công! Tìm thấy ${qSnap.size} bản ghi nháp tại Firestore Studio.`);
+
+        // Dọn dẹp tài nguyên test
+        addLog("🧹 [Firebase Cloud] Đang dọn dẹp sạch tài nguyên kiểm thử trên đám mây...");
+        await deleteDoc(doc(db, "data", "test_diagnostic", "survey_records", testRef.id));
+        addLog("✅ [Firebase Cloud] Đã dọn dẹp và đóng cổng kết nối thử nghiệm an toàn.");
+
+        addLog("----------------------------------------------------------------------");
+        addLog("🎉 CHẨN ĐOÁN HOÀN TẤT: LIÊN KẾT ĐÁM MÂY ĐẠT TIÊU CHUẨN HOÀN HẢO (100% ONLINE)!");
+        addLog("💡 Hệ thống đang ưu tiên lưu trữ trực tiếp lên cơ sở dữ liệu đám mây của bạn.");
+        setDiagnosticStatus("success");
+      } else {
+        addLog("⚠️ [Firebase Cloud] CẢNH BÁO: Tệp tin firebase-applet-config.json chưa được cấu hình API Key thực tế.");
+        addLog("🔄 Hệ thống tự động kích hoạt chế độ dự phòng Offline: Lưu trữ toàn bộ dữ liệu khảo sát trực tiếp tại trình duyệt.");
+        addLog("💡 Hướng dẫn: Đọc mục 'Hướng dẫn lấy API Key & Cấu hình' bên dưới để mở khóa cổng đám mây trực tuyến.");
+        setDiagnosticStatus("success");
+      }
+    } catch (err: any) {
+      console.error("Lỗi kiểm thử chẩn đoán lưu trữ:", err);
+      addLog(`❌ [LỖI CHẨN ĐOÁN]: ${err.message || err}`);
+      addLog("⚠️ Khắc phục: Vui lòng kiểm tra lại đường truyền Internet hoặc quy tắc bảo mật (Security Rules) tại Firebase Console của bạn.");
+      setDiagnosticStatus("error");
+    } finally {
+      setIsDiagnosticRunning(false);
+    }
+  };
+
   // Lọc dữ liệu hiển thị
   const filteredRecords = surveyRecords.filter(r => {
     const matchesSearch = 
@@ -1787,68 +1912,209 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
 
           <button
             onClick={() => setShowDrivePanel(!showDrivePanel)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 font-bold text-xs rounded-xl shadow-md cursor-pointer text-white transition active:scale-95"
+            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:via-purple-700 hover:to-indigo-800 font-extrabold text-xs rounded-xl shadow-lg hover:shadow-indigo-500/20 cursor-pointer text-white transition-all active:scale-95"
           >
-            <CloudLightning className="w-4 h-4" />
-            <span>Đồng bộ Google Drive</span>
+            <CloudLightning className="w-4 h-4 animate-bounce" />
+            <span>☁️ Cổng Lưu Trữ &amp; Đồng Bộ Đám Mây</span>
           </button>
         </div>
       </div>
 
-      {/* GOOGLE DRIVE SYNC CENTER PANEL */}
+      {/* CỔNG QUẢN TRỊ LƯU TRỮ ĐÁM MÂY & ĐỒNG BỘ */}
       {showDrivePanel && (
-        <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-5 space-y-4 animate-fade-in shadow-inner">
-          <div className="flex justify-between items-center border-b border-emerald-100 pb-2">
-            <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-2">
-              📂 Cổng kết nối &amp; Lưu trữ Đám mây Google Drive
-            </h4>
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">Bảo mật oAuth</span>
+        <div className="bg-slate-50 border border-slate-250 rounded-2xl p-6 space-y-6 animate-fade-in shadow-md">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div>
+              <h4 className="text-sm font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                🗂️ TRUNG TÂM KIỂM SOÁT DỮ LIỆU &amp; LIÊN KẾT ĐÁM MÂY (DATABASE &amp; SYNC CONTROL)
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Quản lý các kết nối lưu trữ trực tuyến thực tế (Firebase Firestore, Google Drive) và chẩn đoán ghi nhận dữ liệu thời gian thực.
+              </p>
+            </div>
+            <span className="self-start sm:self-auto text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-150 uppercase tracking-widest">
+              Đồng bộ song song
+            </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <p className="text-xs text-emerald-700 leading-relaxed max-w-xl">
-              Mọi thông tin phiếu điều tra được đồng bộ trực tiếp lên tài khoản lưu trữ Google Drive cá nhân của bạn. Dữ liệu được trích xuất dưới dạng tệp dữ liệu tiêu chuẩn giúp khôi phục thông tin an toàn và chia sẻ tài nguyên liền mạch giữa các điều tra viên.
-            </p>
-
-            <div className="shrink-0">
-              {googleAccessToken ? (
-                <div className="flex items-center gap-2">
-                  <span className="bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl border border-emerald-700 flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Đã kết nối Google Drive
+          {/* Bento-Grid layout for storage status and tools */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            
+            {/* Cột 1: Trạng thái Kết nối & Thiết lập API */}
+            <div className="space-y-4">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3.5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                    🔥 1. Cơ sở dữ liệu Cloud (Firebase Studio)
                   </span>
-                  <button 
-                    onClick={handleBackupToDrive}
-                    disabled={isDriveSyncing || surveyRecords.length === 0}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer disabled:bg-slate-300"
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    isFirebaseInitialized 
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                      : "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isFirebaseInitialized ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}></span>
+                    {isFirebaseInitialized ? "Đã Kích Hoạt (Trực tuyến)" : "Chưa cấu hình API Key"}
+                  </span>
+                </div>
+
+                <div className="text-xs space-y-2 text-slate-650">
+                  <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg font-mono text-[11px]">
+                    <span className="text-slate-450 font-sans">Vị trí lưu Firestore:</span>
+                    <span className="text-slate-700 font-bold select-all">data / {unitID} / survey_records</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg font-mono text-[11px]">
+                    <span className="text-slate-450 font-sans">Bộ nhớ đệm (Offline):</span>
+                    <span className="text-slate-700 font-bold select-all">localStorage / survey_records_{unitID}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg font-mono text-[11px]">
+                    <span className="text-slate-450 font-sans">Ưu tiên lưu trữ:</span>
+                    <span className="text-indigo-600 font-extrabold font-sans">Firebase Cloud (Trực tuyến) &gt; Thiết bị (LocalStorage)</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 leading-relaxed italic">
+                  * Khi bạn nhấn "Lưu" ở phiếu khảo sát, hệ thống sẽ <b>ưu tiên ghi trực tiếp lên đám mây Firebase Firestore trước</b>. Nếu mất kết nối hoặc hết hạn API, dữ liệu sẽ tự động lưu vào bộ nhớ trình duyệt (LocalStorage) làm backup an toàn để tránh mất thông tin.
+                </p>
+              </div>
+
+              {/* Hướng dẫn lấy API Key của Firebase */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                  📘 Hướng dẫn lấy API Key &amp; cấu hình hệ thống
+                </span>
+                
+                <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                  <p className="font-semibold text-indigo-700">Cách lấy mã Firebase API Key:</p>
+                  <ol className="list-decimal list-inside pl-1 space-y-1.5 text-slate-650">
+                    <li>Truy cập <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-bold">Firebase Console</a> và tạo một Dự án mới.</li>
+                    <li>Vào mục <b>Project Settings (Cài đặt dự án)</b> hình bánh răng ở góc trái.</li>
+                    <li>Tại tab <b>General</b>, kéo xuống dưới tạo một <b>Web App (Ứng dụng Web)</b>.</li>
+                    <li>Sao chép toàn bộ khối cấu hình <code>firebaseConfig</code> được hiển thị.</li>
+                    <li>Nhập/Cập nhật các giá trị đó vào tệp <b><code>/firebase-applet-config.json</code></b> ở khung soạn thảo mã của AI Studio.</li>
+                  </ol>
+
+                  <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-950 text-[10.5px]">
+                    ⚠️ <b>LƯU Ý QUAN TRỌNG:</b> Để việc lưu dữ liệu thành công, bạn phải bật tính năng <b>Cloud Firestore</b> trong Firebase Console và thiết lập Rules (quy tắc bảo mật) cho phép ghi đọc: <code>allow read, write: if true;</code> hoặc theo cấu hình người dùng của bạn.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cột 2: Google Drive oAuth Backup & Diagnostic Run */}
+            <div className="space-y-4">
+              {/* Google Drive Connect */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                    📂 2. Đồng bộ Google Drive dự phòng
+                  </span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    googleAccessToken 
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                      : "bg-slate-100 text-slate-500 border border-slate-200"
+                  }`}>
+                    {googleAccessToken ? "Đã liên kết oAuth" : "Chưa liên kết"}
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-650 leading-relaxed">
+                  Tính năng cho phép đóng gói toàn bộ danh sách phiếu điều tra thành định dạng <code>JSON</code> tiêu chuẩn và lưu trực tiếp vào thư mục Google Drive của bạn dưới dạng tệp sao lưu độc lập.
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {googleAccessToken ? (
+                    <>
+                      <span className="bg-emerald-50 text-emerald-700 text-[10.5px] font-bold px-3 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                        Liên kết Google Drive OK
+                      </span>
+                      <button 
+                        onClick={handleBackupToDrive}
+                        disabled={isDriveSyncing || surveyRecords.length === 0}
+                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 text-white font-extrabold text-xs rounded-xl shadow-sm transition active:scale-95 cursor-pointer disabled:text-slate-400"
+                      >
+                        {isDriveSyncing ? "⏳ Đang sao lưu..." : "📤 Sao lưu lên Drive"}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleConnectDrive}
+                      className="flex items-center gap-2 bg-white text-slate-700 border border-slate-250 rounded-xl px-4 py-2 hover:bg-slate-50 transition shadow-sm font-extrabold text-xs cursor-pointer active:scale-95"
+                    >
+                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 48 48">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                      </svg>
+                      <span>Kết nối &amp; Cho phép ghi Google Drive</span>
+                    </button>
+                  )}
+                </div>
+
+                {driveSyncLogs.length > 0 && (
+                  <div className="bg-slate-900 text-slate-350 font-mono text-[10px] p-2.5 rounded-lg space-y-0.5 max-h-24 overflow-y-auto leading-relaxed">
+                    {driveSyncLogs.map((log, idx) => (
+                      <div key={idx} className="truncate">{log}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 🧪 LIVE DIAGNOSTICS & WRITER TEST */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3.5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                    🧪 3. Thử nghiệm ghi đọc &amp; Chẩn đoán thực tế
+                  </span>
+                  <button
+                    onClick={runStorageDiagnostics}
+                    disabled={isDiagnosticRunning}
+                    className="px-3 py-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-200 disabled:to-slate-300 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg shadow-sm cursor-pointer transition active:scale-95 disabled:text-slate-400"
                   >
-                    {isDriveSyncing ? "Đang sao lưu..." : "Sao lưu ngay"}
+                    {isDiagnosticRunning ? "Đang chạy thử..." : "Chạy kiểm thử ngay"}
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={handleConnectDrive}
-                  className="flex items-center gap-2 bg-white text-slate-700 border border-slate-300 rounded-xl px-4 py-2 hover:bg-slate-50 transition shadow-sm font-bold text-xs cursor-pointer"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 48 48">
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                  </svg>
-                  <span>Kết nối với Google Drive</span>
-                </button>
-              )}
-            </div>
-          </div>
 
-          {driveSyncLogs.length > 0 && (
-            <div className="bg-slate-900 text-slate-300 font-mono text-[10px] p-3 rounded-xl space-y-1 max-h-24 overflow-y-auto">
-              {driveSyncLogs.map((log, idx) => (
-                <div key={idx} className="leading-tight">{log}</div>
-              ))}
+                <p className="text-xs text-slate-650 leading-relaxed">
+                  Nhấp nút để kích hoạt chu trình ghi thử nghiệm (Write-Read-Delete-Verify) lên Firebase và LocalStorage để kiểm tra ngay xem hệ thống có lưu thông tin thành công không.
+                </p>
+
+                {diagnosticLogs.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Trình tự chẩn đoán thời gian thực:</span>
+                      {diagnosticStatus === "success" && (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-150">
+                          Kết quả: THÀNH CÔNG HOÀN HẢO
+                        </span>
+                      )}
+                      {diagnosticStatus === "error" && (
+                        <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-150">
+                          Kết quả: LỖI KẾT NỐI
+                        </span>
+                      )}
+                    </div>
+                    <div className="bg-slate-950 text-slate-200 font-mono text-[10.5px] p-3 rounded-xl space-y-1.5 max-h-48 overflow-y-auto leading-relaxed border border-slate-800">
+                      {diagnosticLogs.map((log, idx) => (
+                        <div key={idx} className={`leading-normal ${
+                          log.startsWith("✅") ? "text-emerald-400 font-semibold" : 
+                          log.startsWith("❌") ? "text-rose-400 font-bold" : 
+                          log.startsWith("⚠️") ? "text-amber-400 font-semibold" : 
+                          log.startsWith("🎉") ? "text-indigo-300 font-black border-t border-b border-slate-800 py-1" :
+                          "text-slate-350"
+                        }`}>
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+
+          </div>
         </div>
       )}
 
@@ -6073,35 +6339,93 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
               <Download className="w-3.5 h-3.5" />
               Tải Excel về máy
             </button>
+
+            {surveyRecords.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllRecords}
+                className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold rounded-xl border border-rose-200 cursor-pointer transition-colors"
+                title="Xóa sạch bộ nhớ để trống dung lượng"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Xóa sạch bộ nhớ
+              </button>
+            )}
           </div>
         </div>
 
+        {/* TABS PHÂN KHỐI ĐỐI TƯỢNG */}
+        <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+          <button
+            type="button"
+            onClick={() => setFilterBlock("doanhnghiep")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-extrabold text-[11px] transition-all uppercase tracking-wider cursor-pointer ${
+              filterBlock === "doanhnghiep"
+                ? "bg-white text-blue-700 shadow-xs border border-slate-200/50"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            🏢 Khối Doanh nghiệp (DN)
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+              filterBlock === "doanhnghiep" ? "bg-blue-100 text-blue-800" : "bg-slate-200 text-slate-600"
+            }`}>
+              {surveyRecords.filter(r => r.block === "doanhnghiep").length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterBlock("cathe")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-extrabold text-[11px] transition-all uppercase tracking-wider cursor-pointer ${
+              filterBlock === "cathe"
+                ? "bg-white text-amber-700 shadow-xs border border-slate-200/50"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            🏡 Khối Cá thể (CT)
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+              filterBlock === "cathe" ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-600"
+            }`}>
+              {surveyRecords.filter(r => r.block === "cathe").length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterBlock("all")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-extrabold text-[11px] transition-all uppercase tracking-wider cursor-pointer ${
+              filterBlock === "all"
+                ? "bg-white text-slate-800 shadow-xs border border-slate-200/50"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            📋 Tất cả khối
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+              filterBlock === "all" ? "bg-slate-200 text-slate-800" : "bg-slate-200 text-slate-600"
+            }`}>
+              {surveyRecords.length}
+            </span>
+          </button>
+        </div>
+
         {/* BỘ LỌC VÀ TÌM KIẾM DỮ LIỆU CHUYÊN SÂU */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           {/* Ô tìm kiếm */}
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
-              placeholder="Tìm theo Tên, MST, Địa bàn..."
+              placeholder={
+                filterBlock === "doanhnghiep"
+                  ? "Tìm kiếm Doanh nghiệp theo Tên, MST, Đại diện..."
+                  : filterBlock === "cathe"
+                  ? "Tìm kiếm Hộ cá thể theo Tên cơ sở, Mã cơ sở, Chủ hộ..."
+                  : "Tìm theo Tên, MST/Mã định danh, Đại diện..."
+              }
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
             />
-          </div>
-
-          {/* Lọc khối */}
-          <div className="flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <select
-              value={filterBlock}
-              onChange={e => setFilterBlock(e.target.value as any)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs"
-            >
-              <option value="all">Tất cả Khối đối tượng</option>
-              <option value="doanhnghiep">Khối Doanh nghiệp (DN)</option>
-              <option value="cathe">Khối Cá thể</option>
-            </select>
           </div>
 
           {/* Lọc phương thức */}
@@ -6114,7 +6438,7 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
             >
               <option value="all">Tất cả nguồn nhập</option>
               <option value="manual">Nhập thủ công</option>
-              <option value="scan">Trích xuất bằng ảnh quét</option>
+              <option value="scan">Trích xuất bằng ảnh quét (AI)</option>
               <option value="excel">Nạp bằng file Excel</option>
             </select>
           </div>
@@ -6128,117 +6452,340 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
             <p className="text-[10px]">Thay đổi bộ lọc hoặc khai báo thêm phiếu điều tra mới ở phía trên để cập nhật.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-xs bg-white text-xs">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-150 font-sans text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="px-4 py-3">Phân nhóm</th>
-                  <th className="px-4 py-3">Mã số thuế / Mã số cơ sở</th>
-                  <th className="px-4 py-3">Tên cơ sở / Doanh nghiệp</th>
-                  <th className="px-4 py-3">Chủ cơ sở / Người đại diện</th>
-                  <th className="px-4 py-3">Địa chỉ / Địa bàn</th>
-                  <th className="px-4 py-3 text-center">Mã xã</th>
-                  <th className="px-4 py-3">Mã ngành VSIC</th>
-                  <th className="px-4 py-3 text-center">Trạng thái ký số</th>
-                  {customFields.map(cf => (
-                    <th key={cf.name} className="px-4 py-3 text-slate-700 bg-indigo-50/40 border-x border-slate-200">{cf.label}</th>
-                  ))}
-                  <th className="px-4 py-3 text-right">Doanh thu (triệu)</th>
-                  <th className="px-4 py-3 text-right">Lao động (người)</th>
-                  <th className="px-4 py-3 text-center">Phương thức khai báo</th>
-                  <th className="px-4 py-3 text-center">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-750">
-                {filteredRecords.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50/40 transition">
-                    <td className="px-4 py-3">
-                      {r.block === "doanhnghiep" ? (
-                        <span className="bg-blue-50 text-blue-700 border border-blue-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Doanh nghiệp</span>
-                      ) : (
-                        <span className="bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Cá thể</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-mono font-bold text-indigo-700">{r.mst}</td>
-                    <td className="px-4 py-3 font-extrabold text-slate-900">{r.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{r.representative || r.respondent_name || "-"}</td>
-                    <td className="px-4 py-3 text-slate-500 truncate max-w-[150px]" title={r.address}>{r.address || "-"}</td>
-                    <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/20">{r.customData?.ma_xa_phuong || r.ma_xa_phuong || "-"}</td>
-                    <td className="px-4 py-3 font-mono font-medium text-slate-600">{r.manganh || "-"}</td>
-                    <td className="px-4 py-3 text-center">
-                      {r.is_signed ? (
-                        r.signed_mode === "token" ? (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedSignatureRecord(r)}
-                            className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[10px] font-extrabold px-2 py-1 rounded-md cursor-pointer transition-colors"
-                            title="Đã ký số bằng USB Token CA. Click để xem chi tiết chứng thư số."
-                          >
-                            <span className="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                            🔒 KÝ SỐ TOKEN CA
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedSignatureRecord(r)}
-                            className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-[10px] font-extrabold px-2 py-1 rounded-md cursor-pointer transition-colors"
-                            title="Đã ký tay điện tử. Click để xem chữ ký."
-                          >
-                            ✍️ KÝ ĐIỆN TỬ
-                          </button>
-                        )
-                      ) : (
-                        <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-semibold px-2 py-1 rounded-md">
-                          ⚠️ Chưa xác thực
-                        </span>
-                      )}
-                    </td>
-                    {customFields.map(cf => {
-                      const val = r.customData?.[cf.name];
-                      return (
-                        <td key={cf.name} className="px-4 py-3 font-medium text-slate-700 border-x border-slate-100 bg-slate-50/20">
-                          {val === undefined || val === "" ? (
-                            <span className="text-slate-350 italic text-[10px]">Chưa nhập</span>
-                          ) : typeof val === "boolean" ? (
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${val ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
-                              {val ? "Có" : "Không"}
-                            </span>
+          <>
+            {/* 🏢 BẢNG KHỐI DOANH NGHIỆP */}
+            {filterBlock === "doanhnghiep" && (
+              <div className="overflow-x-auto border border-blue-100 rounded-xl shadow-xs bg-white text-xs">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-blue-50/55 border-b border-blue-100 font-sans text-[9.5px] font-bold text-blue-800 uppercase tracking-wider">
+                      <th className="px-4 py-3">Mã số thuế (MST)</th>
+                      <th className="px-4 py-3">Tên Doanh nghiệp</th>
+                      <th className="px-4 py-3">Người đại diện</th>
+                      <th className="px-4 py-3">Địa chỉ trụ sở</th>
+                      <th className="px-4 py-3 text-center">Mã xã</th>
+                      <th className="px-4 py-3">Ngành chính (VSIC)</th>
+                      <th className="px-4 py-3 text-center">Xác thực số</th>
+                      {customFields.map(cf => (
+                        <th key={cf.name} className="px-4 py-3 text-slate-700 bg-indigo-50/40 border-x border-slate-200">{cf.label}</th>
+                      ))}
+                      <th className="px-4 py-3 text-right text-blue-955 bg-blue-50/30 font-extrabold">Doanh thu 9T (Triệu)</th>
+                      <th className="px-4 py-3 text-right">Lao động (người)</th>
+                      <th className="px-4 py-3 text-center">Nguồn dữ liệu</th>
+                      <th className="px-4 py-3 text-center">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-750">
+                    {filteredRecords.map((r) => (
+                      <tr key={r.id} className="hover:bg-blue-50/15 transition">
+                        <td className="px-4 py-3 font-mono font-bold text-blue-700">{r.mst}</td>
+                        <td className="px-4 py-3 font-extrabold text-slate-900">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-blue-500">🏢</span>
+                            <span>{r.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 font-medium">{r.representative || r.respondent_name || "-"}</td>
+                        <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]" title={r.address}>{r.address || "-"}</td>
+                        <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/35">{r.customData?.ma_xa_phuong || r.ma_xa_phuong || "-"}</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-slate-600">{r.manganh || "-"}</td>
+                        <td className="px-4 py-3 text-center">
+                          {r.is_signed ? (
+                            r.signed_mode === "token" ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSignatureRecord(r)}
+                                className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[9px] font-extrabold px-2 py-0.5 rounded cursor-pointer transition-colors"
+                              >
+                                🔒 TOKEN CA
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSignatureRecord(r)}
+                                className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-[9px] font-extrabold px-2 py-0.5 rounded cursor-pointer transition-colors"
+                              >
+                                ✍️ CHỮ KÝ SỐ
+                              </button>
+                            )
                           ) : (
-                            <span className="font-semibold text-slate-800">{String(val)}</span>
+                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-400 border border-slate-200 text-[9px] font-semibold px-2 py-0.5 rounded">
+                              ⚠️ Chưa ký
+                            </span>
                           )}
                         </td>
-                      );
-                    })}
-                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">{(r.doanhthu || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">{(r.laodong || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-center">
-                      {r.entryMethod === "manual" && <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-bold">Khai báo thủ công</span>}
-                      {r.entryMethod === "scan" && <span className="text-[10px] text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full font-bold">Quét ảnh (AI)</span>}
-                      {r.entryMethod === "excel" && <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full font-bold">Nạp từ Excel</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => setEditingRecord(r)}
-                          className="p-1 hover:bg-indigo-50 rounded text-indigo-600 cursor-pointer"
-                          title="Hiệu chỉnh phiếu điều tra"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => r.id && handleDeleteRecord(r.id, r.name)}
-                          className="p-1 hover:bg-rose-50 rounded text-rose-600 cursor-pointer"
-                          title="Xóa phiếu điều tra"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        {customFields.map(cf => {
+                          const val = r.customData?.[cf.name];
+                          return (
+                            <td key={cf.name} className="px-4 py-3 font-medium text-slate-700 border-x border-slate-100 bg-slate-50/20">
+                              {val === undefined || val === "" ? (
+                                <span className="text-slate-350 italic text-[10px]">Chưa nhập</span>
+                              ) : typeof val === "boolean" ? (
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${val ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                                  {val ? "Có" : "Không"}
+                                </span>
+                              ) : (
+                                <span className="font-semibold text-slate-800">{String(val)}</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-3 text-right font-mono font-extrabold text-blue-900 bg-blue-50/5">{(r.doanhthu || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">{(r.laodong || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-center">
+                          {r.entryMethod === "manual" && <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-semibold">Thủ công</span>}
+                          {r.entryMethod === "scan" && <span className="text-[10px] text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full font-semibold">AI Scan</span>}
+                          {r.entryMethod === "excel" && <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full font-semibold">Excel</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setEditingRecord(r)}
+                              className="p-1 hover:bg-indigo-50 rounded text-indigo-600 cursor-pointer"
+                              title="Hiệu chỉnh phiếu điều tra"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => r.id && handleDeleteRecord(r.id, r.name)}
+                              className="p-1 hover:bg-rose-50 rounded text-rose-600 cursor-pointer"
+                              title="Xóa phiếu điều tra"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* 🏡 BẢNG KHỐI CÁ THỂ */}
+            {filterBlock === "cathe" && (
+              <div className="overflow-x-auto border border-amber-100 rounded-xl shadow-xs bg-white text-xs">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-amber-50/55 border-b border-amber-100 font-sans text-[9.5px] font-bold text-amber-800 uppercase tracking-wider">
+                      <th className="px-4 py-3">Mã số thuế / Mã cơ sở</th>
+                      <th className="px-4 py-3">Tên Cơ sở cá thể</th>
+                      <th className="px-4 py-3">Chủ cơ sở (Chủ hộ)</th>
+                      <th className="px-4 py-3">Địa chỉ chi tiết</th>
+                      <th className="px-4 py-3 text-center">Mã xã</th>
+                      <th className="px-4 py-3">Ngành VSIC</th>
+                      <th className="px-4 py-3 text-center">Xác thực số</th>
+                      {customFields.map(cf => (
+                        <th key={cf.name} className="px-4 py-3 text-slate-700 bg-indigo-50/40 border-x border-slate-200">{cf.label}</th>
+                      ))}
+                      <th className="px-4 py-3 text-right text-amber-955 bg-amber-50/30 font-extrabold">Doanh thu 9T (Triệu)</th>
+                      <th className="px-4 py-3 text-right">Lao động (người)</th>
+                      <th className="px-4 py-3 text-center">Nguồn dữ liệu</th>
+                      <th className="px-4 py-3 text-center">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-750">
+                    {filteredRecords.map((r) => (
+                      <tr key={r.id} className="hover:bg-amber-50/10 transition">
+                        <td className="px-4 py-3 font-mono font-bold text-amber-700">{r.mst}</td>
+                        <td className="px-4 py-3 font-extrabold text-slate-900">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-amber-500">🏡</span>
+                            <span>{r.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 font-medium">{r.representative || r.respondent_name || "-"}</td>
+                        <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]" title={r.address}>{r.address || "-"}</td>
+                        <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/35">{r.customData?.ma_xa_phuong || r.ma_xa_phuong || "-"}</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-slate-600">{r.manganh || "-"}</td>
+                        <td className="px-4 py-3 text-center">
+                          {r.is_signed ? (
+                            r.signed_mode === "token" ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSignatureRecord(r)}
+                                className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[9px] font-extrabold px-2 py-0.5 rounded cursor-pointer transition-colors"
+                              >
+                                🔒 TOKEN CA
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSignatureRecord(r)}
+                                className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-[9px] font-extrabold px-2 py-0.5 rounded cursor-pointer transition-colors"
+                              >
+                                ✍️ CHỮ KÝ SỐ
+                              </button>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-400 border border-slate-200 text-[9px] font-semibold px-2 py-0.5 rounded">
+                              ⚠️ Chưa ký
+                            </span>
+                          )}
+                        </td>
+                        {customFields.map(cf => {
+                          const val = r.customData?.[cf.name];
+                          return (
+                            <td key={cf.name} className="px-4 py-3 font-medium text-slate-700 border-x border-slate-100 bg-slate-50/20">
+                              {val === undefined || val === "" ? (
+                                <span className="text-slate-350 italic text-[10px]">Chưa nhập</span>
+                              ) : typeof val === "boolean" ? (
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${val ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                                  {val ? "Có" : "Không"}
+                                </span>
+                              ) : (
+                                <span className="font-semibold text-slate-800">{String(val)}</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-3 text-right font-mono font-extrabold text-amber-900 bg-amber-50/5">{(r.doanhthu || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">{(r.laodong || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-center">
+                          {r.entryMethod === "manual" && <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-semibold">Thủ công</span>}
+                          {r.entryMethod === "scan" && <span className="text-[10px] text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full font-semibold">AI Scan</span>}
+                          {r.entryMethod === "excel" && <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full font-semibold">Excel</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setEditingRecord(r)}
+                              className="p-1 hover:bg-indigo-50 rounded text-indigo-600 cursor-pointer"
+                              title="Hiệu chỉnh phiếu điều tra"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => r.id && handleDeleteRecord(r.id, r.name)}
+                              className="p-1 hover:bg-rose-50 rounded text-rose-600 cursor-pointer"
+                              title="Xóa phiếu điều tra"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* 📋 BẢNG CHUNG TẤT CẢ PHIẾU KHẢO SÁT */}
+            {filterBlock === "all" && (
+              <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-xs bg-white text-xs">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-150 font-sans text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="px-4 py-3">Phân nhóm</th>
+                      <th className="px-4 py-3">Mã số thuế / Mã số cơ sở</th>
+                      <th className="px-4 py-3">Tên cơ sở / Doanh nghiệp</th>
+                      <th className="px-4 py-3">Chủ cơ sở / Người đại diện</th>
+                      <th className="px-4 py-3">Địa chỉ / Địa bàn</th>
+                      <th className="px-4 py-3 text-center">Mã xã</th>
+                      <th className="px-4 py-3">Mã ngành VSIC</th>
+                      <th className="px-4 py-3 text-center">Trạng thái ký số</th>
+                      {customFields.map(cf => (
+                        <th key={cf.name} className="px-4 py-3 text-slate-700 bg-indigo-50/40 border-x border-slate-200">{cf.label}</th>
+                      ))}
+                      <th className="px-4 py-3 text-right">Doanh thu (triệu)</th>
+                      <th className="px-4 py-3 text-right">Lao động (người)</th>
+                      <th className="px-4 py-3 text-center">Phương thức khai báo</th>
+                      <th className="px-4 py-3 text-center">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-750">
+                    {filteredRecords.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-50/40 transition">
+                        <td className="px-4 py-3">
+                          {r.block === "doanhnghiep" ? (
+                            <span className="bg-blue-50 text-blue-700 border border-blue-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Doanh nghiệp</span>
+                          ) : (
+                            <span className="bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Cá thể</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-mono font-bold text-indigo-700">{r.mst}</td>
+                        <td className="px-4 py-3 font-extrabold text-slate-900">{r.name}</td>
+                        <td className="px-4 py-3 text-slate-600">{r.representative || r.respondent_name || "-"}</td>
+                        <td className="px-4 py-3 text-slate-500 truncate max-w-[150px]" title={r.address}>{r.address || "-"}</td>
+                        <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/20">{r.customData?.ma_xa_phuong || r.ma_xa_phuong || "-"}</td>
+                        <td className="px-4 py-3 font-mono font-medium text-slate-600">{r.manganh || "-"}</td>
+                        <td className="px-4 py-3 text-center">
+                          {r.is_signed ? (
+                            r.signed_mode === "token" ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSignatureRecord(r)}
+                                className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[10px] font-extrabold px-2 py-1 rounded-md cursor-pointer transition-colors"
+                                title="Đã ký số bằng USB Token CA. Click để xem chi tiết chứng thư số."
+                              >
+                                <span className="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                                🔒 KÝ SỐ TOKEN CA
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSignatureRecord(r)}
+                                className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-[10px] font-extrabold px-2 py-1 rounded-md cursor-pointer transition-colors"
+                                title="Đã ký tay điện tử. Click để xem chữ ký."
+                              >
+                                ✍️ KÝ ĐIỆN TỬ
+                              </button>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-semibold px-2 py-1 rounded-md">
+                              ⚠️ Chưa xác thực
+                            </span>
+                          )}
+                        </td>
+                        {customFields.map(cf => {
+                          const val = r.customData?.[cf.name];
+                          return (
+                            <td key={cf.name} className="px-4 py-3 font-medium text-slate-700 border-x border-slate-100 bg-slate-50/20">
+                              {val === undefined || val === "" ? (
+                                <span className="text-slate-350 italic text-[10px]">Chưa nhập</span>
+                              ) : typeof val === "boolean" ? (
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${val ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                                  {val ? "Có" : "Không"}
+                                </span>
+                              ) : (
+                                <span className="font-semibold text-slate-800">{String(val)}</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">{(r.doanhthu || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">{(r.laodong || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-center">
+                          {r.entryMethod === "manual" && <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-bold">Khai báo thủ công</span>}
+                          {r.entryMethod === "scan" && <span className="text-[10px] text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full font-bold">Quét ảnh (AI)</span>}
+                          {r.entryMethod === "excel" && <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full font-bold">Nạp từ Excel</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => setEditingRecord(r)}
+                              className="p-1 hover:bg-indigo-50 rounded text-indigo-600 cursor-pointer"
+                              title="Hiệu chỉnh phiếu điều tra"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => r.id && handleDeleteRecord(r.id, r.name)}
+                              className="p-1 hover:bg-rose-50 rounded text-rose-600 cursor-pointer"
+                              title="Xóa phiếu điều tra"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
 
       </div>

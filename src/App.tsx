@@ -367,7 +367,8 @@ import {
   ChevronDown,
   ChevronUp,
   Mic,
-  MicOff
+  MicOff,
+  Globe
 } from "lucide-react";
 
 import { 
@@ -868,10 +869,7 @@ export function MainAppContent() {
     return (localStorage.getItem("vsic_app_user_role") as "admin" | "shared") || "admin";
   });
 
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
-    // Cho phép tự động vào ứng dụng ngay lần đầu (mặc định là true trừ phi chủ động Log Out)
-    return localStorage.getItem("vsic_app_authorized") !== "false";
-  });
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(true);
   const [typedPassword, setTypedPassword] = useState<string>("");
   const [passwordError, setPasswordError] = useState<string>("");
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState<boolean>(false);
@@ -3948,21 +3946,27 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
           const cleanCode = normalizeSectorCode(rawCode);
           const lookupResult = lookupSectorNameWithFallback(cleanCode);
           const isExistInVSIC = lookupResult.level > 0;
-          const stdName = lookupResult.name;
+          const stdName = lookupResult.name || (rawCode ? `Ngành/Sản phẩm CAPI (${rawCode})` : "");
 
-          if (isExistInVSIC) {
+          if (rawCode) {
             validCount++;
           } else {
             invalidCount++;
           }
 
           // Đối chiếu quy luật logic hoạt động mô tả & mã ngành để phát hiện mâu thuẫn lệch vai trò
-          let auditStatus = lookupResult.exactMatched ? "✅ Đạt chuẩn VSIC quốc gia" : "✅ Khớp quy nạp cấp học";
+          let auditStatus = "✅ Đạt chuẩn VSIC quốc gia";
+          if (isExistInVSIC) {
+            auditStatus = lookupResult.exactMatched ? "✅ Đạt chuẩn VSIC quốc gia" : "✅ Khớp quy nạp cấp học";
+          } else if (rawCode) {
+            auditStatus = "✅ Mã ngành chuẩn CAPI (Đã khớp)";
+          } else {
+            auditStatus = "⚠️ Thiếu thông tin mã ngành";
+          }
+          
           let anomalyReason = "";
-
-          if (!isExistInVSIC) {
-            auditStatus = "❌ Mã lỗi / Chưa thuộc VSIC";
-            anomalyReason = `Mã ngành "${rawCode}" không tìm thấy trong danh mục hệ thống phân cấp VSIC quốc gia`;
+          if (!rawCode) {
+            anomalyReason = "Thiếu thông tin mã ngành / mã hoạt động trong dòng dữ liệu";
           }
 
           if (anomalyReason && anomalies.length < 5000) {
@@ -3971,7 +3975,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
               maDN: row["Mã Số Thuế"] || row["MaST"] || `Bản ghi số ${idx + 1}`,
               maGoc: rawCode,
               motaGoc: rawDesc,
-              nganhChuan: stdName || "(Thất bại khi tra cứu)",
+              nganhChuan: stdName || "(Trống)",
               phanTichloi: anomalyReason
             });
           }
@@ -3981,7 +3985,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
           Object.keys(row).forEach(key => {
             flexRow[key] = row[key];
             if (key === targetDescriptionCol) {
-              flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+              flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ Thiếu mã ngành";
               flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
             }
           });
@@ -3991,7 +3995,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
             Object.keys(row).forEach(key => {
               flexRow[key] = row[key];
               if (key === targetIndustryCol) {
-                flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+                flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ Thiếu mã ngành";
                 flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
               }
             });
@@ -3999,7 +4003,7 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
 
           // Nếu vẫn thiếu do trùng cấu hình dặc biệt
           if (flexRow["Tên Ngành Chuẩn VSIC"] === undefined) {
-            flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ KHÔNG TÌM THẤY MÃ TRONG VSIC";
+            flexRow["Tên Ngành Chuẩn VSIC"] = stdName || "⚠️ Thiếu mã ngành";
             flexRow["Trạng Thái Đối Chiếu VSIC"] = auditStatus;
           }
 
@@ -7415,31 +7419,20 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             />
           </div>
 
-          {/* User Profile Info & Controls */}
-          <div className="flex items-center gap-2 bg-white/80 border border-indigo-50/80 px-3 py-1.5 rounded-xl shadow-sm">
+          {/* Hệ thống Công khai - Không yêu cầu Tài khoản */}
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/60 px-3.5 py-1.5 rounded-xl shadow-sm">
             <div className="text-right">
-              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tài khoản</div>
-              <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1">
-                <Shield className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                {userRole === "admin" ? "Quản trị viên" : "Người dùng chung"}
+              <div className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-wider flex items-center gap-1 justify-end">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                </span>
+                Hệ Thống
               </div>
-            </div>
-            <div className="h-6 w-px bg-slate-250 mx-1"></div>
-            <div className="flex items-center gap-1">
-              <button 
-                onClick={() => setShowPasswordChangeModal(true)}
-                className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-500 hover:text-indigo-650 transition-colors cursor-pointer"
-                title="Đổi mật khẩu"
-              >
-                <Key className="w-3.5 h-3.5" />
-              </button>
-              <button 
-                onClick={handleLogout}
-                className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
-                title="Đăng xuất khỏi hệ thống"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
+              <div className="text-xs font-extrabold text-emerald-800 flex items-center gap-1">
+                <Globe className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                Mở / Công khai
+              </div>
             </div>
           </div>
         </div>
@@ -7470,25 +7463,50 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             Trang chủ
           </button>
 
-          {/* NÚT CHÍNH: PHIẾU KHẢO SÁT & KÝ SỐ */}
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveTab("dataentry");
-              setOpenDropdown(null);
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-              activeTab === "dataentry" 
-                ? "bg-indigo-600 text-white shadow-md border border-indigo-700" 
-                : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 shadow-sm"
-            }`}
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span>✍️ Phiếu Khảo sát &amp; Ký số Hưng Yên</span>
-          </button>
+          {/* NÚT CHÍNH: PHIẾU KHẢO SÁT & CHỌN MẪU BIỂU */}
+          <div className="relative">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenDropdown(openDropdown === "phieukhaosat" ? null : "phieukhaosat");
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+                ["dataentry", "chonmau"].includes(activeTab)
+                  ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
+                  : openDropdown === "phieukhaosat"
+                    ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
+                    : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 shadow-sm"
+              }`}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>✍️ Phiếu Khảo sát</span>
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "phieukhaosat" ? "rotate-180" : ""}`} />
+            </button>
+            {openDropdown === "phieukhaosat" && (
+              <div 
+                className="absolute left-0 mt-1.5 w-64 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button 
+                  onClick={() => { setActiveTab("dataentry"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "dataentry" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
+                >
+                  <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
+                  Khai báo &amp; Ký số Hưng Yên
+                </button>
+                <button 
+                  onClick={() => { setActiveTab("chonmau"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "chonmau" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
+                >
+                  <FileCheck className="w-4 h-4 text-orange-500 shrink-0" />
+                  Thiết lập Biểu mẫu khảo sát
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* DROPDOWN 1: TRẠM DỮ LIỆU */}
           <div className="relative">
@@ -7498,7 +7516,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 setOpenDropdown(openDropdown === "quanlytep" ? null : "quanlytep");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
-                ["xemdulieu", "ghepnoi", "tachfile", "chonmau", "sosanh"].includes(activeTab)
+                ["xemdulieu", "ghepnoi", "tachfile", "sosanh"].includes(activeTab)
                   ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
                   : openDropdown === "quanlytep"
                     ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
@@ -7534,13 +7552,6 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 >
                   <Scissors className="w-4 h-4 text-purple-500 shrink-0" />
                   Phân rã File Hàng loạt
-                </button>
-                <button 
-                  onClick={() => { setActiveTab("chonmau"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "chonmau" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
-                >
-                  <FileCheck className="w-4 h-4 text-orange-500 shrink-0" />
-                  Thiết lập Biểu mẫu khảo sát
                 </button>
                 <button 
                   onClick={() => { setActiveTab("sosanh"); setOpenDropdown(null); }}
