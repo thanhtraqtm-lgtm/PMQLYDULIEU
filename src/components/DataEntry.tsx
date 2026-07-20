@@ -161,6 +161,71 @@ const GridBoxesInput: React.FC<GridBoxesInputProps> = ({ value, onChange, length
   );
 };
 
+// Hàm thông minh tự động tìm kiếm dòng chứa tiêu đề (header) của bảng Excel tốt nhất
+// Giúp bỏ qua các dòng tiêu đề hành chính, tên báo cáo hoặc các hàng trống ở đầu tệp
+const findBestHeaderRowIndex = (rows: any[][]): number => {
+  if (rows.length === 0) return 0;
+  
+  const standardKeywords = [
+    "mst", "mã số thuế", "masothue", "mã định danh", "mã cơ sở", "macoso", "mãđịnhdanh",
+    "tên", "tendoanhnghiep", "tên doanh nghiệp", "tên cơ sở", "tencoso", "doanhnghiep", "tên đơn vị",
+    "đại diện", "daidien", "chủ cơ sở", "chucoso", "người đại diện", "nguoidaidien",
+    "địa chỉ", "diachi", "địabàn", "diaban", "xã", "huyện", "tỉnh",
+    "doanh thu", "doanhthu", "doanh thu thuần", "doanhthuthuan", "trị giá", "doanh số",
+    "lao động", "laodong", "số người", "nhân sự", "songuoi", "nhansu",
+    "mã ngành", "manganh", "vsic", "mã ngành chính", "manganhchinh"
+  ];
+
+  let bestIndex = 0;
+  let maxScore = -1;
+
+  // Quét tối đa 15 dòng đầu tiên để tìm dòng tiêu đề phù hợp nhất
+  const scanLimit = Math.min(rows.length, 15);
+  for (let r = 0; r < scanLimit; r++) {
+    const row = rows[r];
+    if (!row || !Array.isArray(row)) continue;
+
+    let keywordMatches = 0;
+    let nonTemplateTextCells = 0;
+
+    row.forEach(cell => {
+      const cellStr = String(cell || "").trim().toLowerCase();
+      if (!cellStr) return;
+      
+      nonTemplateTextCells++;
+      
+      // Kiểm tra xem ô này có chứa từ khóa cột thông dụng nào không
+      const matchesKeyword = standardKeywords.some(keyword => {
+        const cleanKeyword = keyword.toLowerCase();
+        return cellStr.includes(cleanKeyword) || cleanKeyword.includes(cellStr);
+      });
+      if (matchesKeyword) {
+        keywordMatches++;
+      }
+    });
+
+    // Tính điểm: Ưu tiên dòng có nhiều từ khóa cột khớp
+    const score = keywordMatches * 10 + nonTemplateTextCells;
+    
+    if (score > maxScore) {
+      maxScore = score;
+      bestIndex = r;
+    }
+  }
+
+  // Nếu không tìm thấy dòng nào khớp từ khóa, chọn dòng không trống đầu tiên
+  if (maxScore <= 0) {
+    for (let r = 0; r < rows.length; r++) {
+      if (rows[r] && rows[r].some(cell => String(cell || "").trim() !== "")) {
+        return r;
+      }
+    }
+    return 0;
+  }
+
+  return bestIndex;
+};
+
 export const DataEntry: React.FC = () => {
   const { user, googleAccessToken, signInWithGoogle } = useAuth();
   const unitID = user?.unitID || "guest";
@@ -397,6 +462,12 @@ export const DataEntry: React.FC = () => {
   const [isDiagnosticRunning, setIsDiagnosticRunning] = useState(false);
   const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
   const [diagnosticStatus, setDiagnosticStatus] = useState<"idle" | "success" | "error">("idle");
+  const [diagnosticProgress, setDiagnosticProgress] = useState(0);
+  const [diagnosticResult, setDiagnosticResult] = useState<{
+    localStorage: "pending" | "success" | "error";
+    firebase: "pending" | "success" | "error" | "skipped";
+    message: string;
+  } | null>(null);
 
   // --- STATE PHÂN TÍCH BIỂU MẪU EXCEL ---
   const [templateFileName, setTemplateFileName] = useState("");
@@ -411,18 +482,19 @@ export const DataEntry: React.FC = () => {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
+        const data = evt.target?.result;
+        const wb = XLSX.read(data, { type: "array" });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: "" });
         if (rows.length === 0) {
           setStatusMessage({ type: "error", text: "Tệp Excel trống!" });
           return;
         }
         
-        // Lấy hàng đầu tiên làm headers
-        const headers = (rows[0] as any[]).map(h => String(h || "").trim());
+        // Tự động tìm hàng chứa tiêu đề phù hợp nhất
+        const bestHeaderIdx = findBestHeaderRowIndex(rows);
+        const headers = (rows[bestHeaderIdx] as any[]).map(h => String(h || "").trim());
         
         // Danh sách các cột chuẩn đã có sẵn trong hệ thống
         const standardHeaders = [
@@ -466,14 +538,14 @@ export const DataEntry: React.FC = () => {
         if (detected.length === 0) {
           setStatusMessage({ 
             type: "error", 
-            text: "Không phát hiện thấy cột chỉ tiêu động nào mới trong tệp mẫu. Tất cả các cột đều khớp với các chỉ tiêu mặc định sẵn có của hệ thống!" 
+            text: `Không phát hiện thấy cột chỉ tiêu động nào mới trong tệp mẫu tại dòng thứ ${bestHeaderIdx + 1}. Tất cả các cột đều khớp với các chỉ tiêu mặc định sẵn có của hệ thống!` 
           });
           setAnalyzedFields([]);
         } else {
           setAnalyzedFields(detected);
           setStatusMessage({ 
             type: "success", 
-            text: `Phân tích mẫu thành công! Đã phát hiện thấy ${detected.length} cột chỉ tiêu động khảo sát.` 
+            text: `Phân tích mẫu thành công! Đã tự động phát hiện dòng tiêu đề thực tế tại dòng thứ ${bestHeaderIdx + 1} và phân tích được ${detected.length} cột chỉ tiêu động khảo sát.` 
           });
         }
       } catch (err: any) {
@@ -481,7 +553,7 @@ export const DataEntry: React.FC = () => {
         setStatusMessage({ type: "error", text: `Lỗi phân tích tệp mẫu: ${err.message || err}` });
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleSaveCustomField = (e: React.FormEvent) => {
@@ -1481,20 +1553,57 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
     reader.onload = (event) => {
       try {
         const data = event.target?.result;
-        const workbook = XLSX.read(data, { type: "binary" });
+        const workbook = XLSX.read(data, { type: "array" });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
-        // Chuyển đổi sang JSON Array
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+        // Đọc dưới dạng mảng 2D trước để tìm đúng dòng tiêu đề thực tế
+        const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: "" });
+        if (rawRows.length === 0) {
+          setStatusMessage({ type: "error", text: "Tệp Excel trống và không có dữ liệu." });
+          return;
+        }
+
+        const bestHeaderIdx = findBestHeaderRowIndex(rawRows);
+        const headers = rawRows[bestHeaderIdx].map(h => String(h || "").trim());
+
+        const jsonData: any[] = [];
+        for (let r = bestHeaderIdx + 1; r < rawRows.length; r++) {
+          const rowData = rawRows[r];
+          if (!rowData || !Array.isArray(rowData)) continue;
+
+          // Bỏ qua dòng trống hoàn toàn hoặc dòng chỉ chứa các ô rỗng
+          const isRowEmpty = rowData.every(cell => String(cell || "").trim() === "");
+          if (isRowEmpty) continue;
+
+          const rowObj: any = {};
+          let hasValidData = false;
+
+          headers.forEach((header, cIndex) => {
+            if (!header) return;
+            const value = rowData[cIndex] !== undefined ? rowData[cIndex] : "";
+            rowObj[header] = value;
+            if (String(value).trim() !== "") {
+              hasValidData = true;
+            }
+          });
+
+          if (hasValidData) {
+            jsonData.push(rowObj);
+          }
+        }
+
         setExcelRows(jsonData);
-        setStatusMessage({ type: "success", text: `Đọc tệp Excel thành công! Phát hiện thấy ${jsonData.length} dòng.` });
+        setStatusMessage({ 
+          type: "success", 
+          text: `Đọc tệp Excel thành công! Tự động định vị dòng tiêu đề thực tế tại dòng thứ ${bestHeaderIdx + 1}. Đã nạp thành công ${jsonData.length} dòng dữ liệu.` 
+        });
       } catch (err: any) {
         console.error("Lỗi đọc Excel:", err);
-        setStatusMessage({ type: "error", text: "Tệp Excel không đúng định dạng hoặc bị hỏng." });
+        setStatusMessage({ type: "error", text: `Tệp Excel không đúng định dạng hoặc bị hỏng: ${err.message || err}` });
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleExcelUpload = async () => {
@@ -1789,6 +1898,13 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
   const runStorageDiagnostics = async () => {
     setIsDiagnosticRunning(true);
     setDiagnosticStatus("idle");
+    setDiagnosticProgress(5);
+    setDiagnosticResult({
+      localStorage: "pending",
+      firebase: "pending",
+      message: "Đang khởi động hệ thống chẩn đoán an toàn..."
+    });
+
     const timestamp = new Date().toLocaleTimeString("vi-VN");
     const initialLogs = [
       `🧪 Khởi động quy trình chẩn đoán liên kết & ghi đọc cơ sở dữ liệu thực tế...`,
@@ -1804,13 +1920,21 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
       setDiagnosticLogs(prev => [...prev, line]);
     };
 
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
     try {
+      await delay(400);
+      setDiagnosticProgress(15);
+      
       // 1. Kiểm tra LocalStorage
       addLog("⏳ Bước 1: Kiểm thử ghi đọc dữ liệu offline cục bộ (LocalStorage)...");
+      await delay(400);
       const testKey = `survey_records_test_diag_temp`;
       const testData = { id: "test_diag_" + Date.now(), title: "Giao dịch chẩn đoán nháp", value: 123456 };
       
+      setDiagnosticProgress(30);
       localStorage.setItem(testKey, JSON.stringify(testData));
+      await delay(300);
       const readDataRaw = localStorage.getItem(testKey);
       if (!readDataRaw) {
         throw new Error("Không thể đọc lại dữ liệu vừa ghi vào LocalStorage!");
@@ -1822,6 +1946,10 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
       localStorage.removeItem(testKey);
       addLog("✅ [Cục bộ/Offline] Ghi - Đọc dữ liệu thử nghiệm tại trình duyệt: THÀNH CÔNG!");
       addLog("📊 Kết luận: Bộ nhớ ngoại tuyến trên thiết bị hiện tại hoạt động tốt và luôn sẵn sàng.");
+      
+      setDiagnosticProgress(45);
+      setDiagnosticResult(prev => prev ? { ...prev, localStorage: "success" } : null);
+      await delay(400);
 
       // 2. Kiểm tra Firebase Firestore
       addLog("----------------------------------------------------------------------");
@@ -1829,10 +1957,13 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
       
       if (isFirebaseInitialized && db) {
         addLog("📡 [Firebase Cloud] Đang thiết lập kết nối tới đám mây Firestore Studio...");
+        setDiagnosticProgress(55);
+        await delay(400);
         
         try {
           // Thử ghi tài liệu test với thời gian chờ kiên nhẫn hơn
           addLog("📤 [Firebase Cloud] Thử nghiệm ghi 1 bản ghi khảo sát nháp lên đám mây...");
+          setDiagnosticProgress(70);
           const testRef = await Promise.race([
             addDoc(collection(db, "data", "test_diagnostic", "survey_records"), {
               test: true,
@@ -1846,21 +1977,33 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
           ]);
 
           addLog(`✅ [Firebase Cloud] Ghi tài liệu nháp thành công! ID Firestore tạo ra: "${testRef.id}"`);
+          setDiagnosticProgress(80);
+          await delay(400);
 
           // Thử đọc lại
           addLog("📥 [Firebase Cloud] Đang lấy danh sách để xác minh dữ liệu từ đám mây trực tuyến...");
           const qSnap = await getDocs(collection(db, "data", "test_diagnostic", "survey_records"));
           addLog(`✅ [Firebase Cloud] Lấy danh sách thành công! Tìm thấy ${qSnap.size} bản ghi nháp tại Firestore Studio.`);
+          setDiagnosticProgress(90);
+          await delay(300);
 
           // Dọn dẹp tài nguyên test
           addLog("🧹 [Firebase Cloud] Đang dọn dẹp sạch tài nguyên kiểm thử trên đám mây...");
           await deleteDoc(doc(db, "data", "test_diagnostic", "survey_records", testRef.id));
           addLog("✅ [Firebase Cloud] Đã dọn dẹp và đóng cổng kết nối thử nghiệm an toàn.");
+          
+          setDiagnosticProgress(100);
+          await delay(200);
 
           addLog("----------------------------------------------------------------------");
           addLog("🎉 CHẨN ĐOÁN HOÀN TẤT: LIÊN KẾT ĐÁM MÂY ĐẠT TIÊU CHUẨN HOÀN HẢO (100% ONLINE)!");
           addLog("💡 Hệ thống đang ưu tiên lưu trữ trực tiếp lên cơ sở dữ liệu đám mây của bạn.");
           setDiagnosticStatus("success");
+          setDiagnosticResult({
+            localStorage: "success",
+            firebase: "success",
+            message: "Hệ thống kết nối mượt mà trực tiếp lên Đám Mây Firebase. Toàn bộ thông tin khảo sát sẽ được đồng bộ trực tuyến."
+          });
         } catch (fbErr: any) {
           addLog(`⚠️ [Firebase Cloud] KHÔNG KẾT NỐI ĐƯỢC ĐÁM MÂY: ${fbErr.message || fbErr}`);
           addLog("💡 Giải thích: Do môi trường kiểm thử/trình duyệt chặn kết nối ra ngoài hoặc bạn chưa tạo cơ sở dữ liệu Cloud Firestore trong Firebase Console.");
@@ -1869,19 +2012,40 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
           addLog("----------------------------------------------------------------------");
           addLog("🎉 CHẨN ĐOÁN HOÀN TẤT: HỆ THỐNG OFFLINE-FIRST HOẠT ĐỘNG HOÀN HẢO (100% SẴN SÀNG)!");
           addLog("📊 Toàn bộ biểu mẫu nhập liệu và chữ ký điện tử sẽ được lưu trữ an toàn tại máy tính này.");
+          
+          setDiagnosticProgress(100);
           setDiagnosticStatus("success");
+          setDiagnosticResult({
+            localStorage: "success",
+            firebase: "error",
+            message: "Mất liên kết đám mây, chế độ dự phòng Offline-First hoạt động tốt giúp bạn lưu trữ phiếu an toàn không lo gián đoạn."
+          });
         }
       } else {
         addLog("⚠️ [Firebase Cloud] CẢNH BÁO: Tệp tin firebase-applet-config.json chưa được cấu hình API Key thực tế.");
         addLog("🔄 Hệ thống tự động kích hoạt chế độ dự phòng Offline: Lưu trữ toàn bộ dữ liệu khảo sát trực tiếp tại trình duyệt.");
         addLog("💡 Hướng dẫn: Đọc mục 'Hướng dẫn lấy API Key & Cấu hình' bên dưới để mở khóa cổng đám mây trực tuyến.");
+        
+        setDiagnosticProgress(100);
         setDiagnosticStatus("success");
+        setDiagnosticResult({
+          localStorage: "success",
+          firebase: "skipped",
+          message: "Đang lưu trữ ngoại tuyến mượt mà cục bộ. Bạn cần cấu hình tệp Firebase để mở khóa đồng bộ trực tuyến."
+        });
       }
     } catch (err: any) {
       console.error("Lỗi kiểm thử chẩn đoán lưu trữ:", err);
       addLog(`❌ [LỖI CHẨN ĐOÁN]: ${err.message || err}`);
       addLog("⚠️ Khắc phục: Vui lòng kiểm tra lại đường truyền Internet hoặc quy tắc bảo mật (Security Rules) tại Firebase Console của bạn.");
+      
+      setDiagnosticProgress(100);
       setDiagnosticStatus("error");
+      setDiagnosticResult({
+        localStorage: "error",
+        firebase: "error",
+        message: `Gặp lỗi hệ thống: ${err.message || err}. Hệ thống ngoại tuyến và trực tuyến đều bị gián đoạn.`
+      });
     } finally {
       setIsDiagnosticRunning(false);
     }
@@ -2092,18 +2256,119 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
                   Nhấp nút để kích hoạt chu trình ghi thử nghiệm (Write-Read-Delete-Verify) lên Firebase và LocalStorage để kiểm tra ngay xem hệ thống có lưu thông tin thành công không.
                 </p>
 
+                {/* 📊 PROGRESS BAR (THANH TIẾN TRÌNH XỬ LÝ) */}
+                {(isDiagnosticRunning || (diagnosticProgress > 0 && diagnosticProgress <= 100)) && (
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-extrabold text-slate-650 flex items-center gap-1.5">
+                        {isDiagnosticRunning ? (
+                          <>
+                            <span className="flex h-2 w-2 relative">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                            </span>
+                            Đang xử lý phân tích và chẩn đoán liên kết...
+                          </>
+                        ) : (
+                          "🎉 Đã hoàn tất chu trình chẩn đoán"
+                        )}
+                      </span>
+                      <span className="font-mono font-black text-indigo-600">{diagnosticProgress}%</span>
+                    </div>
+                    {/* Progress Bar Track */}
+                    <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden relative">
+                      <div 
+                        className="bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 h-full rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${diagnosticProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 🏆 DIAGNOSTIC RESULT GRID */}
+                {diagnosticResult && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {/* LocalStorage Card */}
+                      <div className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
+                        diagnosticResult.localStorage === "success" 
+                          ? "bg-emerald-50/40 border-emerald-100 text-emerald-900" 
+                          : diagnosticResult.localStorage === "error"
+                          ? "bg-rose-50/40 border-rose-100 text-rose-900"
+                          : "bg-slate-50 border-slate-100 text-slate-500"
+                      }`}>
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <span>THIẾT BỊ CỤC BỘ</span>
+                          <span className={diagnosticResult.localStorage === "success" ? "text-emerald-500" : "text-rose-500"}>●</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-xs font-black">Offline LocalStorage</span>
+                          {diagnosticResult.localStorage === "success" ? (
+                            <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-100/70 text-emerald-700 rounded border border-emerald-200">SẴN SÀNG</span>
+                          ) : (
+                            <span className="text-[10px] font-black px-2 py-0.5 bg-rose-100/70 text-rose-700 rounded border border-rose-200">GẶP LỖI</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Firebase Cloud Card */}
+                      <div className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
+                        diagnosticResult.firebase === "success" 
+                          ? "bg-indigo-50/40 border-indigo-100 text-indigo-900" 
+                          : diagnosticResult.firebase === "error"
+                          ? "bg-amber-50/40 border-amber-100 text-amber-900"
+                          : "bg-slate-50 border-slate-100 text-slate-500"
+                      }`}>
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <span>HỆ THỐNG ĐÁM MÂY</span>
+                          <span className={
+                            diagnosticResult.firebase === "success" 
+                              ? "text-indigo-500" 
+                              : diagnosticResult.firebase === "error"
+                              ? "text-amber-500"
+                              : "text-slate-400"
+                          }>●</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-xs font-black">Firebase Firestore</span>
+                          {diagnosticResult.firebase === "success" ? (
+                            <span className="text-[10px] font-black px-2 py-0.5 bg-indigo-100/70 text-indigo-700 rounded border border-indigo-200">KẾT NỐI OK</span>
+                          ) : diagnosticResult.firebase === "error" ? (
+                            <span className="text-[10px] font-black px-2 py-0.5 bg-amber-100/70 text-amber-700 rounded border border-amber-200">OFFLINE DỰ PHÒNG</span>
+                          ) : (
+                            <span className="text-[10px] font-black px-2 py-0.5 bg-slate-150 text-slate-600 rounded border border-slate-200">CHƯA CẤU HÌNH</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Result Summary Banner */}
+                    <div className={`p-3 rounded-xl border text-xs font-medium leading-relaxed flex items-start gap-2 ${
+                      diagnosticStatus === "success" 
+                        ? "bg-emerald-50/30 border-emerald-100/50 text-slate-700" 
+                        : "bg-rose-50/30 border-rose-100/50 text-slate-700"
+                    }`}>
+                      <span className="text-base shrink-0">💡</span>
+                      <div>
+                        <strong className="text-slate-900">Kết quả chung: </strong>
+                        {diagnosticResult.message}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {diagnosticLogs.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-2">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Trình tự chẩn đoán thời gian thực:</span>
                       {diagnosticStatus === "success" && (
                         <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-150">
-                          Kết quả: THÀNH CÔNG HOÀN HẢO
+                          Thành công hoàn hảo
                         </span>
                       )}
                       {diagnosticStatus === "error" && (
                         <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-150">
-                          Kết quả: LỖI KẾT NỐI
+                          Cần kiểm tra lại kết nối
                         </span>
                       )}
                     </div>
