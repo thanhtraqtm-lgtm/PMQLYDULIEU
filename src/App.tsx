@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { GoogleGenAI } from "@google/genai";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
-import { getFlexibleValue, normalizeAiExpression, parseCSV, beautifyColumnName, scoreColumnForRole, getUniqueRoleAssignments } from "./utils/sharedHelpers";
+import { getFlexibleValue, normalizeAiExpression, parseCSV, beautifyColumnName, scoreColumnForRole, getUniqueRoleAssignments, parse2DArrayWithSmartHeader } from "./utils/sharedHelpers";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { DataEntry } from "./components/DataEntry";
 import { VideoRoom } from "./components/VideoRoom";
@@ -2385,16 +2385,18 @@ Hãy trả về một định dạng JSON duy nhất, KHÔNG giải thích dông
           const wsName = wb.SheetNames[0];
           const ws = wb.Sheets[wsName];
 
-          // sheet_to_json hỗ trợ 100% Dense worksheets sinh ra từ dense: true
-          const data = XLSX.utils.sheet_to_json(ws) as any[];
+          // Đọc mảng 2D và áp dụng chẩn đoán dòng tiêu đề thông minh tự động
+          const rawRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: "" });
+          const parsedResult = parse2DArrayWithSmartHeader(rawRows);
+          const data = parsedResult.data;
 
           if (data.length === 0) {
-            alert("Tệp trống hoặc không chứa dữ liệu hợp lệ!");
+            alert(`Không tìm thấy dữ liệu hợp lệ trong tệp "${file.name}". Vui lòng kiểm tra lại xem tệp tin có chứa dữ liệu bảng hay không, hoặc thử cấu hình lại bảng dữ liệu.`);
             setLoading(false);
             return;
           }
 
-          const cols = Object.keys(data[0] as any);
+          const cols = parsedResult.columns;
 
           if (type === "main") {
             setRawImportedData(data);
@@ -5136,14 +5138,18 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
 
           const wsName = wb.SheetNames[0];
           const ws = wb.Sheets[wsName];
-          const data = XLSX.utils.sheet_to_json(ws) as any[];
+          
+          // Đọc mảng 2D và áp dụng chẩn đoán dòng tiêu đề thông minh tự động
+          const rawRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: "" });
+          const parsedResult = parse2DArrayWithSmartHeader(rawRows);
+          const data = parsedResult.data;
 
           if (data.length === 0) {
             alert(`Tệp "${file.name}" trống hoặc không chứa dữ liệu hợp lệ!`);
             return;
           }
 
-          const cols = Object.keys(data[0] || {});
+          const cols = parsedResult.columns;
           
           setAggregateFiles(prev => {
             const exists = prev.some(f => f.name === file.name);
@@ -5430,7 +5436,11 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
 
         const wsName = wb.SheetNames[0];
         const ws = wb.Sheets[wsName];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        
+        // Đọc mảng 2D và áp dụng chẩn đoán dòng tiêu đề thông minh tự động
+        const rawRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: "" });
+        const parsedResult = parse2DArrayWithSmartHeader(rawRows);
+        const data = parsedResult.data;
 
         if (data.length === 0) {
           alert("Tệp trống hoặc không chứa dữ liệu hợp lệ!");
@@ -5438,7 +5448,7 @@ Trả về cấu trúc JSON duy nhất như sau, tuyệt đối không được 
           return;
         }
 
-        const cols = Object.keys(data[0] as any);
+        const cols = parsedResult.columns;
         setSecondaryFile({
           name: file.name,
           data: data,

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { GitMerge, FileUp, FolderOpen, Layers, Files, Trash2, HelpCircle, Info, Plus, CheckCircle, Settings, FileSpreadsheet } from "lucide-react";
 import * as XLSX from "xlsx";
-import { parseCSV } from "../utils/sharedHelpers";
+import { parseCSV, parse2DArrayWithSmartHeader } from "../utils/sharedHelpers";
 import { MainDataInlinePreview } from "./MainDataInlinePreview";
 
 interface FileMergerProps {
@@ -114,7 +114,10 @@ export default function FileMerger({
 
           const wsName = wb.SheetNames[0];
           const ws = wb.Sheets[wsName];
-          const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+          const rawRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: "" });
+          const parsedResult = parse2DArrayWithSmartHeader(rawRows);
+          const data = parsedResult.data;
 
           if (data.length === 0) {
             alert("Tệp Excel trống hoặc không chứa dữ liệu hợp lệ!");
@@ -122,7 +125,7 @@ export default function FileMerger({
             return;
           }
 
-          const keys = Object.keys(data[0] || {});
+          const keys = parsedResult.columns;
           if (type === "left") {
             setLeftData(data);
             setLeftFileName(file.name);
@@ -195,17 +198,19 @@ export default function FileMerger({
           });
           const wsName = wb.SheetNames[0];
           const ws = wb.Sheets[wsName];
-          fileData = XLSX.utils.sheet_to_json(ws) as any[];
-        }
-
-        if (fileData.length > 0) {
-          const cols = Object.keys(fileData[0] || {});
-          loadedFiles.push({
-            name: file.name,
-            size: file.size,
-            data: fileData,
-            cols: cols
-          });
+          const rawRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: "" });
+          const parsedResult = parse2DArrayWithSmartHeader(rawRows);
+          fileData = parsedResult.data;
+          
+          if (fileData.length > 0) {
+            const cols = parsedResult.columns;
+            loadedFiles.push({
+              name: file.name,
+              size: file.size,
+              data: fileData,
+              cols: cols
+            });
+          }
         }
       } catch (err: any) {
         console.error(`Lỗi đọc file ${file.name}:`, err);

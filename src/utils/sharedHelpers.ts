@@ -330,4 +330,192 @@ export function getUniqueRoleAssignments(columns: string[]): { [colName: string]
   return assignments;
 }
 
+// Hàm thông minh tự động tìm kiếm dòng chứa tiêu đề (header) của bảng Excel tốt nhất
+// Giúp bỏ qua các dòng tiêu đề hành chính, tên báo cáo hoặc các hàng trống ở đầu tệp
+export function findBestHeaderRowIndex(rows: any[][]): number {
+  if (rows.length === 0) return 0;
+  
+  // Danh sách từ khóa chuẩn sau dọn dẹp bằng regex
+  const cleanStandardKeywords = [
+    "mst", "masothue", "madinhdanh", "macoso", "matinh", "matkcs", "maxa", "madiaban", "iddb", "idcoso", "masocs", "madtv", "madoituong",
+    "tencoso", "tendoanhnghiep", "tencoso", "doanhnghiep", "tendonvi", "tendoituong",
+    "daidien", "chucoso", "nguoidaidien",
+    "diachi", "diaban", "xa", "huyen", "tinh",
+    "doanhthu", "doanhthuthuan", "trigia", "doanhso",
+    "laodong", "songuoi", "nhansu",
+    "manganh", "vsic", "manganhchinh", "manghe"
+  ];
+
+  let bestIndex = 0;
+  let maxScore = -999999;
+
+  // Quét tối đa 20 dòng đầu tiên của file Excel để tìm dòng tiêu đề phù hợp nhất
+  const scanLimit = Math.min(rows.length, 20);
+  for (let r = 0; r < scanLimit; r++) {
+    const row = rows[r];
+    if (!row || !Array.isArray(row)) continue;
+
+    let keywordMatches = 0;
+    let nonSpaceCells = 0;
+    let numericCells = 0;
+
+    row.forEach(cell => {
+      if (cell === undefined || cell === null) return;
+      const cellStrRaw = String(cell).trim();
+      if (!cellStrRaw) return;
+
+      nonSpaceCells++;
+
+      // Kiểm tra xem có phải là ô số thô thuần túy không (không phải mã kết hợp chữ như K133T01)
+      // Ô là số thô thuần túy: kiểu number hoặc là chuỗi chỉ gồm chữ số (và không rỗng)
+      if (typeof cell === "number") {
+        numericCells++;
+      } else if (/^\d+$/.test(cellStrRaw)) {
+        numericCells++;
+      }
+
+      // Dọn dẹp ô để kiểm tra từ khóa
+      const cleanedCell = cellStrRaw
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d")
+        .replace(/[^a-z0-9]/g, "");
+
+      if (!cleanedCell) return;
+
+      // Kiểm tra xem ô dọn dẹp có chứa bất kỳ từ khóa chuẩn dọn dẹp nào không
+      const matchesKeyword = cleanStandardKeywords.some(keyword => {
+        return cleanedCell.includes(keyword) || keyword.includes(cleanedCell);
+      });
+
+      if (matchesKeyword) {
+        keywordMatches++;
+      }
+    });
+
+    if (nonSpaceCells === 0) continue;
+
+    // Tính tỷ lệ ô là số thô
+    const numericRatio = numericCells / nonSpaceCells;
+
+    // Điểm cơ bản dựa trên số lượng từ khóa cột khớp
+    let score = keywordMatches * 20 + nonSpaceCells;
+
+    // PHẠT CỰC NẶNG NẾU LÀ DÒNG DỮ LIỆU CHỨA NHIỀU SỐ THÔ
+    // Hàng tiêu đề thực tế không bao giờ chứa nhiều số thô (chỉ có thể là chữ hoặc chữ kết hợp số như A1_1)
+    if (numericRatio > 0.05 || numericCells > 2) {
+      score -= (numericCells * 50) + 500; // Trừ điểm rất nặng để loại bỏ dòng dữ liệu
+    }
+
+    if (score > maxScore) {
+      maxScore = score;
+      bestIndex = r;
+    }
+  }
+
+  // Nếu điểm tối đa quá thấp (ví dụ < 5) hoặc không có dòng nào thực sự vượt trội,
+  // chọn dòng không trống đầu tiên có chứa ít nhất 2 ô và tỉ lệ số thô cực thấp (< 5%)
+  if (maxScore < 5) {
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row) continue;
+      const nonSpace = row.filter(cell => String(cell || "").trim() !== "");
+      if (nonSpace.length >= 2) {
+        // Đếm số lượng số thô trong dòng này
+        let numCells = 0;
+        nonSpace.forEach(cell => {
+          const cellStr = String(cell).trim();
+          if (typeof cell === "number" || /^\d+$/.test(cellStr)) {
+            numCells++;
+          }
+        });
+        // Chỉ chọn dòng này làm tiêu đề nếu tỉ lệ số thô rất thấp
+        if (numCells / nonSpace.length < 0.1) {
+          return r;
+        }
+      }
+    }
+
+    // Fallback cuối cùng nếu toàn bộ đều chứa số hoặc không tìm ra dòng nào đáp ứng
+    for (let r = 0; r < rows.length; r++) {
+      if (rows[r] && rows[r].filter(cell => String(cell || "").trim() !== "").length >= 2) {
+        return r;
+      }
+    }
+    return 0;
+  }
+
+  return bestIndex;
+}
+
+// Hàm phân tích mảng 2D thô thành danh sách các đối tượng JSON với dòng tiêu đề tốt nhất tự động phát hiện
+export function parse2DArrayWithSmartHeader(rows: any[][]): { data: any[], columns: string[], headerIndex: number } {
+  if (rows.length === 0) {
+    return { data: [], columns: [], headerIndex: 0 };
+  }
+
+  const bestHeaderIdx = findBestHeaderRowIndex(rows);
+  const rawHeaders = rows[bestHeaderIdx] || [];
+  
+  // Chuẩn hóa tiêu đề và lọc bỏ các cột không có tên tiêu đề hoặc tự đặt tên cột nếu rỗng nhưng có dữ liệu bên dưới
+  const columns: string[] = [];
+  rawHeaders.forEach((h, cIdx) => {
+    const cleanHeader = String(h || "").trim();
+    if (cleanHeader) {
+      columns.push(cleanHeader);
+    } else {
+      // Kiểm tra xem có cột rỗng nào mà bên dưới có dữ liệu không
+      let hasDataBelow = false;
+      const checkLimit = Math.min(rows.length, bestHeaderIdx + 100); // kiểm tra tối đa 100 dòng bên dưới
+      for (let r = bestHeaderIdx + 1; r < checkLimit; r++) {
+        if (rows[r] && rows[r][cIdx] !== undefined && String(rows[r][cIdx]).trim() !== "") {
+          hasDataBelow = true;
+          break;
+        }
+      }
+      if (hasDataBelow) {
+        columns.push(`Cột ${cIdx + 1}`);
+      } else {
+        columns.push(""); // Cột trống thực sự
+      }
+    }
+  });
+
+  const data: any[] = [];
+  for (let r = bestHeaderIdx + 1; r < rows.length; r++) {
+    const rowData = rows[r];
+    if (!rowData || !Array.isArray(rowData)) continue;
+
+    // Bỏ qua các dòng trống hoàn toàn hoặc các dòng chỉ chứa các ký tự trắng
+    const isRowEmpty = rowData.every(cell => String(cell || "").trim() === "");
+    if (isRowEmpty) continue;
+
+    const rowObj: any = {};
+    let hasValidData = false;
+
+    columns.forEach((header, cIndex) => {
+      if (!header) return; // Bỏ qua cột rỗng thực sự
+      const value = rowData[cIndex] !== undefined ? rowData[cIndex] : "";
+      rowObj[header] = value;
+      if (String(value).trim() !== "") {
+        hasValidData = true;
+      }
+    });
+
+    if (hasValidData) {
+      data.push(rowObj);
+    }
+  }
+
+  // Lọc bỏ tiêu đề rỗng khỏi danh sách columns trả về cho UI
+  const validColumns = columns.filter(c => c !== "");
+
+  return {
+    data,
+    columns: validColumns,
+    headerIndex: bestHeaderIdx
+  };
+}
+
 
