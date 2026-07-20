@@ -524,6 +524,31 @@ export function AuthScreen() {
           </p>
         </div>
 
+        {/* 🔓 DIRECT BYPASS BUTTON FOR FULL OPEN PUBLIC ACCESS */}
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center space-y-3">
+          <p className="text-xs text-emerald-300 leading-relaxed font-semibold">
+            🔓 Cổng thông tin liên ngành đã được cấu hình <strong className="text-white">MỞ TỰ DO</strong> theo yêu cầu của bạn. Không bắt buộc phải đăng nhập!
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              const defaultAdmin = {
+                uid: "admin_open_default_uid",
+                email: "thanhtraqtm@gmail.com",
+                unitID: "admin_central",
+                role: "admin",
+                displayName: "Quản trị viên Trung ương (Mở)",
+                isMock: true
+              };
+              localStorage.setItem("system_auth_user", JSON.stringify(defaultAdmin));
+              window.location.reload();
+            }}
+            className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 transition-all font-black text-white rounded-xl text-xs shadow-lg shadow-emerald-900/20 cursor-pointer uppercase tracking-wider flex items-center justify-center gap-1.5"
+          >
+            <span>👉 BẤM VÀO ĐÂY ĐỂ VÀO THẲNG ỨNG DỤNG</span>
+          </button>
+        </div>
+
         {/* Form */}
         <form onSubmit={handleAuthSubmit} className="space-y-4">
           

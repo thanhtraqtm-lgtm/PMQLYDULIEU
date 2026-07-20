@@ -110,7 +110,24 @@ export function determineUnitInfo(email: string | null, uid: string): { unitID: 
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<SystemUser | null>(null);
+  const [user, setUser] = useState<SystemUser | null>(() => {
+    const stored = localStorage.getItem("system_auth_user");
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        // Fallback to default open admin below
+      }
+    }
+    return {
+      uid: "admin_open_default_uid",
+      email: "thanhtraqtm@gmail.com",
+      unitID: "admin_central",
+      role: "admin",
+      displayName: "Quản trị viên Trung ương (Mở)",
+      isMock: true
+    };
+  });
   const [loading, setLoading] = useState<boolean>(true);
   const [forceOffline, setForceOffline] = useState<boolean>(() => {
     return localStorage.getItem("force_offline_mode") === "true";
@@ -119,9 +136,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setForceOfflineMode = (offline: boolean) => {
     setForceOffline(offline);
     localStorage.setItem("force_offline_mode", String(offline));
-    // Clear user if we switch mode to avoid weird mismatches
-    setUser(null);
-    localStorage.removeItem("system_auth_user");
+    // Reset to open admin default if switching modes instead of null to keep it open
+    setUser({
+      uid: "admin_open_default_uid",
+      email: "thanhtraqtm@gmail.com",
+      unitID: "admin_central",
+      role: "admin",
+      displayName: "Quản trị viên Trung ương (Mở)",
+      isMock: true
+    });
   };
 
   // Đọc phiên mock user đã lưu từ localStorage khi khởi động
@@ -139,7 +162,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isMock: false
           });
         } else {
-          setUser(null);
+          setUser({
+            uid: "admin_open_default_uid",
+            email: "thanhtraqtm@gmail.com",
+            unitID: "admin_central",
+            role: "admin",
+            displayName: "Quản trị viên Trung ương (Mở)",
+            isMock: true
+          });
         }
         setLoading(false);
       });
@@ -151,8 +181,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           setUser(JSON.parse(stored));
         } catch {
-          setUser(null);
+          setUser({
+            uid: "admin_open_default_uid",
+            email: "thanhtraqtm@gmail.com",
+            unitID: "admin_central",
+            role: "admin",
+            displayName: "Quản trị viên Trung ương (Mở)",
+            isMock: true
+          });
         }
+      } else {
+        setUser({
+          uid: "admin_open_default_uid",
+          email: "thanhtraqtm@gmail.com",
+          unitID: "admin_central",
+          role: "admin",
+          displayName: "Quản trị viên Trung ương (Mở)",
+          isMock: true
+        });
       }
       setLoading(false);
     }
@@ -292,9 +338,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isFirebaseInitialized && auth) {
         await signOut(auth);
       }
-      setUser(null);
+      const defaultAdmin: SystemUser = {
+        uid: "admin_open_default_uid",
+        email: "thanhtraqtm@gmail.com",
+        unitID: "admin_central",
+        role: "admin",
+        displayName: "Quản trị viên Trung ương (Mở)",
+        isMock: true
+      };
+      setUser(defaultAdmin);
       setGoogleAccessToken(null);
-      localStorage.removeItem("system_auth_user");
+      localStorage.setItem("system_auth_user", JSON.stringify(defaultAdmin));
     } catch (error: any) {
       console.error("Lỗi đăng xuất:", error);
     } finally {
