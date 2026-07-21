@@ -7339,11 +7339,11 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           </div>
           <div>
             <div className="text-sm font-extrabold text-indigo-950 uppercase tracking-wide flex items-center gap-2">
-              <span>Nền tảng Trí tuệ VSIC &amp; Kiểm soát Dữ liệu Liên ngành</span>
+              <span>Hệ Thống kiểm tra xử lý so sánh tổng hợp dữ liệu </span>
               <span className="bg-indigo-100 text-indigo-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block">v4.0 Pro</span>
             </div>
             <div className="text-xs text-slate-500 font-medium">
-              Xử lý chuẩn hóa mã ngành, rà soát lô-gích thống kê toàn diện &amp; đối chiếu niên độ động cao cấp
+              Rà soát giữa mô tả ngành và mã ngành, kiểm tra rà soát logic, so sánh đối chiếu tổng hợp dữ liệu
             </div>
           </div>
         </div>
@@ -7579,14 +7579,14 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "ghepnoi" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <GitMerge className="w-4 h-4 text-emerald-500 shrink-0" />
-                  Hợp nhất Dữ liệu (Left Join &amp; Batch)
+                  Gộp Dữ liệu 
                 </button>
                 <button 
                   onClick={() => { setActiveTab("tachfile"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "tachfile" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <Scissors className="w-4 h-4 text-purple-500 shrink-0" />
-                  Phân rã File Hàng loạt
+                  Tách File Hàng loạt
                 </button>
                 <button 
                   onClick={() => { setActiveTab("sosanh"); setOpenDropdown(null); }}
@@ -8554,7 +8554,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                           <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600 pl-1">
                             <li><strong>Đặt tên cột dễ nhớ:</strong> Viết trực tiếp vào ô nhập bên dưới để thay đổi tên cột hiển thị theo từ ngữ dễ thuộc của riêng bạn.</li>
                             <li><strong>Lọc cột thừa:</strong> Bạn có thể bỏ tích ở cột không cần thiết, khi bấm áp dụng hệ thống sẽ sinh ra một <strong>Bảng dữ liệu mới hoàn hảo</strong> chỉ chứa các cột thích hợp.</li>
-                            <li><strong>Gán vai trò (Mục tiêu):</strong> Gán vai trò cho cột giúp các thuật toán (Báo cáo xã, nhóm ngành, xử lý lỗi logic bằng AI) tự động tìm đúng dữ liệu mà không bị đứt gãy.</li>
+                            <li><strong>Sau khi đặt tên cột (Mục tiêu):</strong> ấn chọn vào "Xác nhận định nghĩa cột" để áp dụng tên các cột mới</li>
                           </ul>
                         </div>
 
@@ -8740,7 +8740,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                             onClick={handleApplyColumnRedefinition}
                             className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer border border-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
                           >
-                            <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA & LỌC GỌN NHẸ TỔ TẠO FILE MỚI
+                            <FileCheck className="w-4 h-4" />⚡ XÁC NHẬN ĐỊNH NGHĨA VÀ LOẠI BỎ CỘT KHÔNG DÙNG TỚI
                           </button>
                         </div>
                       </>
