@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { DataEntry } from "./components/DataEntry";
 import ExcelSqlAssistant from "./components/ExcelSqlAssistant";
 import { GoogleDriveSync } from "./components/GoogleDriveSync";
-import { AdminDashboard } from "./components/AdminDashboard";
 import { LogIn, Key, HelpCircle, ShieldAlert, Radio, Users, Shield, CheckCircle } from "lucide-react";
 // @ts-ignore
 import logoImg from "./image/logo.jpg";
@@ -7787,14 +7786,14 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 setOpenDropdown(openDropdown === "congtac" ? null : "congtac");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
-                ["pdf2word", "videoroom", "admindashboard"].includes(activeTab)
+                ["pdf2word", "videoroom"].includes(activeTab)
                   ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "congtac"
                     ? "bg-white/20 text-white border border-white/35"
                     : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <Users className={`w-4 h-4 shrink-0 ${["pdf2word", "videoroom", "admindashboard"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
+              <Users className={`w-4 h-4 shrink-0 ${["pdf2word", "videoroom"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
               🛠️ Tiện ích &amp; Cộng tác
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "congtac" ? "rotate-180" : ""}`} />
             </button>
@@ -7815,17 +7814,8 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "videoroom" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
-                  Trợ lý Excel &amp; Truy vấn SQL
+                  Trợ lý Excel &amp; Truy vấn SQL AI
                 </button>
-                {userRole === "admin" && (
-                  <button 
-                    onClick={() => { setActiveTab("admindashboard"); setOpenDropdown(null); }}
-                    className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "admindashboard" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
-                  >
-                    <Shield className="w-4 h-4 text-indigo-500 shrink-0" />
-                    Trình quản trị hệ thống
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -7912,7 +7902,161 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
           {/* 1. TAB TRANG CHỦ */}
           {activeTab === "trangchu" && (
-            <div className="space-y-8 animate-fade-in">
+            <div className="space-y-8 animate-fade-in font-sans">
+              
+              {/* FEATURE HIGHLIGHT HERO SECTION - 4 CORE AI SUPERPOWERS (LIGHT ELEGANT STYLE) */}
+              <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm border border-slate-200/80 relative overflow-hidden">
+                <div className="relative z-10 space-y-5">
+                  {/* Title & Badge Header */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="bg-amber-100 text-amber-900 border border-amber-200/80 font-black text-[11px] px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-2xs">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600 fill-current" /> TÍNH NĂNG XUẤT BẢN NỔI BẬT
+                        </span>
+                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                          <BrainCircuit className="w-3.5 h-3.5 text-indigo-600" /> Tích hợp AI Gemini
+                        </span>
+                      </div>
+                      <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2 pt-1">
+                        🚀 TOP 4 CÔNG CỤ ĐỘT PHÁ & TÍCH HỢP AI TRONG HỆ THỐNG
+                      </h2>
+                      <p className="text-xs text-slate-600 font-medium leading-relaxed max-w-3xl">
+                        Giải pháp tổng thể rà soát mâu thuẫn logic, phát hiện bất thường, tự động chuẩn hóa mã ngành VSIC bằng AI và công cụ ghép/tách/đối chiếu dữ liệu nâng cao.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button 
+                        onClick={() => setActiveTab("chuanhoanganh")}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 active:scale-95"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" /> Trải Nghiệm AI VSIC
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4 Core Highlight Cards (Light Pastel Theme) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Card 1: Rà Soát Logic */}
+                    <div 
+                      onClick={() => setActiveTab("kiemtralogic")}
+                      className="bg-slate-50/80 hover:bg-white border border-slate-200/90 hover:border-indigo-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer group relative flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center justify-center group-hover:scale-105 transition-transform">
+                            <CheckSquare className="w-5 h-5" />
+                          </div>
+                          <span className="text-[10px] font-mono font-extrabold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                            RÀ SOÁT #1
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-indigo-700 transition-colors flex items-center gap-1.5">
+                            Rà Soát Logic Đa Chiều
+                          </h3>
+                          <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
+                            Quét toàn bộ dữ liệu theo bộ quy tắc nghiệp vụ, phát hiện mâu thuẫn chỉ tiêu, vi phạm logic &amp; ô rỗng.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-3 mt-3 border-t border-slate-200/60 flex items-center justify-between text-[11px] font-bold text-indigo-700">
+                        <span>Kiểm Tra Logic</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+
+                    {/* Card 2: Outliers */}
+                    <div 
+                      onClick={() => setActiveTab("outliers")}
+                      className="bg-amber-50/40 hover:bg-white border border-amber-200/80 hover:border-amber-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer group relative flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 border border-amber-200 flex items-center justify-center group-hover:scale-105 transition-transform">
+                            <AlertTriangle className="w-5 h-5" />
+                          </div>
+                          <span className="text-[10px] font-mono font-extrabold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-md border border-amber-200">
+                            RÀ SOÁT #2
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-amber-800 transition-colors flex items-center gap-1.5">
+                            Phát Hiện Bất Thường (Outlier)
+                          </h3>
+                          <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
+                            Thuật toán Z-Score &amp; IQR tự động cảnh báo biến động đột biến, lệch đơn vị tính, nghi ngờ sai số.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-3 mt-3 border-t border-amber-200/60 flex items-center justify-between text-[11px] font-bold text-amber-800">
+                        <span>Outliers Engine</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+
+                    {/* Card 3: AI VSIC */}
+                    <div 
+                      onClick={() => setActiveTab("chuanhoanganh")}
+                      className="bg-sky-50/50 hover:bg-white border border-sky-200 hover:border-sky-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer group relative flex flex-col justify-between ring-1 ring-sky-200/60"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-800 border border-sky-200 flex items-center justify-center group-hover:scale-105 transition-transform">
+                            <BrainCircuit className="w-5 h-5" />
+                          </div>
+                          <span className="text-[10px] font-mono font-extrabold text-sky-900 bg-sky-100 px-2 py-0.5 rounded-md border border-sky-300 flex items-center gap-1">
+                            <Sparkles className="w-2.5 h-2.5 text-amber-600 fill-current" /> AI GEMINI
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-sky-800 transition-colors flex items-center gap-1.5">
+                            AI Chuẩn Hóa VSIC &amp; Gộp Mô Tả
+                          </h3>
+                          <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
+                            AI tự đọc văn bản mô tả ngành thô, tự gộp chuỗi mô tả &amp; đối chiếu gán chính xác mã ngành VSIC 2018.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-3 mt-3 border-t border-sky-200/60 flex items-center justify-between text-[11px] font-bold text-sky-800">
+                        <span>AI VSIC Mapper</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+
+                    {/* Card 4: Super Data Tools */}
+                    <div 
+                      onClick={() => setActiveTab("ghepnoi")}
+                      className="bg-emerald-50/40 hover:bg-white border border-emerald-200/80 hover:border-emerald-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer group relative flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center justify-center group-hover:scale-105 transition-transform">
+                            <FileSpreadsheet className="w-5 h-5" />
+                          </div>
+                          <span className="text-[10px] font-mono font-extrabold text-emerald-900 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-300">
+                            TRUNG TÂM DỮ LIỆU
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-800 transition-colors flex items-center gap-1.5">
+                            Siêu Công Cụ Dữ Liệu
+                          </h3>
+                          <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
+                            Ghép nối nhiều tệp Excel (Merge), Tách tệp tự động (Split) &amp; So sánh đối chiếu sai biệt (Data Diff) siêu tốc.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-3 mt-3 border-t border-emerald-200/60 flex items-center justify-between text-[11px] font-bold text-emerald-800">
+                        <span>Ghép, Tách, So Sánh</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* 2. PIPELINE STEPS */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-150 pb-2">
@@ -10101,12 +10245,6 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           {activeTab === "videoroom" && (
             <div className="space-y-6 animate-fade-in">
               <ExcelSqlAssistant mainData={mainData} fileName={fileName} />
-            </div>
-          )}
-
-          {activeTab === "admindashboard" && (
-            <div className="space-y-6 animate-fade-in">
-              <AdminDashboard />
             </div>
           )}
 

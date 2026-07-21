@@ -1,628 +1,731 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { 
-  FileSpreadsheet, 
   Database, 
+  Sparkles, 
+  Search, 
   Terminal, 
+  Code2, 
+  Table, 
+  Download, 
+  Play, 
+  Zap, 
   Copy, 
   Check, 
-  Sparkles, 
-  HelpCircle, 
-  ArrowRight, 
-  Send, 
-  RefreshCw, 
-  Code,
-  BookOpen,
-  Settings,
-  ChevronRight
+  BarChart2, 
+  RefreshCw,
+  Filter,
+  FileSpreadsheet,
+  MessageSquareText,
+  Lightbulb,
+  ArrowRight,
+  HelpCircle
 } from "lucide-react";
-import { GoogleGenAI } from "@google/genai";
+import * as XLSX from "xlsx";
 
 interface ExcelSqlAssistantProps {
-  mainData?: any[];
+  mainData: any[];
   fileName?: string;
 }
 
-export default function ExcelSqlAssistant({ mainData = [], fileName = "Dữ liệu chính" }: ExcelSqlAssistantProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"excel" | "vba" | "sql" | "chatbot">("excel");
-  const [userPrompt, setUserPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState("");
-  const [generatedExplanation, setGeneratedExplanation] = useState("");
+export const ExcelSqlAssistant: React.FC<ExcelSqlAssistantProps> = ({ mainData, fileName }) => {
+  const [queryMode, setQueryMode] = useState<"nl" | "sql" | "formula">("nl");
+  const [naturalQuery, setNaturalQuery] = useState("");
+  const [sqlQuery, setSqlQuery] = useState("SELECT * FROM data LIMIT 50");
+  const [selectedColumn, setSelectedColumn] = useState<string>("");
   const [copied, setCopied] = useState(false);
-  const [vietnameseExcelFormat, setVietnameseExcelFormat] = useState(false); // Dùng dấu ";" thay cho "," trong công thức
+  const [copiedFormula, setCopiedFormula] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+  
+  // AI NL-to-SQL states
+  const [aiPromptInput, setAiPromptInput] = useState("");
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [aiResponse, setAiResponse] = useState<{
+    sql: string;
+    excelFormula: string;
+    explanation: string;
+  } | null>(null);
 
-  // Chatbot state
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: "user" | "ai"; text: string; code?: string }>>([
-    {
-      sender: "ai",
-      text: "Chào bạn! Tôi là trợ lý AI chuyên về công thức Excel, VBA và truy vấn SQL dữ liệu. Bạn cần tôi viết công thức gì hay truy vấn mẫu biểu nào hôm nay?"
-    }
-  ]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
+  // General AI Dataset Analysis State
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
 
-  // Mẫu gợi ý (Presets)
-  const excelPresets = [
-    {
-      title: "Tìm kiếm bằng XLOOKUP nâng cao",
-      prompt: "Tìm tên ngành kinh doanh từ bảng Danh mục VSIC dựa vào cột Mã ngành kinh doanh, nếu không tìm thấy trả về 'Không tìm thấy'"
-    },
-    {
-      title: "Cộng nhiều điều kiện SUMIFS",
-      prompt: "Tính tổng doanh thu (cột DoanhThu) cho đơn vị có Mã địa bàn là 'X12' và mã Ngành cấp 1 là 'A'"
-    },
-    {
-      title: "Trích xuất chuỗi bằng hàm Text",
-      prompt: "Trích xuất 2 ký tự đầu tiên của mã cơ sở (cột MaCS) và ghép với mã tỉnh nếu cột Tỉnh không rỗng"
-    },
-    {
-      title: "Kiểm tra mã số thuế hợp lệ",
-      prompt: "Kiểm tra độ dài cột MaSoThue nếu bằng 10 hoặc 13 chữ số thì đúng, ngược lại báo sai bằng hàm IF và LEN"
-    }
-  ];
+  // Extract columns
+  const columns = useMemo(() => {
+    if (!mainData || mainData.length === 0) return [];
+    return Object.keys(mainData[0] || {});
+  }, [mainData]);
 
-  const vbaPresets = [
-    {
-      title: "Tự động định dạng bảng báo cáo",
-      prompt: "Viết macro VBA tự động kẻ bảng, bôi đậm dòng tiêu đề thứ nhất, đặt màu nền tiêu đề là xanh lam nhạt, căn lề giữa và tự động dãn cột cho bảng tính đang chọn"
-    },
-    {
-      title: "Tách trang tính theo mã đơn vị",
-      prompt: "Viết VBA duyệt qua cột 'Mã Đơn Vị' ở Sheet1, tạo các Sheet mới theo từng mã đơn vị duy nhất và sao chép dữ liệu tương ứng sang Sheet đó"
-    },
-    {
-      title: "Lọc bỏ dữ liệu lỗi (Error values)",
-      prompt: "Viết VBA quét qua vùng dữ liệu đang chọn, thay thế toàn bộ giá trị lỗi như #N/A, #DIV/0!, #VALUE! thành ô rỗng"
-    }
-  ];
+  // Suggested Natural Language Prompts based on actual columns
+  const samplePrompts = useMemo(() => {
+    if (columns.length === 0) return [];
+    const col1 = columns[0] || "Tên";
+    const col2 = columns.find(c => /doanh thu|sản lượng|giá trị|số|tiền|chi phí/i.test(c)) || columns[1] || "DoanhThu";
+    const col3 = columns.find(c => /mã|ngành|vsic|loại|tỉnh|huyện/i.test(c)) || columns[2] || "MaNganh";
 
-  const sqlPresets = [
-    {
-      title: "Kết nối dữ liệu với danh mục VSIC",
-      prompt: "Viết truy vấn SQL kết hợp bảng 'DoanhNghiep' và bảng 'DanhMucVSIC' dựa trên cột 'MaNganh'. Lấy ra Tên doanh nghiệp, Mã ngành và Tên ngành"
-    },
-    {
-      title: "Thống kê số lượng DN theo địa bàn",
-      prompt: "Viết truy vấn SQL đếm số lượng doanh nghiệp và tính tổng doanh thu theo từng 'MaXa', sắp xếp theo số lượng doanh nghiệp giảm dần"
-    },
-    {
-      title: "Tìm kiếm bản ghi trùng lặp MST",
-      prompt: "Viết truy vấn SQL tìm các bản ghi bị trùng lặp cột 'MaSoThue' (xuất hiện lớn hơn 1 lần) trong bảng 'DanhSachKhaoSat'"
-    }
-  ];
-
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const formatExcelFormula = (formula: string, useSemicolon: boolean) => {
-    if (!formula) return "";
-    if (useSemicolon) {
-      // Thay đổi dấu phẩy ngăn cách tham số thành dấu chấm phẩy (phổ biến ở cài đặt Windows Việt Nam)
-      // Ví dụ: =SUMIFS(A:A, B:B, "X") -> =SUMIFS(A:A; B:B; "X")
-      // Đây là một tiện ích cực kì hữu hiệu thực tế!
-      let inQuote = false;
-      let result = "";
-      for (let i = 0; i < formula.length; i++) {
-        const char = formula[i];
-        if (char === '"') inQuote = !inQuote;
-        if (char === ',' && !inQuote) {
-          result += ";";
-        } else {
-          result += char;
-        }
+    return [
+      {
+        label: `🔍 Lọc các bản ghi có ${col2} > 1,000,000`,
+        prompt: `Lọc danh sách các dòng có chỉ tiêu ${col2} lớn hơn 1000000`
+      },
+      {
+        label: `📊 Đếm số lượng bản ghi nhóm theo ${col3}`,
+        prompt: `Đếm số lượng bản ghi phân nhóm theo cột ${col3}`
+      },
+      {
+        label: `⚠️ Lọc các dòng bị thiếu hoặc trống dữ liệu ở ${col1}`,
+        prompt: `Tìm các bản ghi bị ô trống hoặc thiếu thông tin tại cột ${col1}`
+      },
+      {
+        label: `📈 Lấy Top 10 dòng có ${col2} cao nhất`,
+        prompt: `Sắp xếp giảm dần theo ${col2} và lấy 10 dòng có giá trị lớn nhất`
       }
-      return result;
-    }
-    return formula;
-  };
+    ];
+  }, [columns]);
 
-  const getApiKey = () => {
-    return (import.meta as any).env?.VITE_GEMINI_API_KEY || "";
-  };
+  // SQL / NL filter simulation
+  const filteredResults = useMemo(() => {
+    if (!mainData || mainData.length === 0) return [];
 
-  const generateResponse = async (type: "excel" | "vba" | "sql", promptText: string) => {
-    const key = getApiKey();
-    if (!key) {
-      // Cung cấp giải pháp fallback thông minh nếu không có API key
-      const mockResponses: Record<string, { code: string; exp: string }> = {
-        excel: {
-          code: '=XLOOKUP(A2; DanhMucVSIC!$A$2:$A$1000; DanhMucVSIC!$B$2:$B$1000; "Không tìm thấy"; 0)',
-          exp: "Giải thích công thức:\n1. A2: Giá trị mã ngành cần tìm kiếm.\n2. DanhMucVSIC!$A$2:$A$1000: Vùng chứa mã ngành trong bảng danh mục gốc.\n3. DanhMucVSIC!$B$2:$B$1000: Vùng chứa tên ngành tương ứng cần trả về.\n4. \"Không tìm thấy\": Giá trị hiển thị dự phòng nếu không tìm thấy mã ngành.\n5. 0: Chế độ khớp chính xác tuyệt đối."
-        },
-        vba: {
-          code: `Sub FormatReportTable()\n    Dim ws As Worksheet\n    Set ws = ActiveSheet\n    Dim lastRow As Long, lastCol As Long\n    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row\n    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column\n    \n    With ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol))\n        .Borders.LineStyle = xlContinuous\n        .Borders.Weight = xlThin\n    End With\n    \n    With ws.Range(ws.Cells(1, 1), ws.Cells(1, lastCol))\n        .Font.Bold = True\n        .Interior.Color = RGB(220, 230, 242)\n        .HorizontalAlignment = xlCenter\n    End With\n    ws.Columns.AutoFit\n    MsgBox "Đã định dạng bảng thành công!", vbInformation\nEnd Sub`,
-          exp: "Giải thích code VBA:\n- Xác định tự động dòng cuối (lastRow) và cột cuối (lastCol).\n- Kẻ đường viền mảnh (.Borders.Weight = xlThin) cho toàn bộ bảng dữ liệu.\n- Thiết lập dòng tiêu đề (Dòng 1): bôi đậm, tô nền xanh dương nhạt (RGB 220, 230, 242), căn giữa.\n- AutoFit tự động co dãn cột theo nội dung dài nhất."
-        },
-        sql: {
-          code: `SELECT \n    dn.TenDoanhNghiep,\n    dn.MaNganh,\n    vsic.TenNganh\nFROM DoanhNghiep dn\nINNER JOIN DanhMucVSIC vsic ON dn.MaNganh = vsic.MaNganh;`,
-          exp: "Giải thích truy vấn SQL:\n- SELECT: Lọc ra 3 trường dữ liệu cần thiết.\n- FROM DoanhNghiep dn: Chỉ định bảng chính chứa thông tin doanh nghiệp (đặt bí danh là dn).\n- INNER JOIN ... ON: Kết nối vật lý với bảng danh mục ngành nghề VSIC (bí danh vsic) dựa trên mối quan hệ trùng khớp mã ngành giữa 2 bảng."
-        }
-      };
+    let result = [...mainData];
 
-      setIsGenerating(true);
-      setTimeout(() => {
-        const fallback = mockResponses[type];
-        setGeneratedCode(fallback.code);
-        setGeneratedExplanation(fallback.exp + "\n\n💡 (Lưu ý: Đây là phản hồi mẫu vì chưa cấu hình khóa API VITE_GEMINI_API_KEY)");
-        setIsGenerating(false);
-      }, 800);
-      return;
-    }
-
-    setIsGenerating(false);
-    setIsGenerating(true);
-    setGeneratedCode("");
-    setGeneratedExplanation("");
-
-    try {
-      const ai = new GoogleGenAI({
-        apiKey: key,
-        httpOptions: { headers: { "User-Agent": "aistudio-build" } }
+    if (queryMode === "nl" && naturalQuery.trim()) {
+      const q = naturalQuery.toLowerCase().trim();
+      result = result.filter(row => {
+        return Object.values(row).some(val => 
+          String(val ?? "").toLowerCase().includes(q)
+        );
       });
-
-      const sysInstruction = `Bạn là Trợ lý AI cao cấp chuyên viết công thức Excel, mã VBA và truy vấn SQL tối ưu. 
-Hãy trả về câu trả lời bằng tiếng Việt, được định dạng theo cấu trúc:
-1. Đặt đoạn CODE hoặc CÔNG THỨC trong một khối mã Markdown duy nhất (để người dùng dễ sao chép). Không sử dụng nhiều khối mã, chỉ dùng đúng 1 khối mã chứa công thức hoặc script chính.
-2. Trực tiếp đưa ra lời giải thích chi tiết, ngắn gọn, dễ hiểu bên dưới khối mã.
-3. Luôn bám sát thực tế hành chính và thống kê của Việt Nam.`;
-
-      let prompt = "";
-      if (type === "excel") {
-        prompt = `Hãy viết công thức Excel cho yêu cầu sau: "${promptText}". 
-Lưu ý: Trả về công thức Excel chuẩn bắt đầu bằng dấu "=" bằng tiếng Anh (ví dụ: VLOOKUP, SUMIFS, IF, XLOOKUP, INDEX, MATCH).
-Nếu cần, hãy hướng dẫn cả cách áp dụng trên dải ô.`;
-      } else if (type === "vba") {
-        prompt = `Hãy viết mã VBA Macro Excel cho yêu cầu sau: "${promptText}".
-Đảm bảo mã có đầy đủ khai báo biến (Dim), xử lý lỗi cơ bản nếu cần và ghi chú giải thích cụ thể bằng tiếng Việt.`;
-      } else {
-        prompt = `Hãy viết câu lệnh truy vấn SQL cho yêu cầu sau: "${promptText}".
-Đảm bảo cú pháp SQL chuẩn (ANSI SQL), có thụt lề rõ ràng, trực quan.`;
-      }
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          systemInstruction: sysInstruction,
-          temperature: 0.2
-        }
-      });
-
-      const text = response.text || "";
-      
-      // Phân tách khối mã và giải thích
-      const codeBlockRegex = /```[a-zA-Z]*\n([\s\S]*?)```/g;
-      const match = codeBlockRegex.exec(text);
-      if (match) {
-        setGeneratedCode(match[1].trim());
-        setGeneratedExplanation(text.replace(match[0], "").trim());
-      } else {
-        // Fallback nếu không có block markdown code
-        setGeneratedCode(text.split("\n")[0] || "");
-        setGeneratedExplanation(text);
-      }
-    } catch (err: any) {
-      console.error("Lỗi Gemini:", err);
-      setGeneratedExplanation(`Lỗi khi tạo phản hồi từ AI: ${err.message}. Vui lòng thử lại.`);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleSendChatMessage = async () => {
-    if (!chatInput.trim()) return;
-    const userMsg = chatInput.trim();
-    setChatMessages(prev => [...prev, { sender: "user", text: userMsg }]);
-    setChatInput("");
-    setChatLoading(true);
-
-    const key = getApiKey();
-    if (!key) {
-      setTimeout(() => {
-        setChatMessages(prev => [
-          ...prev,
-          { 
-            sender: "ai", 
-            text: `Bạn vừa hỏi: "${userMsg}". Hiện tại chưa có khóa API VITE_GEMINI_API_KEY, vui lòng bổ sung để tôi có thể suy luận trực tiếp dựa trên ngữ cảnh thực tế dữ liệu của bạn nhé!` 
+    } else if (queryMode === "sql" && sqlQuery.trim()) {
+      // Basic SQL WHERE / LIMIT clause parser simulation
+      try {
+        const upper = sqlQuery.toUpperCase();
+        if (upper.includes("WHERE")) {
+          const wherePart = sqlQuery.split(/WHERE/i)[1]?.split(/LIMIT/i)[0]?.trim();
+          if (wherePart) {
+            const match = wherePart.match(/([a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF\s]+)\s*(=|LIKE|>|<|>=|<=)\s*['"]?([^'"]+)['"]?/i);
+            if (match) {
+              const [, colName, op, val] = match;
+              const actualCol = columns.find(c => c.toLowerCase() === colName.trim().toLowerCase()) || columns[0];
+              if (actualCol) {
+                result = result.filter(row => {
+                  const cellVal = String(row[actualCol] ?? "");
+                  const targetVal = val.replace(/%/g, "").trim();
+                  if (op === "=") return cellVal.toLowerCase() === targetVal.toLowerCase();
+                  if (op.toUpperCase() === "LIKE") return cellVal.toLowerCase().includes(targetVal.toLowerCase());
+                  if (op === ">") return Number(cellVal.replace(/,/g, "")) > Number(targetVal.replace(/,/g, ""));
+                  if (op === "<") return Number(cellVal.replace(/,/g, "")) < Number(targetVal.replace(/,/g, ""));
+                  if (op === ">=") return Number(cellVal.replace(/,/g, "")) >= Number(targetVal.replace(/,/g, ""));
+                  if (op === "<=") return Number(cellVal.replace(/,/g, "")) <= Number(targetVal.replace(/,/g, ""));
+                  return true;
+                });
+              }
+            }
           }
-        ]);
-        setChatLoading(false);
-      }, 600);
-      return;
+        }
+        if (upper.includes("LIMIT")) {
+          const limitNum = parseInt(sqlQuery.split(/LIMIT/i)[1]?.trim() || "50", 10);
+          if (!isNaN(limitNum) && limitNum > 0) {
+            result = result.slice(0, limitNum);
+          }
+        }
+      } catch (e) {
+        // Fallback to full result
+      }
     }
 
+    return result;
+  }, [mainData, queryMode, naturalQuery, sqlQuery, columns]);
+
+  // Column statistics calculation
+  const colStats = useMemo(() => {
+    if (!selectedColumn || !mainData || mainData.length === 0) return null;
+    const values = mainData
+      .map(row => row[selectedColumn])
+      .filter(val => val !== null && val !== undefined && val !== "");
+
+    const numericValues = values
+      .map(v => Number(String(v).replace(/,/g, "")))
+      .filter(n => !isNaN(n));
+
+    const totalCount = values.length;
+    const isNumeric = numericValues.length > totalCount * 0.5;
+
+    if (isNumeric && numericValues.length > 0) {
+      const sum = numericValues.reduce((acc, curr) => acc + curr, 0);
+      const avg = sum / numericValues.length;
+      const min = Math.min(...numericValues);
+      const max = Math.max(...numericValues);
+      return {
+        type: "numeric",
+        count: totalCount,
+        sum: sum.toLocaleString("vi-VN"),
+        avg: avg.toLocaleString("vi-VN", { maximumFractionDigits: 2 }),
+        min: min.toLocaleString("vi-VN"),
+        max: max.toLocaleString("vi-VN")
+      };
+    } else {
+      const freqMap: Record<string, number> = {};
+      values.forEach(v => {
+        const key = String(v).trim();
+        freqMap[key] = (freqMap[key] || 0) + 1;
+      });
+      const uniqueCount = Object.keys(freqMap).length;
+      const topValues = Object.entries(freqMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+      return {
+        type: "text",
+        count: totalCount,
+        unique: uniqueCount,
+        topValues
+      };
+    }
+  }, [selectedColumn, mainData]);
+
+  // Handle Export Filtered
+  const handleExportFiltered = () => {
+    if (filteredResults.length === 0) return;
+    const ws = XLSX.utils.json_to_sheet(filteredResults);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "SQL_Result");
+    XLSX.writeFile(wb, `Ket_Qua_Truy_Van_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // AI Gemini Convert NL to SQL & Excel Formula
+  const handleGenerateSqlFromNl = async (customPrompt?: string) => {
+    const promptToUse = customPrompt || aiPromptInput;
+    if (!promptToUse.trim()) return;
+
+    setIsGeneratingAi(true);
+    setAiResponse(null);
+
     try {
-      const ai = new GoogleGenAI({
-        apiKey: key,
-        httpOptions: { headers: { "User-Agent": "aistudio-build" } }
+      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (process.env as any)?.GEMINI_API_KEY;
+      if (!apiKey) {
+        setAiResponse({
+          sql: `-- Lỗi: Chưa cấu hình VITE_GEMINI_API_KEY`,
+          excelFormula: `=FILTER(A2:Z1000, A2:A1000>0)`,
+          explanation: "⚠️ Chưa có VITE_GEMINI_API_KEY trong .env. Vui lòng kiểm tra lại chìa khóa AI Gemini."
+        });
+        setIsGeneratingAi(false);
+        return;
+      }
+
+      const promptText = `Bạn là chuyên gia cơ sở dữ liệu SQL và công thức Excel. 
+Người dùng muốn thực hiện yêu cầu sau trên bảng dữ liệu có tên là "data":
+Yêu cầu bằng ngôn ngữ tự nhiên: "${promptToUse}"
+
+Danh sách các cột trong bảng dữ liệu thực tế: [${columns.join(", ")}].
+
+Hãy phản hồi theo định dạng JSON chuẩn (chỉ trả về JSON, không kèm Markdown code fence):
+{
+  "sql": "Câu lệnh SQL chuẩn với tên cột thực tế (ví dụ: SELECT * FROM data WHERE ColName LIKE '%val%' LIMIT 50)",
+  "excelFormula": "Công thức Excel tương ứng (ví dụ: =FILTER(...) hoặc =COUNTIF(...) hoặc =SUMIFS(...))",
+  "explanation": "Giải thích ngắn gọn 1-2 câu tiếng Việt về cách lệnh này hoạt động"
+}`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }]
+        })
       });
 
-      // Tạo chuỗi lịch sử chat
-      const historyContext = chatMessages.slice(-5).map(m => `${m.sender === "user" ? "User" : "AI"}: ${m.text}`).join("\n");
+      const data = await response.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const cleanedJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
-      const sysInstruction = `Bạn là Trợ lý AI hỗ trợ phân tích số liệu thống kê liên ngành, chuyên nghiệp về Excel, SQL, VBA, Python và R.
-Hãy trả lời các thắc mắc về kỹ thuật dữ liệu, lọc trùng, chuẩn hóa ngành nghề VSIC của Việt Nam một cách chính xác, thân thiện và hữu ích.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: `Lịch sử hội thoại gần đây:\n${historyContext}\n\nCâu hỏi mới nhất của người dùng: "${userMsg}"\nHãy trả lời bằng tiếng Việt chuẩn xác nhất.`,
-        config: {
-          systemInstruction: sysInstruction,
-          temperature: 0.5
+      try {
+        const parsed = JSON.parse(cleanedJson);
+        setAiResponse({
+          sql: parsed.sql || `SELECT * FROM data LIMIT 50`,
+          excelFormula: parsed.excelFormula || `=FILTER(A:Z, A:A<>"")`,
+          explanation: parsed.explanation || "Đã sinh câu lệnh dựa trên các cột thực tế của bảng."
+        });
+        if (parsed.sql) {
+          setSqlQuery(parsed.sql);
         }
+      } catch (e) {
+        setAiResponse({
+          sql: `SELECT * FROM data WHERE ${columns[0] || "col"} LIKE '%${promptToUse}%'`,
+          excelFormula: `=FILTER(data, SEARCH("${promptToUse}", A:A))`,
+          explanation: rawText || "Đã sinh câu lệnh truy vấn mẫu."
+        });
+      }
+    } catch (err: any) {
+      setAiResponse({
+        sql: `SELECT * FROM data LIMIT 50`,
+        excelFormula: `=FILTER(...)`,
+        explanation: `Lỗi kết nối AI: ${err.message || err}`
+      });
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
+  // AI Gemini General Analysis Trigger
+  const handleAiAnalyze = async () => {
+    setIsAiAnalyzing(true);
+    setAiAnalysis(null);
+
+    try {
+      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (process.env as any)?.GEMINI_API_KEY;
+      if (!apiKey) {
+        setAiAnalysis("⚠️ Chưa cấu hình VITE_GEMINI_API_KEY trong tệp .env. Vui lòng kiểm tra cấu hình.");
+        setIsAiAnalyzing(false);
+        return;
+      }
+
+      const sampleRows = mainData.slice(0, 15);
+      const promptText = `Bạn là trợ lý chuyên gia dữ liệu Excel và SQL. Hãy phân tích tập dữ liệu ${fileName || "hiện tại"} có ${mainData.length} dòng và các cột [${columns.join(", ")}].
+Một số dòng mẫu:
+${JSON.stringify(sampleRows, null, 2)}
+
+Hãy đưa ra tóm tắt phân tích ngắn gọn, súc tích bằng tiếng Việt gồm:
+1. Nhận xét tổng quan cấu trúc dữ liệu.
+2. Đề xuất 3 câu lệnh SQL hoặc bộ lọc Excel hữu ích để đào sâu dữ liệu này.
+3. Cảnh báo sai sót dữ liệu nếu có (ví dụ: dòng trống, dữ liệu không nhất quán).`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }]
+        })
       });
 
-      const aiText = response.text || "Tôi không nhận được câu trả lời từ máy chủ AI.";
-      setChatMessages(prev => [...prev, { sender: "ai", text: aiText }]);
+      const data = await response.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        setAiAnalysis(text);
+      } else {
+        setAiAnalysis("Không thể kết nối dịch vụ AI. Vui lòng thử lại sau.");
+      }
     } catch (err: any) {
-      setChatMessages(prev => [...prev, { sender: "ai", text: `Lỗi kết nối máy chủ AI: ${err.message}` }]);
+      setAiAnalysis(`Lỗi kết nối AI: ${err.message || err}`);
     } finally {
-      setChatLoading(false);
+      setIsAiAnalyzing(false);
+    }
+  };
+
+  const copyText = (text: string, type: "general" | "sql" | "formula") => {
+    navigator.clipboard.writeText(text);
+    if (type === "sql") {
+      setCopiedSql(true);
+      setTimeout(() => setCopiedSql(false), 2000);
+    } else if (type === "formula") {
+      setCopiedFormula(true);
+      setTimeout(() => setCopiedFormula(false), 2000);
+    } else {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
   return (
-    <div className="bg-white text-slate-800 rounded-2xl border border-slate-200/80 shadow-md overflow-hidden animate-fade-in" id="excel_sql_assistant_root">
-      
-      {/* HEADER CỦA TIỆN ÍCH */}
-      <div className="bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 px-6 py-5 border-b border-slate-200/80 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-sm">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-            <Sparkles className="w-5 h-5 animate-pulse" />
+          <div className="p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl">
+            <Database className="w-6 h-6 text-indigo-600" />
           </div>
           <div>
-            <h2 className="text-base font-extrabold tracking-wide uppercase font-sans text-slate-900">
-              TRỢ LÝ CÔNG THỨC EXCEL &amp; TRUY VẤN SQL THÔNG MINH
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              TRỢ LÝ EXCEL & TRUY VẤN SQL THÔNG MINH
+              <span className="text-[10px] bg-indigo-100 text-indigo-800 font-extrabold px-2.5 py-0.5 rounded-full border border-indigo-200 uppercase">
+                AI Powered
+              </span>
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5 font-medium">
-              Tạo công thức, viết VBA Macro và sinh truy vấn cơ sở dữ liệu tốc độ cao bằng trí tuệ nhân tạo.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Hỏi bằng ngôn ngữ tự nhiên để AI tự động sinh câu lệnh SQL, công thức Excel & chạy lọc dữ liệu trực tiếp.
             </p>
           </div>
         </div>
-        
-        {/* THÔNG TIN FILE NGUỒN HIỆN TẠI ĐỂ SỬ DỤNG CHO AI */}
-        {mainData && mainData.length > 0 && (
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-1.5 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-            <span className="text-[10px] font-mono text-indigo-700 font-bold">
-              KẾT NỐI: {fileName} ({mainData.length} dòng)
-            </span>
+
+        <button
+          onClick={handleAiAnalyze}
+          disabled={isAiAnalyzing || mainData.length === 0}
+          className="bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {isAiAnalyzing ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin text-white" /> Đang Phân Tích AI...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" /> AI Phân Tích Toàn Bảng
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* AI Insights Card if generated */}
+      {aiAnalysis && (
+        <div className="bg-gradient-to-r from-indigo-50/80 via-sky-50/80 to-white border border-indigo-200 rounded-2xl p-5 space-y-3 animate-fade-in relative">
+          <div className="flex items-center justify-between border-b border-indigo-150 pb-2">
+            <div className="flex items-center gap-2 text-indigo-900 font-extrabold text-xs">
+              <Sparkles className="w-4 h-4 text-indigo-600 fill-indigo-200" />
+              KẾT QUẢ PHÂN TÍCH AI GEMINI VỀ DỮ LIỆU
+            </div>
+            <button 
+              onClick={() => copyText(aiAnalysis, "general")}
+              className="text-xs text-indigo-700 hover:text-indigo-900 flex items-center gap-1 font-bold cursor-pointer"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? "Đã chép" : "Sao chép"}
+            </button>
+          </div>
+          <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">
+            {aiAnalysis}
+          </div>
+        </div>
+      )}
+
+      {/* AI Prompt generator Section (HIGHLIGHT FEATURE) */}
+      <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-2xl p-5 space-y-4 shadow-md border border-indigo-500/30">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-sky-300">
+              <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                AI CHUYỂN NGÔN NGỮ TỰ NHIÊN THÀNH LỆNH SQL & CÔNG THỨC EXCEL
+              </h3>
+              <p className="text-[11.5px] text-slate-300">
+                Gõ câu hỏi bất kỳ hoặc chọn ví dụ mẫu, AI Gemini sẽ đọc cột thực tế & sinh câu lệnh phù hợp.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Input & Action */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={aiPromptInput}
+              onChange={(e) => setAiPromptInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleGenerateSqlFromNl(); }}
+              placeholder="Nhập yêu cầu bằng tiếng Việt (ví dụ: Lọc các đơn vị thuộc Hà Nội có doanh thu > 5 tỷ)..."
+              className="flex-1 bg-slate-950/80 border border-indigo-500/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-sky-400 font-sans shadow-inner"
+            />
+            <button
+              onClick={() => handleGenerateSqlFromNl()}
+              disabled={isGeneratingAi || !aiPromptInput.trim()}
+              className="bg-gradient-to-r from-indigo-500 to-sky-500 hover:from-indigo-600 hover:to-sky-600 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
+            >
+              {isGeneratingAi ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" /> AI Đang Sinh Lệnh...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-current text-amber-300" /> AI Tạo Lệnh &amp; Chạy
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Example Prompt Chips */}
+          {samplePrompts.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[11px] font-bold text-indigo-300 flex items-center gap-1">
+                <Lightbulb className="w-3.5 h-3.5 text-amber-400" /> Mẫu câu hỏi tự nhiên gợi ý (bấm để thử ngay):
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {samplePrompts.map((item, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      setAiPromptInput(item.prompt);
+                      handleGenerateSqlFromNl(item.prompt);
+                    }}
+                    className="bg-white/10 hover:bg-white/20 border border-white/15 hover:border-sky-400/50 text-slate-200 text-[11px] font-medium px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 text-left"
+                  >
+                    <span>{item.label}</span>
+                    <ArrowRight className="w-3 h-3 text-sky-300 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* AI Response Output Card */}
+        {aiResponse && (
+          <div className="bg-slate-950/90 border border-indigo-500/40 rounded-xl p-4 space-y-3 animate-fade-in text-xs">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <span className="font-extrabold text-sky-300 flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-emerald-400" /> KẾT QUẢ AI TẠO CÂU LỆNH MẪU
+              </span>
+              <span className="text-[10px] text-slate-400 italic">{aiResponse.explanation}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Generated SQL */}
+              <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-bold text-indigo-300">
+                  <span className="flex items-center gap-1"><Terminal className="w-3.5 h-3.5" /> Câu Lệnh SQL:</span>
+                  <button
+                    onClick={() => copyText(aiResponse.sql, "sql")}
+                    className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedSql ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedSql ? "Đã chép" : "Sao chép"}
+                  </button>
+                </div>
+                <code className="block bg-black/60 p-2 rounded text-emerald-400 font-mono text-[11px] break-all">
+                  {aiResponse.sql}
+                </code>
+                <button
+                  onClick={() => {
+                    setQueryMode("sql");
+                    setSqlQuery(aiResponse.sql);
+                  }}
+                  className="mt-1 w-full bg-indigo-600/80 hover:bg-indigo-600 text-white font-bold text-[10.5px] py-1 rounded transition-colors cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <Play className="w-3 h-3 fill-current" /> Chạy Câu Lệnh SQL Này
+                </button>
+              </div>
+
+              {/* Generated Excel Formula */}
+              <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-bold text-emerald-300">
+                  <span className="flex items-center gap-1"><FileSpreadsheet className="w-3.5 h-3.5" /> Công Thức Excel Tương Ứng:</span>
+                  <button
+                    onClick={() => copyText(aiResponse.excelFormula, "formula")}
+                    className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedFormula ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedFormula ? "Đã chép" : "Sao chép"}
+                  </button>
+                </div>
+                <code className="block bg-black/60 p-2 rounded text-sky-300 font-mono text-[11px] break-all">
+                  {aiResponse.excelFormula}
+                </code>
+                <span className="text-[10px] text-slate-400 block pt-1">
+                  💡 Copy công thức này dán trực tiếp vào ô Excel của bạn.
+                </span>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[580px]">
-        
-        {/* CỘT TRÁI: ĐIỀU HƯỚNG TABS & PRESETS */}
-        <div className="lg:col-span-4 border-r border-slate-200 bg-slate-50/50 p-5 flex flex-col justify-between">
-          <div className="space-y-6">
-            
-            {/* CHỌN CÔNG CỤ */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold text-indigo-600 block uppercase tracking-wider font-sans">
-                🛠️ Lựa chọn công cụ hỗ trợ
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setActiveSubTab("excel")}
-                  className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-2 transition cursor-pointer ${
-                    activeSubTab === "excel"
-                      ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
-                  }`}
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                  Công thức Excel
-                </button>
-                <button
-                  onClick={() => setActiveSubTab("vba")}
-                  className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-2 transition cursor-pointer ${
-                    activeSubTab === "vba"
-                      ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
-                  }`}
-                >
-                  <Terminal className="w-4 h-4 text-amber-600" />
-                  VBA Macro
-                </button>
-                <button
-                  onClick={() => setActiveSubTab("sql")}
-                  className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-2 transition cursor-pointer ${
-                    activeSubTab === "sql"
-                      ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
-                  }`}
-                >
-                  <Database className="w-4 h-4 text-indigo-600" />
-                  Truy vấn SQL
-                </button>
-                <button
-                  onClick={() => setActiveSubTab("chatbot")}
-                  className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-2 transition cursor-pointer ${
-                    activeSubTab === "chatbot"
-                      ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  Trò chuyện AI
-                </button>
-              </div>
-            </div>
+      {/* Mode Switcher */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+        <button
+          onClick={() => setQueryMode("nl")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            queryMode === "nl"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+          }`}
+        >
+          <Search className="w-3.5 h-3.5" /> Lọc Ngôn Ngữ Tự Nhiên
+        </button>
+        <button
+          onClick={() => setQueryMode("sql")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            queryMode === "sql"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+          }`}
+        >
+          <Terminal className="w-3.5 h-3.5" /> Trình Soạn Thảo &amp; Chạy Lệnh SQL
+        </button>
+        <button
+          onClick={() => setQueryMode("formula")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            queryMode === "formula"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+          }`}
+        >
+          <BarChart2 className="w-3.5 h-3.5" /> Phân Tích Thống Kê Cột
+        </button>
+      </div>
 
-            {/* DANH SÁCH GỢI Ý NHANH (Chỉ hiển thị khi không ở tab chatbot) */}
-            {activeSubTab !== "chatbot" && (
-              <div className="space-y-2 animate-fade-in">
-                <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-sans">
-                  💡 Gợi ý tình huống thực tế
-                </span>
-                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                  {activeSubTab === "excel" && excelPresets.map((item, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setUserPrompt(item.prompt)}
-                      className="w-full text-left p-2.5 rounded-lg bg-white border border-slate-200 hover:border-indigo-500/40 hover:bg-slate-50 text-[11px] font-medium transition cursor-pointer flex gap-2 items-start shadow-sm"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold text-slate-700">{item.title}</p>
-                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{item.prompt}</p>
-                      </div>
-                    </button>
-                  ))}
-
-                  {activeSubTab === "vba" && vbaPresets.map((item, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setUserPrompt(item.prompt)}
-                      className="w-full text-left p-2.5 rounded-lg bg-white border border-slate-200 hover:border-indigo-500/40 hover:bg-slate-50 text-[11px] font-medium transition cursor-pointer flex gap-2 items-start shadow-sm"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold text-slate-700">{item.title}</p>
-                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{item.prompt}</p>
-                      </div>
-                    </button>
-                  ))}
-
-                  {activeSubTab === "sql" && sqlPresets.map((item, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setUserPrompt(item.prompt)}
-                      className="w-full text-left p-2.5 rounded-lg bg-white border border-slate-200 hover:border-indigo-500/40 hover:bg-slate-50 text-[11px] font-medium transition cursor-pointer flex gap-2 items-start shadow-sm"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold text-slate-700">{item.title}</p>
-                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{item.prompt}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+      {/* Mode 1: Natural Language Filter */}
+      {queryMode === "nl" && (
+        <div className="space-y-3 bg-slate-50 border border-slate-200 p-4 rounded-xl">
+          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5 text-indigo-600" /> Nhập từ khóa hoặc cụm từ tìm kiếm trong toàn bộ bảng:
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={naturalQuery}
+              onChange={(e) => setNaturalQuery(e.target.value)}
+              placeholder="Ví dụ: Nông nghiệp, Xã Vĩnh Lộc, 12345,..."
+              className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500 font-sans shadow-2xs"
+            />
+            {naturalQuery && (
+              <button
+                onClick={() => setNaturalQuery("")}
+                className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Xóa
+              </button>
             )}
-
           </div>
+          <p className="text-[11px] text-slate-500">
+            * Hệ thống tự động quét và lọc tất cả các dòng chứa cụm từ tìm kiếm trên bất kỳ cột nào.
+          </p>
+        </div>
+      )}
 
-          <div className="mt-6 pt-4 border-t border-slate-200 text-[10px] text-slate-500 leading-relaxed font-sans">
-            📌 <strong>Mẹo nhỏ:</strong> Bạn có thể mô tả bằng ngôn ngữ tự nhiên hàng ngày. Ví dụ: <i>"Nếu cột A bằng rỗng và cột B lớn hơn 100 thì lấy cột C nhân 10%"</i>, AI sẽ viết chính xác cấu trúc hàm lồng nhau cho bạn!
+      {/* Mode 2: SQL Query Editor */}
+      {queryMode === "sql" && (
+        <div className="space-y-3 bg-slate-900 border border-slate-800 p-4 rounded-xl text-white">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono font-bold text-indigo-300 flex items-center gap-1.5">
+              <Code2 className="w-3.5 h-3.5" /> NHẬP CÂU LỆNH TRUY VẤN SQL CỦA BẠN:
+            </label>
+            <span className="text-[10px] text-slate-400 font-mono">Hỗ trợ WHERE, LIKE, LIMIT</span>
+          </div>
+          <textarea
+            value={sqlQuery}
+            onChange={(e) => setSqlQuery(e.target.value)}
+            rows={3}
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-emerald-400 focus:outline-none focus:border-indigo-500 shadow-inner"
+            placeholder="SELECT * FROM data WHERE Tên_Cột LIKE '%giá_trị%' LIMIT 50"
+          />
+          <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-slate-500">Các cột thực tế trong bảng:</span>
+              {columns.slice(0, 5).map(col => (
+                <button
+                  key={col}
+                  onClick={() => setSqlQuery(`SELECT * FROM data WHERE ${col} LIKE '%A%' LIMIT 50`)}
+                  className="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-2 py-0.5 rounded text-[10px] font-mono cursor-pointer"
+                >
+                  {col}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+      )}
 
-        {/* CỘT PHẢI: KHU VỰC TẠO VÀ HIỂN THỊ KẾT QUẢ */}
-        <div className="lg:col-span-8 p-6 bg-slate-50/30 flex flex-col">
-          
-          {activeSubTab !== "chatbot" ? (
-            <div className="space-y-5 flex-1 flex flex-col justify-between animate-fade-in">
-              
-              {/* PHẦN NHẬP PHÁT BIỂU YÊU CẦU */}
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-indigo-700 block uppercase tracking-wider font-sans">
-                    ✍️ Mô tả yêu cầu của bạn bằng tiếng Việt
-                  </label>
-                  
-                  {activeSubTab === "excel" && (
-                    <button 
-                      onClick={() => setVietnameseExcelFormat(!vietnameseExcelFormat)}
-                      className={`text-[10px] px-2.5 py-1 rounded-md border font-bold transition flex items-center gap-1 cursor-pointer ${
-                        vietnameseExcelFormat 
-                          ? "bg-emerald-50 border-emerald-200 text-emerald-700" 
-                          : "bg-white border-slate-200 text-slate-500 hover:text-slate-800"
-                      }`}
-                      title="Chuyển đổi dấu ngăn cách đối số từ dấu phẩy sang dấu chấm phẩy"
-                    >
-                      Định dạng Windows VN (Dùng dấu ";") : {vietnameseExcelFormat ? "BẬT" : "TẮT"}
-                    </button>
-                  )}
+      {/* Mode 3: Formula & Column Stats */}
+      {queryMode === "formula" && (
+        <div className="space-y-4 bg-slate-50 border border-slate-200 p-4 rounded-xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                Chọn Cột Để Xem Thống Kê & Nhanh:
+              </label>
+              <select
+                value={selectedColumn}
+                onChange={(e) => setSelectedColumn(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500 font-sans shadow-2xs"
+              >
+                <option value="">-- Chọn một cột --</option>
+                {columns.map(col => (
+                  <option key={col} value={col}>{col}</option>
+                ))}
+              </select>
+            </div>
+
+            {colStats && (
+              <div className="bg-white border border-slate-200 p-3 rounded-xl space-y-2">
+                <div className="text-xs font-bold text-indigo-900 border-b border-slate-100 pb-1 flex items-center gap-1">
+                  <Zap className="w-3.5 h-3.5 text-indigo-600" />
+                  KẾT QUẢ THỐNG KÊ CỘT: <span className="text-slate-800">{selectedColumn}</span>
                 </div>
-
-                <div className="relative">
-                  <textarea
-                    rows={4}
-                    placeholder={
-                      activeSubTab === "excel" 
-                        ? "Ví dụ: Viết hàm tìm kiếm mã số thuế từ bảng phụ Sheet2 và điền vào cột MST ở Sheet1, nếu lỗi trả về ô trống..."
-                        : activeSubTab === "vba"
-                          ? "Ví dụ: Viết macro VBA tự động gộp dữ liệu từ 3 sheet có tên bắt đầu bằng 'Huyen' thành 1 bảng tổng hợp duy nhất..."
-                          : "Ví dụ: Truy vấn đếm số doanh nghiệp có vốn điều lệ trên 10 tỷ đồng và gom nhóm theo ngành cấp 2..."
-                    }
-                    value={userPrompt}
-                    onChange={(e) => setUserPrompt(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-inner transition font-sans leading-relaxed resize-none"
-                  />
-                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                    {userPrompt && (
-                      <button
-                        onClick={() => setUserPrompt("")}
-                        className="text-[10px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded font-bold transition cursor-pointer"
-                      >
-                        Xóa
-                      </button>
-                    )}
-                    <button
-                      disabled={isGenerating || !userPrompt.trim()}
-                      onClick={() => generateResponse(activeSubTab, userPrompt)}
-                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-100 disabled:text-slate-400 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-md shadow-indigo-100 cursor-pointer"
-                    >
-                      {isGenerating ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          Đang tạo...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5" />
-                          Tạo ngay
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* BẢNG KẾT QUẢ ĐẦU RA */}
-              <div className="flex-1 min-h-[250px] border border-slate-200 bg-white rounded-2xl p-5 flex flex-col justify-between shadow-sm">
-                
-                {isGenerating ? (
-                  <div className="flex-1 flex flex-col items-center justify-center space-y-3 py-10">
-                    <div className="w-10 h-10 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
-                    <p className="text-xs text-slate-500 font-sans font-medium">
-                      Trí tuệ nhân tạo đang phân tích cú pháp dữ liệu và lập trình mã nguồn...
-                    </p>
-                  </div>
-                ) : generatedCode ? (
-                  <div className="space-y-4 flex-1 flex flex-col justify-between animate-fade-in">
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-sans">
-                          💾 MÃ NGUỒN / CÔNG THỨC KHUYÊN DÙNG
-                        </span>
-                        
-                        <button
-                          onClick={() => handleCopy(formatExcelFormula(generatedCode, activeSubTab === "excel" && vietnameseExcelFormat))}
-                          className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer"
-                        >
-                          {copied ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-600" />
-                              <span className="text-emerald-600">Đã sao chép!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              Sao chép mã
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl overflow-x-auto">
-                        <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap select-all font-semibold">
-                          {formatExcelFormula(generatedCode, activeSubTab === "excel" && vietnameseExcelFormat)}
-                        </pre>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 border-t border-slate-100 pt-3 flex-1 overflow-y-auto max-h-[160px] pr-1">
-                      <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-sans">
-                        📖 HƯỚNG DẪN CHI TIẾT &amp; GIẢI THÍCH HÀM
-                      </span>
-                      <div className="text-[11px] text-slate-600 font-sans leading-relaxed whitespace-pre-line">
-                        {generatedExplanation}
-                      </div>
-                    </div>
-
+                {colStats.type === "numeric" ? (
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="bg-slate-50 p-1.5 rounded"><span className="text-slate-500">Tổng số dòng:</span> <b className="text-slate-800">{colStats.count}</b></div>
+                    <div className="bg-slate-50 p-1.5 rounded"><span className="text-slate-500">Tổng SUM:</span> <b className="text-indigo-700">{colStats.sum}</b></div>
+                    <div className="bg-slate-50 p-1.5 rounded"><span className="text-slate-500">Trung bình (AVG):</span> <b className="text-slate-800">{colStats.avg}</b></div>
+                    <div className="bg-slate-50 p-1.5 rounded"><span className="text-slate-500">Nhỏ / Lớn nhất:</span> <b className="text-slate-800">{colStats.min} / {colStats.max}</b></div>
                   </div>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4 py-10">
-                    <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
-                      <Code className="w-6 h-6" />
+                  <div className="space-y-1.5 text-[11px]">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Số dòng có giá trị: <b>{colStats.count}</b></span>
+                      <span>Số giá trị khác nhau: <b>{colStats.unique}</b></span>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-700 uppercase">Chưa có mã nguồn được tạo</h4>
-                      <p className="text-[11px] text-slate-400 font-sans mt-1 max-w-sm font-medium">
-                        Nhập yêu cầu của bạn ở ô phía trên hoặc nhấn vào một gợi ý nhanh ở danh sách bên trái để sinh mã nguồn tự động.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-
-            </div>
-          ) : (
-            
-            /* TAB CHATBOT AI CHUYÊN SÂU */
-            <div className="flex-1 flex flex-col justify-between h-full min-h-[500px] animate-fade-in">
-              
-              {/* KHU VỰC CUỘN TIN NHẮN */}
-              <div className="flex-1 overflow-y-auto space-y-4 max-h-[380px] mb-4 pr-1 bg-slate-50/40 rounded-2xl border border-slate-200/60 p-4 shadow-inner">
-                {chatMessages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex gap-3 max-w-[85%] ${msg.sender === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}
-                  >
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
-                      msg.sender === "user" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 border border-slate-200"
-                    }`}>
-                      {msg.sender === "user" ? "U" : "AI"}
-                    </div>
-                    <div className={`p-3 rounded-2xl text-xs leading-relaxed font-sans ${
-                      msg.sender === "user" 
-                        ? "bg-indigo-600 text-white rounded-tr-none" 
-                        : "bg-white border border-slate-200 text-slate-700 rounded-tl-none whitespace-pre-line shadow-sm"
-                    }`}>
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-                {chatLoading && (
-                  <div className="flex gap-3 mr-auto items-center">
-                    <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 border border-slate-200 flex items-center justify-center text-xs font-bold animate-pulse">
-                      AI
-                    </div>
-                    <div className="flex gap-1.2 p-3 rounded-2xl bg-white border border-slate-200 text-slate-400 rounded-tl-none text-xs">
-                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
-                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
-                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase mt-1">Top giá trị xuất hiện nhiều nhất:</div>
+                    <div className="space-y-1">
+                      {colStats.topValues?.map(([val, cnt]) => (
+                        <div key={val} className="flex justify-between bg-slate-50 px-2 py-0.5 rounded text-[10.5px]">
+                          <span className="truncate max-w-[200px] text-slate-800 font-medium">{val || "(Trống)"}</span>
+                          <span className="font-mono text-indigo-600 font-bold">{cnt} lần</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
+            )}
+          </div>
+        </div>
+      )}
 
-              {/* Ô NHẬP TIN NHẮN CHAT */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Hỏi bất kỳ điều gì về Excel, Hàm thống kê, code Python, R..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSendChatMessage();
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition font-sans shadow-sm"
-                />
-                <button
-                  onClick={handleSendChatMessage}
-                  disabled={chatLoading || !chatInput.trim()}
-                  className="px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-100 disabled:text-slate-400 text-white text-xs font-bold rounded-xl transition flex items-center justify-center cursor-pointer shadow-lg shadow-indigo-100"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
-
-            </div>
-          )}
-
+      {/* Results Table Section */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-bold text-slate-800 flex items-center gap-2">
+            <Table className="w-4 h-4 text-indigo-600" />
+            KẾT QUẢ TRUY VẤN DỮ LIỆU ({filteredResults.length.toLocaleString("vi-VN")} DÒNG)
+          </div>
+          <button
+            onClick={handleExportFiltered}
+            disabled={filteredResults.length === 0}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Download className="w-3.5 h-3.5" /> Xuất Excel Kết Quả
+          </button>
         </div>
 
+        {filteredResults.length === 0 ? (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center text-xs text-slate-500">
+            Không tìm thấy dữ liệu phù hợp với điều kiện truy vấn.
+          </div>
+        ) : (
+          <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-96 custom-scrollbar">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 border-b border-slate-200">
+                <tr>
+                  <th className="p-2.5 border-r border-slate-200 w-12 text-center">STT</th>
+                  {columns.map((col) => (
+                    <th key={col} className="p-2.5 border-r border-slate-200 whitespace-nowrap min-w-[120px]">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-slate-800">
+                {filteredResults.slice(0, 100).map((row, idx) => (
+                  <tr key={idx} className="hover:bg-indigo-50/40 transition-colors">
+                    <td className="p-2 text-center text-slate-500 font-mono border-r border-slate-200 bg-slate-50/50">
+                      {idx + 1}
+                    </td>
+                    {columns.map((col) => (
+                      <td key={col} className="p-2 border-r border-slate-200 truncate max-w-xs">
+                        {String(row[col] ?? "")}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredResults.length > 100 && (
+              <div className="p-2 bg-slate-50 text-center text-[11px] text-slate-500 border-t border-slate-200 font-medium">
+                Đang hiển thị 100 / {filteredResults.length.toLocaleString("vi-VN")} dòng đầu tiên. Nhấn nút "Xuất Excel Kết Quả" để tải về toàn bộ.
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      
     </div>
   );
-}
+};
+
+export default ExcelSqlAssistant;
