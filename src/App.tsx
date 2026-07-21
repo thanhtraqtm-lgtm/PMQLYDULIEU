@@ -350,6 +350,7 @@ import {
   BrainCircuit,
   Database,
   RefreshCw,
+  RotateCcw,
   Search,
   Plus,
   Trash2,
@@ -811,12 +812,29 @@ export function MainAppContent() {
   const { user, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<string>("trangchu");
-  const [totalQueries, setTotalQueries] = useState<number>(() => Math.floor(Math.random() * 150) + 2480);
+  const [totalQueries, setTotalQueries] = useState<number>(() => {
+    const saved = localStorage.getItem("vsic_visit_count");
+    if (saved !== null) {
+      const parsed = parseInt(saved, 10);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0; // Giá trị khởi tạo mặc định ban đầu là 0
+  });
 
-  // Tăng số lượt thao tác khi người dùng chuyển tab hoặc tương tác
+  // Tăng số lượt mở khi người dùng mở ứng dụng (mount)
   useEffect(() => {
-    setTotalQueries(prev => prev + Math.floor(Math.random() * 3) + 1);
-  }, [activeTab]);
+    const saved = localStorage.getItem("vsic_visit_count");
+    let currentCount = 0;
+    if (saved !== null) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed)) {
+        currentCount = parsed;
+      }
+    }
+    const newCount = currentCount + 1;
+    localStorage.setItem("vsic_visit_count", String(newCount));
+    setTotalQueries(newCount);
+  }, []);
   const [selectedPipelineStep, setSelectedPipelineStep] = useState<number | null>(1);
   const [selectedWizardScenario, setSelectedWizardScenario] = useState<string | null>("naptiep");
   const [tongHopSubTab, setTongHopSubTab] = useState<"goc" | "phu" | "phep_tinh" | "so_sanh">("goc");
@@ -7364,7 +7382,22 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1.5 mt-0.5">
               <span className="text-emerald-600">Đang hoạt động</span>
               <span className="text-slate-300">•</span>
-              <span className="text-indigo-650 font-extrabold" title="Tổng số lượt tra cứu và thao tác phân tích dữ liệu">{totalQueries.toLocaleString("vi-VN")} lượt</span>
+              <span className="text-indigo-650 font-extrabold flex items-center gap-1" title="Tổng số lượt mở ứng dụng">
+                <span>{totalQueries.toLocaleString("vi-VN")} lượt</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm("Bạn có chắc chắn muốn đặt lại bộ đếm lượt mở ứng dụng về 0?")) {
+                      localStorage.setItem("vsic_visit_count", "0");
+                      setTotalQueries(0);
+                    }
+                  }}
+                  className="p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-all cursor-pointer flex items-center justify-center"
+                  title="Đặt lại bộ đếm về 0"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" />
+                </button>
+              </span>
             </div>
           </div>
 
