@@ -5,7 +5,7 @@ import JSZip from "jszip";
 import { getFlexibleValue, normalizeAiExpression, parseCSV, beautifyColumnName, scoreColumnForRole, getUniqueRoleAssignments, parse2DArrayWithSmartHeader } from "./utils/sharedHelpers";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { DataEntry } from "./components/DataEntry";
-import { VideoRoom } from "./components/VideoRoom";
+import ExcelSqlAssistant from "./components/ExcelSqlAssistant";
 import { GoogleDriveSync } from "./components/GoogleDriveSync";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { LogIn, Key, HelpCircle, ShieldAlert, Radio, Users, Shield, CheckCircle } from "lucide-react";
@@ -7111,7 +7111,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2 font-mono">
-                BỘ NÃO HỌC LỆNH THÔNG MIÊN (AI MACRO STORAGE ENGINE)
+                BỘ NÃO HỌC LỆNH THÔNG MINH (AI MACRO STORAGE ENGINE)
                 <span className="text-[10px] bg-indigo-50 text-indigo-700 font-mono font-medium px-2 py-0.5 rounded-full border border-indigo-150">
                   DUAL-PHÂN HỆ v3.2
                 </span>
@@ -7336,17 +7336,18 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
     );
   };
 
+
   {/* Panel phía trên cùng thanh menu hiển thị Logo & Banner */}
   const renderHeaderPanel = () => {
     return (
-      <div className="bg-gradient-to-r from-slate-50 via-white to-indigo-50/30 border-b border-indigo-100 shadow-sm relative z-40 px-6 py-3 flex flex-wrap items-center justify-between gap-4 select-none animate-fade-in">
+      <div className="bg-white/5 border-b border-white/10 relative z-40 px-6 py-3 flex flex-wrap items-center justify-between gap-4 select-none animate-fade-in">
         {/* Left: Logo & Title */}
         <div className="flex items-center gap-3.5">
           <div className="relative group/logo">
             <img 
               src={logoImg} 
               alt="VSIC Logo" 
-              className="h-12 w-12 rounded-full object-cover shadow-md border-2 border-indigo-100 group-hover/logo:scale-105 transition-transform"
+              className="h-12 w-12 rounded-full object-cover shadow-md border-2 border-white/30 group-hover/logo:scale-105 transition-transform"
               onError={(e) => {
                 e.currentTarget.src = "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=120&q=80";
               }}
@@ -7357,33 +7358,33 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             </div>
           </div>
           <div>
-            <div className="text-sm font-extrabold text-indigo-950 uppercase tracking-wide flex items-center gap-2">
+            <div className="text-sm font-extrabold text-white uppercase tracking-wide flex items-center gap-2">
               <span>Hệ Thống kiểm tra xử lý so sánh tổng hợp dữ liệu </span>
-              <span className="bg-indigo-100 text-indigo-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block">v4.0 Pro</span>
+              <span className="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block border border-white/20">v4.0 Pro</span>
             </div>
-            <div className="text-xs text-slate-500 font-medium">
+            <div className="text-xs text-slate-100 font-bold drop-shadow-sm">
               Rà soát giữa mô tả ngành và mã ngành, kiểm tra rà soát logic, so sánh đối chiếu tổng hợp dữ liệu
             </div>
           </div>
         </div>
 
         {/* Center: Live Interactive/Animated Analytics & Processing Pipeline */}
-        <div className="hidden lg:flex items-center gap-5 bg-white/70 border border-indigo-100/40 px-4 py-1.5 rounded-2xl shadow-[0_2px_10px_-3px_rgba(79,70,229,0.06)] max-w-sm xl:max-w-md flex-1 mx-4">
+        <div className="hidden lg:flex items-center gap-5 bg-white/10 border border-white/15 px-4 py-1.5 rounded-2xl shadow-inner max-w-sm xl:max-w-md flex-1 mx-4">
           {/* Live indicator & Pulse Line */}
           <div className="flex flex-col shrink-0 select-none">
             <div className="flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-500 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-[10px] text-indigo-950 font-extrabold uppercase tracking-wider">Bộ xử lý trung tâm</span>
+              <span className="text-[10px] text-white font-extrabold uppercase tracking-wider">Bộ xử lý trung tâm</span>
             </div>
             
             {/* Real-time stats text */}
-            <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1.5 mt-0.5">
-              <span className="text-emerald-600">Đang hoạt động</span>
-              <span className="text-slate-300">•</span>
-              <span className="text-indigo-650 font-extrabold flex items-center gap-1" title="Tổng số lượt mở ứng dụng">
+            <div className="text-[11px] text-slate-100 font-bold flex items-center gap-1.5 mt-0.5">
+              <span className="text-emerald-400">Đang hoạt động</span>
+              <span className="text-white/30">•</span>
+              <span className="text-white font-extrabold flex items-center gap-1" title="Tổng số lượt mở ứng dụng">
                 <span>{totalQueries.toLocaleString("vi-VN")} lượt</span>
                 <button
                   onClick={(e) => {
@@ -7393,7 +7394,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                       setTotalQueries(0);
                     }
                   }}
-                  className="p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-all cursor-pointer flex items-center justify-center"
+                  className="p-0.5 hover:bg-white/10 rounded text-sky-200 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
                   title="Đặt lại bộ đếm về 0"
                 >
                   <RotateCcw className="w-2.5 h-2.5" />
@@ -7403,7 +7404,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           </div>
 
           {/* Animated SVG Sparkline Wave */}
-          <div className="flex-1 h-8 relative flex items-center justify-center min-w-[120px] overflow-hidden rounded-lg bg-indigo-50/20 px-2 border border-indigo-100/20">
+          <div className="flex-1 h-8 relative flex items-center justify-center min-w-[120px] overflow-hidden rounded-lg bg-white/5 px-2 border border-white/10">
             <svg viewBox="0 0 100 30" className="w-full h-full overflow-visible">
               <defs>
                 <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -7466,18 +7467,18 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
           {/* Equalizer Wave simulation */}
           <div className="flex items-end gap-1 h-7 px-1 shrink-0">
-            <div className="w-1 bg-indigo-500 rounded-full animate-pulse h-3" style={{ animationDelay: '0.1s', animationDuration: '0.8s' }}></div>
-            <div className="w-1 bg-violet-500 rounded-full animate-pulse h-5" style={{ animationDelay: '0.3s', animationDuration: '1.2s' }}></div>
-            <div className="w-1 bg-sky-500 rounded-full animate-pulse h-6" style={{ animationDelay: '0.5s', animationDuration: '0.9s' }}></div>
-            <div className="w-1 bg-emerald-500 rounded-full animate-pulse h-4" style={{ animationDelay: '0.2s', animationDuration: '1.1s' }}></div>
-            <div className="w-1 bg-teal-500 rounded-full animate-pulse h-2" style={{ animationDelay: '0.4s', animationDuration: '0.7s' }}></div>
+            <div className="w-1 bg-white rounded-full animate-pulse h-3" style={{ animationDelay: '0.1s', animationDuration: '0.8s' }}></div>
+            <div className="w-1 bg-sky-200 rounded-full animate-pulse h-5" style={{ animationDelay: '0.3s', animationDuration: '1.2s' }}></div>
+            <div className="w-1 bg-cyan-200 rounded-full animate-pulse h-6" style={{ animationDelay: '0.5s', animationDuration: '0.9s' }}></div>
+            <div className="w-1 bg-emerald-300 rounded-full animate-pulse h-4" style={{ animationDelay: '0.2s', animationDuration: '1.1s' }}></div>
+            <div className="w-1 bg-teal-250 rounded-full animate-pulse h-2" style={{ animationDelay: '0.4s', animationDuration: '0.7s' }}></div>
           </div>
         </div>
 
         {/* Right: Banner Image & User Controls */}
         <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
           {/* Banner decoration */}
-          <div className="hidden md:block relative h-11 w-48 rounded-lg overflow-hidden border border-indigo-100/50 shadow-inner">
+          <div className="hidden md:block relative h-11 w-48 rounded-lg overflow-hidden border border-white/20 shadow-inner">
             <img 
               src={bannerImg} 
               alt="VSIC Banner" 
@@ -7489,17 +7490,17 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           </div>
 
           {/* Hệ thống Công khai - Không yêu cầu Tài khoản */}
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/60 px-3.5 py-1.5 rounded-xl shadow-sm">
+          <div className="flex items-center gap-2 bg-emerald-600 border border-emerald-700 px-3.5 py-1.5 rounded-xl shadow-md transition-all hover:bg-emerald-700">
             <div className="text-right">
-              <div className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-wider flex items-center gap-1 justify-end">
+              <div className="text-[10px] text-emerald-100 font-extrabold uppercase tracking-wider flex items-center gap-1 justify-end">
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-200"></span>
                 </span>
                 Hệ Thống
               </div>
-              <div className="text-xs font-extrabold text-emerald-800 flex items-center gap-1">
-                <Globe className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <div className="text-xs font-extrabold text-white flex items-center gap-1">
+                <Globe className="w-3.5 h-3.5 text-white shrink-0" />
                 Mở / Công khai
               </div>
             </div>
@@ -7512,7 +7513,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
   {/* Thanh Menu Ngang (Sub-header Navigation) sang trọng thay thế hoàn toàn Sidebar dọc */}
   const renderHorizontalMenu = () => {
     return (
-      <div className="bg-indigo-50/95 backdrop-blur-md border-b border-indigo-200/80 shadow-md relative z-30 px-6 py-1.5 flex flex-nowrap items-center justify-between gap-3 overflow-x-auto lg:overflow-visible select-none animate-fade-in custom-scrollbar">
+      <div className="bg-black/15 backdrop-blur-md border-t border-white/10 shadow-md relative z-30 px-6 py-2 flex flex-nowrap items-center justify-between gap-3 overflow-x-auto lg:overflow-visible select-none animate-fade-in custom-scrollbar">
         <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
           
           {/* Nút TRANG CHỦ */}
@@ -7522,13 +7523,13 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               setActiveTab("trangchu");
               setOpenDropdown(null);
             }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
               activeTab === "trangchu" 
-                ? "bg-indigo-600 text-white shadow-md border border-indigo-700" 
-                : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
+                ? "bg-white text-indigo-950 shadow-md border border-white/25" 
+                : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
             }`}
           >
-            <Home className="w-4 h-4 shrink-0 text-indigo-500" />
+            <Home className={`w-4 h-4 shrink-0 ${activeTab === "trangchu" ? "text-indigo-600" : "text-slate-300"}`} />
             Trang chủ
           </button>
 
@@ -7586,17 +7587,17 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "quanlytep" ? null : "quanlytep");
               }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
                 ["xemdulieu", "ghepnoi", "tachfile", "sosanh"].includes(activeTab)
-                  ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "quanlytep"
-                    ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
-                    : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <FileSpreadsheet className="w-4 h-4 shrink-0 text-indigo-500" />
+              <FileSpreadsheet className={`w-4 h-4 shrink-0 ${["xemdulieu", "ghepnoi", "tachfile", "sosanh"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
               📂 Trung Tâm Dữ Liệu
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "quanlytep" ? "rotate-180" : ""}`} />
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "quanlytep" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "quanlytep" && (
               <div 
@@ -7645,17 +7646,17 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "rasoat" ? null : "rasoat");
               }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
                 ["kiemtralogic", "outliers", "rulesstudio"].includes(activeTab)
-                  ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "rasoat"
-                    ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
-                    : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <CheckSquare className="w-4 h-4 shrink-0 text-indigo-500" />
+              <CheckSquare className={`w-4 h-4 shrink-0 ${["kiemtralogic", "outliers", "rulesstudio"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
               🔍 Rà soát &amp; Kiểm tra
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "rasoat" ? "rotate-180" : ""}`} />
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "rasoat" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "rasoat" && (
               <div 
@@ -7694,17 +7695,17 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "vsic" ? null : "vsic");
               }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
                 ["chuanhoanganh", "danhmucvsic"].includes(activeTab)
-                  ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "vsic"
-                    ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
-                    : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <BrainCircuit className="w-4 h-4 shrink-0 text-indigo-500" />
+              <BrainCircuit className={`w-4 h-4 shrink-0 ${["chuanhoanganh", "danhmucvsic"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
               🏷️ Chuẩn hóa VSIC
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "vsic" ? "rotate-180" : ""}`} />
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "vsic" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "vsic" && (
               <div 
@@ -7736,17 +7737,17 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "phantich" ? null : "phantich");
               }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
                 ["tonghop", "tansuat", "tuongquan"].includes(activeTab)
-                  ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "phantich"
-                    ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
-                    : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <BarChart3 className="w-4 h-4 shrink-0 text-indigo-500" />
+              <BarChart3 className={`w-4 h-4 shrink-0 ${["tonghop", "tansuat", "tuongquan"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
               📊 Phân tích &amp; Tổng hợp
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "phantich" ? "rotate-180" : ""}`} />
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "phantich" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "phantich" && (
               <div 
@@ -7785,17 +7786,17 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "congtac" ? null : "congtac");
               }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
                 ["pdf2word", "videoroom", "admindashboard"].includes(activeTab)
-                  ? "bg-indigo-600 text-white shadow-md border border-indigo-700"
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "congtac"
-                    ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
-                    : "text-slate-700 hover:bg-indigo-100/50 hover:text-indigo-900 border border-transparent"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <Users className="w-4 h-4 shrink-0 text-indigo-500" />
+              <Users className={`w-4 h-4 shrink-0 ${["pdf2word", "videoroom", "admindashboard"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
               🛠️ Tiện ích &amp; Cộng tác
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "congtac" ? "rotate-180" : ""}`} />
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "congtac" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "congtac" && (
               <div 
@@ -7813,8 +7814,8 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   onClick={() => { setActiveTab("videoroom"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "videoroom" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
-                  <Video className="w-4 h-4 text-emerald-500 shrink-0" />
-                  Phòng họp video trực tuyến
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
+                  Trợ lý Excel &amp; Truy vấn SQL
                 </button>
                 {userRole === "admin" && (
                   <button 
@@ -7836,7 +7837,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex flex-col">
-      <div className="sticky top-0 z-50 flex flex-col shadow-md">
+      <div className="sticky top-0 z-50 flex flex-col shadow-md bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-900/40">
         {renderHeaderPanel()}
         {renderHorizontalMenu()}
       </div>
@@ -7930,20 +7931,20 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         onClick={() => setSelectedPipelineStep(step.id)}
                         className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer text-left relative overflow-hidden ${
                           isActive 
-                            ? "bg-indigo-600 text-white border-indigo-700 shadow-md ring-2 ring-indigo-500/20" 
-                            : "bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/20"
+                            ? "bg-indigo-50/30 text-slate-800 border-indigo-200 shadow-sm" 
+                            : "bg-white text-slate-700 border-slate-200 hover:border-indigo-200 hover:bg-indigo-50/10"
                         }`}
                       >
                         <div className="flex items-start justify-between">
                           <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                            isActive ? "bg-indigo-700 text-white" : "bg-slate-100 text-slate-600"
+                            isActive ? "bg-indigo-50 text-indigo-700 border border-indigo-150" : "bg-slate-100 text-slate-600"
                           }`}>
                             BƯỚC 0{step.id}
                           </span>
-                          {isActive && <CheckCircle className="w-4 h-4 text-emerald-300 shrink-0" />}
+                          {isActive && <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />}
                         </div>
-                        <h4 className="font-bold text-sm mt-3 tracking-tight">{step.title}</h4>
-                        <p className={`text-[11px] mt-1 leading-snug ${isActive ? "text-indigo-100" : "text-slate-500"}`}>
+                        <h4 className="font-bold text-sm mt-3 tracking-tight text-slate-800">{step.title}</h4>
+                        <p className={`text-[11px] mt-1 leading-snug ${isActive ? "text-slate-600 font-medium" : "text-slate-500"}`}>
                           {step.shortDesc}
                         </p>
                       </div>
@@ -10099,7 +10100,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
           {activeTab === "videoroom" && (
             <div className="space-y-6 animate-fade-in">
-              <VideoRoom mainData={mainData} dataMode={dataMode} fileName={fileName} />
+              <ExcelSqlAssistant mainData={mainData} fileName={fileName} />
             </div>
           )}
 
