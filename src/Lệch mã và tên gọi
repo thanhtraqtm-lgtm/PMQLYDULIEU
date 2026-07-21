@@ -7703,7 +7703,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               }`}
             >
               <BrainCircuit className={`w-4 h-4 shrink-0 ${["chuanhoanganh", "danhmucvsic"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
-              🏷️ Chuẩn hóa VSIC
+              🏷️ Lệch mã và tên gọi
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "vsic" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "vsic" && (
@@ -7716,7 +7716,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "chuanhoanganh" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
-                  Chuẩn hóa khớp ngành VSIC
+                  Kiểm tra lệch mã với mô tả
                 </button>
                 <button 
                   onClick={() => { setActiveTab("danhmucvsic"); setOpenDropdown(null); }}
@@ -7778,7 +7778,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             )}
           </div>
 
-          {/* DROPDOWN 5: TIỆN ÍCH & CỘNG TÁC */}
+          {/* DROPDOWN 5: Hỗ trợ & tiện ích */}
           <div className="relative">
             <button 
               onClick={(e) => {
