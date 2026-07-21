@@ -6,6 +6,7 @@ import { getFlexibleValue, normalizeAiExpression, parseCSV, beautifyColumnName, 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { DataEntry } from "./components/DataEntry";
 import { VideoRoom } from "./components/VideoRoom";
+import { GoogleDriveSync } from "./components/GoogleDriveSync";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { LogIn, Key, HelpCircle, ShieldAlert, Radio, Users, Shield, CheckCircle } from "lucide-react";
 // @ts-ignore
@@ -7531,7 +7532,8 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             Trang chủ
           </button>
 
-          {/* NÚT CHÍNH: PHIẾU KHẢO SÁT & CHỌN MẪU BIỂU */}
+          {/* NÚT CHÍNH: PHIẾU KHẢO SÁT & CHỌN MẪU BIỂU (ẨN THEO YÊU CẦU ĐỂ DÙNG SAU) */}
+          {/*
           <div className="relative">
             <button 
               onClick={(e) => {
@@ -7575,6 +7577,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               </div>
             )}
           </div>
+          */}
 
           {/* DROPDOWN 1: TRẠM DỮ LIỆU */}
           <div className="relative">
@@ -8264,6 +8267,35 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   </div>
                 )}
               </div>
+
+              {/* GOOGLE DRIVE SYNC CENTER */}
+              <GoogleDriveSync 
+                mainData={mainData}
+                rawImportedData={rawImportedData}
+                columns={columns}
+                fileName={fileName}
+                mapping={mapping}
+                customColConfigs={customColConfigs}
+                dataMode={dataMode}
+                onRestore={({ mainData, rawImportedData, columns, fileName, mapping, customColConfigs }) => {
+                  setMainData(mainData);
+                  setRawImportedData(rawImportedData);
+                  setColumns(columns);
+                  setFileName(fileName);
+                  setMapping(mapping);
+                  setCustomColConfigs(customColConfigs);
+                  
+                  // Save state back to IndexedDB
+                  saveAppState({
+                    mainData,
+                    rawImportedData,
+                    columns,
+                    fileName,
+                    mapping,
+                    customColConfigs
+                  }, true, dataMode);
+                }}
+              />
 
               {/* === HỆ THỐNG AI HỌC LỆNH ĐỊNH NGHĨA CỘT === */}
               {rawImportedData.length > 0 && (
@@ -10067,7 +10099,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
           {activeTab === "videoroom" && (
             <div className="space-y-6 animate-fade-in">
-              <VideoRoom />
+              <VideoRoom mainData={mainData} dataMode={dataMode} fileName={fileName} />
             </div>
           )}
 

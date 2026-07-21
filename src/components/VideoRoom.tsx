@@ -61,9 +61,61 @@ interface RoomDoc {
   fileData: string; // Base64 data URL
 }
 
-export const VideoRoom: React.FC = () => {
+interface VideoRoomProps {
+  mainData?: any[];
+  dataMode?: "corp" | "individual";
+  fileName?: string;
+}
+
+export const VideoRoom: React.FC<VideoRoomProps> = ({ 
+  mainData = [], 
+  dataMode = "corp", 
+  fileName = "Dữ liệu nguồn chính" 
+}) => {
   const { user } = useAuth();
-  const channelName = user?.unitID || "phong_chung";
+  
+  const [channelName, setChannelName] = useState<string>(() => {
+    return localStorage.getItem("active_room_channel") || "phong_chung_lien_nganh";
+  });
+  
+  const [roomType, setRoomType] = useState<"public" | "unit" | "custom">(() => {
+    const saved = localStorage.getItem("active_room_channel") || "phong_chung_lien_nganh";
+    if (saved === "phong_chung_lien_nganh") return "public";
+    if (saved === (user?.unitID || "phong_chung")) return "unit";
+    return "custom";
+  });
+  
+  const [customRoomName, setCustomRoomName] = useState<string>(() => {
+    const saved = localStorage.getItem("active_room_channel") || "phong_chung_lien_nganh";
+    if (saved !== "phong_chung_lien_nganh" && saved !== (user?.unitID || "phong_chung")) {
+      return saved;
+    }
+    return "";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("active_room_channel", channelName);
+  }, [channelName]);
+
+  const getUnitColor = (unit?: string) => {
+    const str = unit || "default";
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const colors = [
+      "bg-indigo-600",
+      "bg-emerald-600",
+      "bg-amber-600",
+      "bg-rose-600",
+      "bg-purple-600",
+      "bg-blue-600",
+      "bg-pink-600",
+      "bg-teal-600"
+    ];
+    return colors[Math.abs(hash) % colors.length];
+  };
+
   const displayName = user?.displayName || "Thành viên";
 
   // Cấu hình mã kết nối Agora RTC (Lưu trữ động qua LocalStorage hoặc Biến môi trường)
@@ -114,6 +166,96 @@ export const VideoRoom: React.FC = () => {
 
   // Danh sách giả lập thành viên trực tuyến khi chạy ở chế độ demo
   const [simulatedParticipants, setSimulatedParticipants] = useState<Array<{ id: string; name: string; avatarColor: string; micOn: boolean; camOn: boolean; speaking: boolean }>>([]);
+  const [realtimeParticipants, setRealtimeParticipants] = useState<any[]>([]);
+
+  // ĐỒNG BỘ TRẠNG THÁI HIỆN DIỆN CỦA BẢN THÂN TRÊN FIRESTORE
+  useEffect(() => {
+    if (!joined || !user) return;
+
+    const presenceDocId = `${user.uid}_${channelName}`;
+
+    const updatePresence = async () => {
+      if (isFirebaseInitialized && db) {
+        try {
+          const presenceRef = doc(db, "room_presence", presenceDocId);
+          await setDoc(presenceRef, {
+            userId: user.uid,
+            name: displayName,
+            unit: user.unitID || "Khách",
+            channelName: channelName,
+            micOn: !micMuted,
+            camOn: !camMuted,
+            speaking: !micMuted,
+            lastActive: new Date().toISOString()
+          }, { merge: true });
+        } catch (err) {
+          console.error("Lỗi cập nhật hiện diện Firestore:", err);
+        }
+      }
+    };
+
+    updatePresence();
+
+    // Dọn dẹp khi rời phòng hoặc đổi phòng hoặc đóng tab
+    const cleanupPresence = () => {
+      if (isFirebaseInitialized && db) {
+        const presenceRef = doc(db, "room_presence", presenceDocId);
+        deleteDoc(presenceRef).catch(err => console.error("Lỗi dọn dẹp hiện diện:", err));
+      }
+    };
+
+    window.addEventListener("beforeunload", cleanupPresence);
+
+    return () => {
+      window.removeEventListener("beforeunload", cleanupPresence);
+      cleanupPresence();
+    };
+  }, [joined, channelName, micMuted, camMuted, user, displayName]);
+
+  // LẮNG NGHE THÀNH VIÊN KHÁC TRONG PHÒNG THỜI GIAN THỰC
+  useEffect(() => {
+    if (!joined) {
+      setRealtimeParticipants([]);
+      return;
+    }
+
+    let unsubscribe = () => {};
+
+    if (isFirebaseInitialized && db) {
+      try {
+        const presenceRef = collection(db, "room_presence");
+        const q = query(presenceRef, where("channelName", "==", channelName));
+
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          const list: any[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            // Không bao gồm chính mình trong danh sách thành viên từ xa
+            if (data.userId !== user?.uid) {
+              list.push({
+                id: docSnap.id,
+                userId: data.userId,
+                name: data.name || "Thành viên",
+                unit: data.unit || "Khách",
+                avatarColor: getUnitColor(data.unit),
+                micOn: !!data.micOn,
+                camOn: !!data.camOn,
+                speaking: !!data.speaking,
+                isRealUser: true
+              });
+            }
+          });
+          setRealtimeParticipants(list);
+        }, (err) => {
+          console.error("Lỗi lắng nghe room_presence:", err);
+        });
+      } catch (err) {
+        console.error("Lỗi khởi tạo lắng nghe room_presence:", err);
+      }
+    }
+
+    return () => unsubscribe();
+  }, [joined, channelName, user?.uid]);
 
   const rtcClientRef = useRef<IAgoraRTCClient | null>(null);
   const localVideoDivRef = useRef<HTMLDivElement | null>(null);
@@ -1213,20 +1355,119 @@ export const VideoRoom: React.FC = () => {
             <p className="text-xs text-slate-400 font-sans">Đang kiểm tra bảo mật phòng họp...</p>
           </div>
         ) : !isAuthorized ? (
-          <div className="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-8 text-center flex flex-col items-center justify-center space-y-6 max-w-md mx-auto">
-            <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 animate-pulse">
-              <Lock className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-200">Phòng họp đã được khóa</h3>
-              <p className="text-xs text-slate-400 mt-2 leading-relaxed font-sans">
-                Phòng họp của đơn vị <span className="font-mono text-indigo-400 font-bold">{channelName.toUpperCase()}</span> đã được thiết lập mã khóa bảo mật. Vui lòng nhập mật khẩu phòng họp để tham gia.
-              </p>
-            </div>
+          <div className="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-8 text-center flex flex-col items-center justify-center space-y-6 max-w-lg mx-auto">
             
+            {/* LỰA CHỌN KÊNH PHÒNG HỌP */}
+            <div className="w-full space-y-3">
+              <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider font-sans text-left">
+                📍 LỰA CHỌN PHÒNG HỌP ĐỐI SOÁT
+              </span>
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-900/60 rounded-xl border border-slate-800">
+                <button
+                  onClick={() => {
+                    setRoomType("public");
+                    setChannelName("phong_chung_lien_nganh");
+                    setPasswordInput("");
+                    setPasswordError(null);
+                  }}
+                  className={`py-2 px-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    roomType === "public"
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-850"
+                  }`}
+                >
+                  Chung liên ngành
+                </button>
+                <button
+                  onClick={() => {
+                    setRoomType("unit");
+                    setChannelName(user?.unitID || "phong_chung");
+                    setPasswordInput("");
+                    setPasswordError(null);
+                  }}
+                  className={`py-2 px-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    roomType === "unit"
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-850"
+                  }`}
+                >
+                  Nội bộ đơn vị
+                </button>
+                <button
+                  onClick={() => {
+                    setRoomType("custom");
+                    setChannelName(customRoomName.trim() || "phong_tuy_chinh");
+                    setPasswordInput("");
+                    setPasswordError(null);
+                  }}
+                  className={`py-2 px-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    roomType === "custom"
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-850"
+                  }`}
+                >
+                  Tùy chỉnh mã
+                </button>
+              </div>
+            </div>
+
+            {/* Ô NHẬP MÃ PHÒNG TÙY CHỈNH (NẾU CHỌN CUSTOM) */}
+            {roomType === "custom" && (
+              <div className="w-full space-y-2 animate-fade-in">
+                <label className="text-[10px] font-bold text-indigo-400 block uppercase tracking-wider font-sans text-left">
+                  ✍️ NHẬP MÃ PHÒNG HỌP TỰ ĐẶT
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: hop_quyet_toan_2026"
+                    value={customRoomName}
+                    onChange={(e) => {
+                      const val = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "");
+                      setCustomRoomName(val);
+                    }}
+                    className="flex-1 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                  <button
+                    onClick={() => {
+                      if (customRoomName.trim()) {
+                        setChannelName(customRoomName.trim());
+                        setPasswordInput("");
+                        setPasswordError(null);
+                      } else {
+                        alert("Vui lòng nhập mã phòng họp!");
+                      }
+                    }}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition"
+                  >
+                    Áp dụng
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="w-full border-t border-slate-850 my-1" />
+
             <div className="w-full space-y-4">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 animate-pulse">
+                  <Lock className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-200 font-sans uppercase">
+                    YÊU CẦU MẬT KHẨU PHÒNG HỌP
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-1 font-sans leading-relaxed">
+                    Kênh: <span className="font-mono text-indigo-400 font-extrabold">{channelName.toUpperCase()}</span>
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-sans mt-0.5">
+                    Hệ thống tự động đồng bộ mật khẩu qua dữ liệu đám mây liên ngành.
+                  </p>
+                </div>
+              </div>
+
               <div className="relative">
-                <span className="absolute left-3.5 top-3.5 text-slate-400">
+                <span className="absolute left-3.5 top-3 text-slate-400">
                   <Key className="w-4 h-4" />
                 </span>
                 <input
@@ -1248,7 +1489,7 @@ export const VideoRoom: React.FC = () => {
                       }
                     }
                   }}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl text-sm text-white focus:outline-none transition text-center tracking-widest font-mono font-extrabold text-lg"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl text-sm text-white focus:outline-none transition text-center tracking-widest font-mono font-extrabold text-base"
                 />
               </div>
               
@@ -1265,10 +1506,14 @@ export const VideoRoom: React.FC = () => {
                     setPasswordError("Mật khẩu phòng họp không chính xác! Vui lòng thử lại.");
                   }
                 }}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl cursor-pointer transition active:scale-95 flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl cursor-pointer transition active:scale-95 flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10"
               >
                 <Unlock className="w-4 h-4" /> Xác thực &amp; Vào phòng họp
               </button>
+            </div>
+
+            <div className="text-[10px] text-slate-500 font-sans leading-relaxed max-w-sm mt-2">
+              💡 <strong>Mách nhỏ:</strong> Để nhìn thấy đồng nghiệp liên ngành, hãy cùng chọn chung phòng <strong>Chung liên ngành</strong> (hoặc đặt chung mã phòng tùy chỉnh) và chia sẻ đúng mã mật khẩu 6 số!
             </div>
           </div>
         ) : (
@@ -1400,19 +1645,120 @@ export const VideoRoom: React.FC = () => {
                   </span>
                 </div>
                 
-                <div className="relative bg-slate-900 border border-slate-850 rounded-xl aspect-video overflow-hidden">
+                <div className="relative bg-slate-900 border border-slate-850 rounded-xl min-h-[300px] flex flex-col justify-between p-5 overflow-hidden font-sans">
                   {isSimulationMode ? (
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-slate-950 to-slate-900/90 flex flex-col items-center justify-center text-center p-6 space-y-4">
-                      <div className="w-14 h-14 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 animate-bounce">
-                        <Tv className="w-6 h-6" />
+                    <div className="flex-1 flex flex-col justify-between space-y-4">
+                      {/* Tiêu đề & Trạng thái truyền phát */}
+                      <div className="flex items-center justify-between">
+                        <div className="text-left">
+                          <h4 className="text-xs font-extrabold text-indigo-400 uppercase tracking-widest">
+                            🔴 ĐANG CHIA SẺ TRẠM LÀM VIỆC LIÊN NGÀNH
+                          </h4>
+                          <p className="text-sm font-bold text-slate-100 mt-1">
+                            Báo cáo Đối soát &amp; Chuẩn hóa mã ngành VSIC 2026
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-[10px] text-emerald-400 font-mono font-bold animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                          <span>LIVE STREAMING</span>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-100">Báo cáo Tổng hợp Số liệu Liên ngành năm 2026</h4>
-                        <p className="text-xs text-slate-400 mt-1">Đang trình bày bởi {displayName} (Mô phỏng live stream)</p>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-950/80 border border-slate-800 rounded-lg text-[10px] text-slate-400">
-                        <Activity className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Truyền phát: 1080p @ 30 FPS</span>
+
+                      {/* Dữ liệu thực tế được nạp vào */}
+                      {mainData && mainData.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* Khối thống kê trái */}
+                          <div className="md:col-span-1 bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-2 text-xs flex flex-col justify-between">
+                            <div>
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Tập dữ liệu:</span>
+                              <p className="text-slate-100 font-semibold truncate font-mono mt-0.5" title={fileName}>
+                                {fileName}
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-[9px] text-slate-500 block">Quy mô:</span>
+                                <strong className="text-indigo-400 text-xs font-mono">{mainData.length} dòng</strong>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-500 block">Chế độ:</span>
+                                <strong className="text-amber-400 text-xs uppercase font-bold">
+                                  {dataMode === "corp" ? "Doanh Nghiệp" : "Cá Thể"}
+                                </strong>
+                              </div>
+                            </div>
+                            <div className="pt-1.5 border-t border-slate-900/55 text-[10px] text-emerald-400 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                              <span>Bộ định nghĩa cột đồng bộ</span>
+                            </div>
+                          </div>
+
+                          {/* Bảng xem trước dữ liệu thực tế */}
+                          <div className="md:col-span-2 bg-slate-950/70 border border-slate-800 rounded-xl p-3 overflow-x-auto">
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1.5">
+                              Xem trước dòng dữ liệu đối soát trực tuyến:
+                            </span>
+                            <table className="w-full text-left border-collapse text-[11px] font-sans">
+                              <thead>
+                                <tr className="border-b border-slate-850 text-slate-400 font-bold">
+                                  <th className="py-1 px-1">Mô tả sản xuất kinh doanh</th>
+                                  <th className="py-1 px-1 text-center">Mã VSIC</th>
+                                  <th className="py-1 px-1 text-right">Doanh thu</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {mainData.slice(0, 3).map((row, idx) => {
+                                  // Thử lấy các key động thường thấy
+                                  const desc = row.mota || row["Mô tả hoạt động"] || row["Mô tả"] || Object.values(row)[0] || "";
+                                  const code = row.manganh || row["Mã ngành"] || row["Mã"] || "";
+                                  const rev = row.doanhthu || row["Doanh thu"] || row["Doanh thu (Triệuđộ)"] || "";
+                                  return (
+                                    <tr key={idx} className="border-b border-slate-900 text-slate-300 font-mono">
+                                      <td className="py-1 px-1 truncate max-w-[130px]" title={String(desc)}>
+                                        {String(desc)}
+                                      </td>
+                                      <td className="py-1 px-1 text-center text-amber-400 font-bold">
+                                        {String(code)}
+                                      </td>
+                                      <td className="py-1 px-1 text-right text-emerald-400">
+                                        {rev ? Number(rev).toLocaleString("vi-VN") : "0"}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-6 text-center text-slate-400 text-xs">
+                          <Activity className="w-6 h-6 mx-auto mb-2 text-indigo-400 animate-pulse" />
+                          <p className="font-bold">Chưa nạp tệp dữ liệu vào Trạm làm việc chính</p>
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            Hãy chuyển sang tab "Trạm dữ liệu" tải tệp lên để trình chiếu và đồng bộ trực quan tại đây.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Công cụ khảo sát / bỏ phiếu liên ngành trực tuyến */}
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-slate-850">
+                        <div className="text-left text-[11px] text-slate-300">
+                          <strong>Bỏ phiếu phê duyệt nhanh:</strong> Bạn có đồng ý với đề xuất phân loại tự động của AI không?
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => alert("Đơn vị của bạn đã biểu quyết: ĐỒNG Ý")}
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] rounded-lg cursor-pointer transition"
+                          >
+                            ✓ ĐỒNG Ý (4 Đơn vị)
+                          </button>
+                          <button
+                            onClick={() => alert("Đơn vị của bạn đã biểu quyết: Ý KIẾN KHÁC")}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[10px] rounded-lg cursor-pointer transition"
+                          >
+                            ✎ Ý KIẾN KHÁC (0)
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1488,8 +1834,61 @@ export const VideoRoom: React.FC = () => {
                 </div>
               ))}
 
-              {/* Người dùng mô phỏng trực tuyến */}
-              {isSimulationMode && simulatedParticipants.map(member => (
+              {/* Thành viên thực tế tham gia cùng phòng (Đồng bộ thời gian thực qua Firestore) */}
+              {realtimeParticipants.map(member => (
+                <div key={member.id} className="relative bg-slate-950 border border-slate-800 rounded-xl aspect-video overflow-hidden shadow-md group">
+                  <div className={`absolute inset-0 bg-gradient-to-br from-indigo-950/20 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 transition-all duration-300 ${member.speaking && member.micOn ? "ring-2 ring-emerald-500/40" : ""}`}>
+                    
+                    {member.camOn ? (
+                      <div className="flex flex-col items-center text-center space-y-2">
+                        <div className={`w-11 h-11 rounded-full ${member.avatarColor} flex items-center justify-center text-white font-bold text-sm shadow-inner border border-white/10 relative`}>
+                          {member.name.charAt(0)}
+                          <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-[8px] text-white px-1 py-0.2 rounded font-bold uppercase tracking-wider scale-90 border border-slate-950 animate-pulse">
+                            LIVE
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-[11px] text-slate-300 font-semibold">{member.name}</p>
+                          <p className="text-[9px] text-indigo-400 mt-0.5 font-semibold uppercase tracking-wider">{member.unit}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center text-center space-y-1.5">
+                        <div className="w-9 h-9 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600 relative">
+                          <VideoOff className="w-4 h-4" />
+                          <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-[8px] text-white px-1 py-0.2 rounded font-bold uppercase tracking-wider scale-90 border border-slate-950">
+                            LIVE
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-semibold">{member.name}</p>
+                        <p className="text-[9px] text-slate-600">{member.unit} (Ẩn Cam)</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
+                    <div className="px-2 py-0.5 bg-slate-950/85 backdrop-blur-sm border border-slate-800 rounded-lg text-[10px] font-medium flex items-center gap-1.2 text-white">
+                      <span className={`w-1.2 h-1.2 rounded-full ${member.micOn && member.speaking ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`}></span>
+                      {member.name}
+                    </div>
+
+                    <div className="flex gap-1">
+                      {member.micOn ? (
+                        <span className="p-1 bg-emerald-500/10 text-emerald-400 rounded-md border border-emerald-500/20 text-[9px]">
+                          <Mic className="w-2.5 h-2.5" />
+                        </span>
+                      ) : (
+                        <span className="p-1 bg-rose-500/10 text-rose-400 rounded-md border border-rose-500/20 text-[9px]">
+                          <MicOff className="w-2.5 h-2.5" />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Thành viên giả lập (Chỉ hiển thị khi phòng chưa có ai khác tham gia để tạo không khí) */}
+              {realtimeParticipants.length === 0 && simulatedParticipants.map(member => (
                 <div key={member.id} className="relative bg-slate-950 border border-slate-800 rounded-xl aspect-video overflow-hidden shadow-md group">
                   <div className={`absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 transition-all duration-300 ${member.speaking && member.micOn ? "ring-2 ring-emerald-500/40" : ""}`}>
                     
@@ -1503,7 +1902,7 @@ export const VideoRoom: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-[11px] text-slate-300 font-semibold">{member.name}</p>
-                          <p className="text-[9px] text-slate-500 mt-0.5">Liên kết mã hóa</p>
+                          <p className="text-[9px] text-slate-500 mt-0.5">Mô phỏng liên kết</p>
                         </div>
                       </div>
                     ) : (
@@ -1545,7 +1944,9 @@ export const VideoRoom: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg flex items-center gap-1.5">
                   <Users className="w-4 h-4" />
-                  <span className="text-xs font-bold">{isSimulationMode ? simulatedParticipants.length + 1 : remoteUsers.length + 1} trực tuyến</span>
+                  <span className="text-xs font-bold">
+                    {realtimeParticipants.length + (realtimeParticipants.length === 0 && isSimulationMode ? simulatedParticipants.length : remoteUsers.length) + 1} trực tuyến
+                  </span>
                 </span>
                 <div className="text-[10px] text-slate-400 hidden sm:block">
                   Độ trễ mạng: <span className="text-emerald-400 font-mono">12 ms</span>

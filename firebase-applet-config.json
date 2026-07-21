@@ -6,5 +6,6 @@
   "storageBucket": "even-aria-rtn3v.firebasestorage.app",
   "messagingSenderId": "376619303274",
   "measurementId": "",
-  "oAuthClientId": "376619303274-b2gk8j8jbpg2s1st6aeovk802r6h7t2f.apps.googleusercontent.com"
+  "oAuthClientId": "376619303274-b2gk8j8jbpg2s1st6aeovk802r6h7t2f.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }
