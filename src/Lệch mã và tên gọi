@@ -8012,10 +8012,10 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         </div>
                         <div>
                           <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-sky-800 transition-colors flex items-center gap-1.5">
-                            AI Chuẩn Hóa VSIC &amp; Gộp Mô Tả
+                            Lệch mã với mô tả
                           </h3>
                           <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
-                            AI tự đọc văn bản mô tả ngành thô, tự gộp chuỗi mô tả &amp; đối chiếu gán chính xác mã ngành VSIC 2018.
+                            Tự động gom để xác định nhanh cùng 1 loại mô tả nhưng có thể đc ghi làm nhiều mã ngành khác nhau và ngược lại.
                           </p>
                         </div>
                       </div>
@@ -8041,10 +8041,10 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         </div>
                         <div>
                           <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-800 transition-colors flex items-center gap-1.5">
-                            Siêu Công Cụ Dữ Liệu
+                            Hỗ trợ & tiện ích
                           </h3>
                           <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
-                            Ghép nối nhiều tệp Excel (Merge), Tách tệp tự động (Split) &amp; So sánh đối chiếu sai biệt (Data Diff) siêu tốc.
+                           AI chuyển ngôn ngữ tự nhiên thành các câu lệnh để trúy vẫn qua SQL, excel hoặc lọc danh sách theo yêu cầu  .
                           </p>
                         </div>
                       </div>
