@@ -7919,7 +7919,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         </span>
                       </div>
                       <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2 pt-1">
-                        🚀 CÁC CÔNG CỤ THƯỜNG XUYÊN SỬ DỤNG TRONG CÔNG TÁC KIỂM TRA LÀM SẠCH DỮ LIỆU SỬ DỤNG TRÍ TUỆ NHÂN TẠO
+                        🚀 ÁP DỤNG AI TRONG CÔNG TÁC KIỂM TRA LÀM SẠCH DỮ LIỆU
                       </h2>
                       <p className="text-xs text-slate-600 font-medium leading-relaxed max-w-3xl">
                         Giải pháp tổng thể rà soát mâu thuẫn logic, phát hiện bất thường, tự động chuẩn hóa mã ngành VSIC bằng AI và công cụ ghép/tách/đối chiếu dữ liệu nâng cao.
