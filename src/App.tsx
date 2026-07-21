@@ -7559,7 +7559,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               }`}
             >
               <FileSpreadsheet className="w-4 h-4 shrink-0 text-indigo-500" />
-              📂 Trạm Dữ liệu
+              📂 Trung Tâm Dữ Liệu
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${openDropdown === "quanlytep" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "quanlytep" && (
@@ -9577,7 +9577,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 animate-fade-in shadow-sm">
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <Brain className="w-5 h-5 text-indigo-600 animate-pulse" /> CÔNG CỤ TỰ ĐỘNG PHÂN TÍCH BẤT NHẤT QUÁN QUY LUẬT VSIC
+                    <Brain className="w-5 h-5 text-indigo-600 animate-pulse" /> CÔNG CỤ TỰ ĐỘNG GOM NHÓM CÙNG MÔ TẢ NHƯNG KHÁC MÃ VÀ NGƯỢC LẠI
                   </h3>
                   <p className="text-xs text-slate-500">Rà soát chéo thông minh: Quét toàn bộ tệp tin dữ liệu chính, phát hiện mâu thuẫn phân gán lỗi giữa Mô tả hoạt động thực tế và Bản mã ngành VSIC.</p>
                 </div>
@@ -9656,8 +9656,9 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                                   setRowIndicesFilter(allIndices);
                                   setRowFilterLabel("Tất cả dòng mâu thuẫn (Cùng mô tả nhưng khác mã ngành)");
                                   setViewPage(1);
-                                  setIsConfigExpanded(false);
-                                  setActiveTab("xemdulieu");
+                                  setTimeout(() => {
+                                    document.getElementById("vsic-filtered-table")?.scrollIntoView({ behavior: "smooth" });
+                                  }, 100);
                                 }}
                                 className="bg-indigo-550/10 hover:bg-indigo-600 text-indigo-700 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border border-indigo-200 flex items-center gap-1.5 active:scale-95 shadow-sm"
                                 title="Lọc tất cả các dòng có mô tả trùng nhau nhưng bị gán mã khác nhau để xem tập trung"
@@ -9703,8 +9704,9 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                                                 setRowIndicesFilter(c.rows);
                                                 setRowFilterLabel(`Mô tả: "${item.motaText}" ➔ Mã: ${c.code}`);
                                                 setViewPage(1);
-                                                setIsConfigExpanded(false);
-                                                setActiveTab("xemdulieu");
+                                                setTimeout(() => {
+                                                  document.getElementById("vsic-filtered-table")?.scrollIntoView({ behavior: "smooth" });
+                                                }, 100);
                                               }}
                                               className={`font-mono flex items-center gap-1 transition-all cursor-pointer text-[10px] px-2.5 py-0.5 rounded border ${
                                                 isMinority 
@@ -9728,8 +9730,9 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                                       setRowIndicesFilter(allIndices);
                                       setRowFilterLabel(`Cùng mô tả: "${item.motaText}"`);
                                       setViewPage(1);
-                                      setIsConfigExpanded(false);
-                                      setActiveTab("xemdulieu");
+                                      setTimeout(() => {
+                                        document.getElementById("vsic-filtered-table")?.scrollIntoView({ behavior: "smooth" });
+                                      }, 100);
                                     }}
                                     className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded text-[10px] font-bold self-start cursor-pointer transition-all flex items-center gap-1 active:scale-95 shrink-0"
                                     title="Lọc tất cả các dòng của nhóm mô tả này"
@@ -9792,8 +9795,9 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                                               setRowIndicesFilter(descObj.rows);
                                               setRowFilterLabel(`Mã VSIC: ${item.codeValue} ➔ Mô tả: "${descObj.desc}"`);
                                               setViewPage(1);
-                                              setIsConfigExpanded(false);
-                                              setActiveTab("xemdulieu");
+                                              setTimeout(() => {
+                                                document.getElementById("vsic-filtered-table")?.scrollIntoView({ behavior: "smooth" });
+                                              }, 100);
                                             }}
                                             className="text-slate-700 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-800 rounded p-1.5 flex items-start justify-between gap-2 border border-slate-200 text-[11px] w-full text-left transition-all cursor-pointer animate-fade-in"
                                             title={`Click để lọc riêng ${descObj.count} dòng mang mô tả này`}
@@ -9813,8 +9817,9 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                                       setRowIndicesFilter(allIndices);
                                       setRowFilterLabel(`Cùng mã VSIC: ${item.codeValue}`);
                                       setViewPage(1);
-                                      setIsConfigExpanded(false);
-                                      setActiveTab("xemdulieu");
+                                      setTimeout(() => {
+                                        document.getElementById("vsic-filtered-table")?.scrollIntoView({ behavior: "smooth" });
+                                      }, 100);
                                     }}
                                     className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded text-[10px] font-bold self-start cursor-pointer transition-all flex items-center gap-1 active:scale-95 shrink-0"
                                     title="Lọc tất cả các dòng của nhóm mã này"
@@ -9850,7 +9855,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               </div>
 
               {mainData.length > 0 && (
-                <div className="space-y-4">
+                <div id="vsic-filtered-table" className="space-y-4 scroll-mt-20">
                   {rowFilterLabel && (
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-800 animate-slide-up">
                       <div className="flex items-center gap-2">
