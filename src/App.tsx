@@ -8023,7 +8023,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 <div className="flex items-center gap-2 border-b border-slate-150 pb-2">
                   <Layers className="w-5 h-5 text-indigo-600" />
                   <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">
-                    ⚙️ Quy trình xử lý dữ liệu khép kín
+                    ⚙️ Các bước Kiểm tra xử lý và tổng hợp dữ liệu 
                   </h3>
                 </div>
                 
