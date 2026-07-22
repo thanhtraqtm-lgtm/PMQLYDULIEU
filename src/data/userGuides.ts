@@ -29,39 +29,39 @@ export interface GuideScenario {
 export const PIPELINE_STEPS: PipelineStep[] = [
   {
     id: 1,
-    title: "Nạp & Định nghĩa",
-    shortDesc: "Tải file Excel/CSV thô, đặt lại tên cột và lọc các cột cần thiết.",
-    fullTitle: "Nạp & Định nghĩa Cột (Khởi đầu bắt buộc)",
-    fullDesc: "Mọi tệp Excel khảo sát từ các địa bàn gửi về có thể có cấu trúc tiêu đề cột khác nhau (ví dụ: Ma_DN, MADT, Mã đơn vị). Bạn cần đưa vào hệ thống và gán nhãn chuẩn hóa để các tính năng phân tích phía sau tự động nhận diện chính xác.",
+    title: "Tải file & Định nghĩa cột",
+    shortDesc: "Truy cập Trung Tâm Dữ liệu chọn Tải file và Định Nghĩa Cột, đổi tên & loại bỏ cột thừa.",
+    fullTitle: "Bước 01: Truy cập vào Trung Tâm Dữ liệu chọn Tải file và Định Nghĩa Cột",
+    fullDesc: "Truy cập vào Trung Tâm Dữ liệu chọn Tải file và Định Nghĩa Cột sau đó tùy theo các cột cần đọc để đặt lại tên cột cho dễ nhớ và loại bỏ các cột không cần thiết.",
     highlights: [
-      "Tệp đầu vào: Excel (.xlsx) hoặc CSV thô",
-      "Đặt lại tên cột dễ nhớ, loại bỏ cột thừa"
+      "Truy cập Trung Tâm Dữ liệu ➔ Tải file & Định nghĩa cột",
+      "Đặt lại tên cột cho dễ nhớ và loại bỏ các cột không cần thiết"
     ],
-    actionText: "📂 NẠP FILE & ĐỊNH NGHĨA CỘT NGAY",
+    actionText: "📂 TẢI FILE & ĐỊNH NGHĨA CỘT NGAY",
     targetTab: "xemdulieu"
   },
   {
     id: 2,
-    title: "Kiểm soát & Logic",
-    shortDesc: "Đặt quy tắc logic, quét phát hiện mâu thuẫn doanh thu & lao động.",
-    fullTitle: "Rà soát Quy tắc Logic & Phát hiện Lệch quy luật",
-    fullDesc: "Tránh các lỗi nhập liệu phi lý trong dữ liệu khảo sát. Bạn có thể tự viết các biểu thức logic dễ hiểu trong Rules Studio (ví dụ: DoanhThu > 0 => LaoDong > 0). Hệ thống sẽ chạy quét tức thì, bôi đỏ các ô bị vi phạm và hiển thị danh sách cảnh báo chi tiết.",
+    title: "Kiểm tra logic đa điều kiện",
+    shortDesc: "Vào menu Rà soát và Kiểm tra chọn Kiểm tra logic đa điều kiện, ra lệnh AI tiếng Việt.",
+    fullTitle: "Bước 02: Vào menu Rà soát và Kiểm tra chọn Kiểm tra logic đa điều kiện",
+    fullDesc: "Vào menu Rà soát và Kiểm tra chọn Kiểm tra logic đa điều kiện ở đây có thể ra lệnh cho AI bằng khẩu lệnh tiếng việt đơn giản. Kiểm tra rà soát lệnh đúng cần tra cứu cho lần sau thì lưu lại.",
     highlights: [
-      "Tự thiết lập quy tắc rà soát linh hoạt",
-      "Phát hiện Outliers (giá trị đột biến, bất thường)"
+      "Ra lệnh cho AI bằng khẩu lệnh tiếng Việt đơn giản",
+      "Kiểm tra rà soát lệnh đúng, lưu lại để tra cứu cho lần sau"
     ],
-    actionText: "🛡️ VÀO RULES STUDIO (QUY TẮC)",
+    actionText: "🛡️ VÀO KIỂM TRA LOGIC NGAY",
     targetTab: "rulesstudio"
   },
   {
     id: 3,
-    title: "Tổng hợp & Xuất",
-    shortDesc: "Lập bảng đa chiều Pivot, tính tần suất và tải báo cáo sạch Excel.",
-    fullTitle: "Tổng hợp Báo cáo đa chiều & Xuất Excel Sạch",
-    fullDesc: "Sau khi dữ liệu đã được nạp và lọc sạch lỗi logic, đây là lúc tạo ra sản phẩm cuối cùng. Thiết lập các trục dòng (Row), trục cột (Column) và chỉ tiêu tính toán (Doanh thu, Lao động, Số đơn vị) để hệ thống tự động vẽ bảng Pivot đa chiều và kết xuất file Excel chuẩn báo cáo.",
+    title: "Tổng hợp theo ngành & xã",
+    shortDesc: "Tổng hợp theo tên ngành kinh tế cấp 1, 2, 3 theo xã về Doanh Thu hoặc Lao động.",
+    fullTitle: "Bước 03: Tổng hợp theo tên ngành kinh tế cấp 1, 2, 3 theo xã về Doanh Thu Hoặc Lao động",
+    fullDesc: "Tổng hợp theo tên ngành kinh tế cấp 1 ,2 , 3 theo xã về Doanh Thu Hoặc Lao động và những chỉ tiêu cần tổng hợp trên màn hình đc hiển thị trực quan.",
     highlights: [
-      "Lập bảng thống kê Pivot nhanh trong 3 giây",
-      "Xuất file báo cáo sạch không tì vết"
+      "Tổng hợp theo tên ngành kinh tế cấp 1, 2, 3 và theo xã",
+      "Chỉ tiêu Doanh Thu, Lao động hiển thị trực quan"
     ],
     actionText: "📈 ĐẾN TRANG TỔNG HỢP BÁO CÁO",
     targetTab: "tonghop"
@@ -76,7 +76,7 @@ export const GUIDE_SCENARIOS: GuideScenario[] = [
     title: "Lộ trình: Xử lý tệp dữ liệu thô (Excel / CSV mới nạp)",
     intro: "Khi bạn nhận được một tệp khảo sát mới từ bên ngoài, cấu trúc cột có thể lộn xộn. Hãy đi theo quy trình 3 bước cực kỳ đơn giản sau:",
     steps: [
-      "Vào tab “Quản lý Tệp” ➔ “Xem & Định nghĩa cột”. Tải tệp lên.",
+      "Vào tab “Trung Tâm Dữ Liệu” ➔ “Tải file & Định nghĩa cột”. Tải tệp lên.",
       "Tìm dòng “Định nghĩa / Ánh xạ cột dữ liệu” phía dưới. Tại đây, hãy chỉ ra đâu là cột chứa Mã đơn vị, Doanh thu, Số lao động, hay Tỉnh thành bằng cách chọn nhãn tương ứng ở hộp thả xuống.",
       "Nếu có cột viết tắt khó hiểu, bạn có thể nhấp đúp để đặt lại tên tiếng Việt trực quan. Sau khi gán xong, dữ liệu lập tức hiển thị sạch sẽ ở bảng xem trước!"
     ],
@@ -176,26 +176,6 @@ export const GUIDE_SCENARIOS: GuideScenario[] = [
     ]
   },
   {
-    id: "sampling",
-    icon: "🎲",
-    buttonText: "Tôi muốn lấy mẫu thanh tra (Sampling)",
-    title: "Lộ trình: Thiết lập Lấy mẫu thanh tra phân tầng (Sampling)",
-    intro: "Khi số lượng doanh nghiệp khảo sát quá lớn (ví dụ: hàng vạn doanh nghiệp), việc kiểm tra thủ công toàn bộ là bất khả thi. Bạn cần lấy một tập mẫu đại diện nhưng vẫn đảm bảo tính khách quan và khoa học để thanh tra trực tiếp:",
-    steps: [
-      "Vào tab “Quản lý Tệp” ➔ “Chọn mẫu ngẫu nhiên” (hoặc nhấp trực tiếp vào nút hành động bên dưới).",
-      "Xác định phương pháp lấy mẫu: “Ngẫu nhiên đơn giản” (Simple Random) hoặc “Phân tầng tỉ lệ” (Stratified Sampling) theo ngành nghề/vị trí địa lý để đảm bảo nhóm nào cũng có đại diện phù hợp.",
-      "Chọn kích thước mẫu (ví dụ: lấy 5% tổng số dòng hoặc cố định 100 doanh nghiệp), sau đó hệ thống sẽ tự động rút trích và bôi đậm danh sách được chọn. Bạn có thể tải ngay tệp đã lấy mẫu về để thực thi!"
-    ],
-    actionButtons: [
-      {
-        text: "🎲 Đến công cụ Lấy mẫu thanh tra",
-        tab: "chonmau",
-        stepId: 1,
-        style: "primary"
-      }
-    ]
-  },
-  {
     id: "yoy",
     icon: "🔄",
     buttonText: "Tôi muốn đối sánh dữ liệu liên năm (YoY)",
@@ -211,51 +191,6 @@ export const GUIDE_SCENARIOS: GuideScenario[] = [
         text: "🔄 Đến công cụ Đối sánh YoY",
         tab: "sosanh",
         stepId: 3,
-        style: "primary"
-      }
-    ]
-  },
-  {
-    id: "collab",
-    icon: "👥",
-    buttonText: "Tôi muốn cộng tác nhập liệu & Quản trị đám mây",
-    title: "Lộ trình: Nhập liệu đồng bộ đám mây & Cộng tác liên ngành",
-    intro: "Thay vì gửi file Excel qua lại dễ thất lạc và nhầm lẫn phiên bản, bạn có thể đồng bộ hóa dữ liệu khảo sát trực tiếp lên máy chủ đám mây của Chính phủ:",
-    steps: [
-      "Vào tab “Cộng tác liên ngành” ➔ “Nhập liệu trực tuyến”. Tại đây, các thành viên thuộc các tỉnh thành khác nhau có thể đăng nhập bằng email đơn vị và cùng nhau nạp dữ liệu lên một bảng tổng hợp chung thời gian thực.",
-      "Quản trị viên có thể vào “Quản trị hệ thống” (Admin Dashboard) để duyệt tài khoản, phân quyền thao tác và theo dõi hoạt động nạp dữ liệu của từng địa bàn."
-    ],
-    actionButtons: [
-      {
-        text: "📝 Vào form nhập liệu đám mây",
-        tab: "dataentry",
-        stepId: 1,
-        style: "primary"
-      },
-      {
-        text: "🛡️ Vào Quản trị hệ thống",
-        tab: "admindashboard",
-        stepId: 1,
-        style: "secondary"
-      }
-    ]
-  },
-  {
-    id: "excelsql",
-    icon: "🤖",
-    buttonText: "Tôi muốn viết công thức Excel & truy vấn SQL bằng AI",
-    title: "Lộ trình: Trợ lý AI tạo tự động công thức Excel & câu lệnh SQL",
-    intro: "Khi xử lý bảng dữ liệu lớn, việc nhớ chính xác cú pháp hàm Excel phức tạp hay câu lệnh SQL tốn nhiều thời gian. Hãy để Trợ lý AI hỗ trợ bạn:",
-    steps: [
-      "Vào tab “Tiện ích & Cộng tác” ➔ “Trợ lý Excel & Truy vấn SQL AI”.",
-      "Mô tả yêu cầu bằng ngôn ngữ tự nhiên (Ví dụ: 'Tính tổng doanh thu theo tỉnh thành', 'Viết câu lệnh SQL lọc doanh nghiệp có trên 50 lao động').",
-      "Trợ lý AI sẽ phân tích cấu trúc dữ liệu đang mở và sinh ra công thức/truy vấn chuẩn xác kèm giải thích chi tiết để bạn sử dụng ngay."
-    ],
-    actionButtons: [
-      {
-        text: "🤖 Mở Trợ lý Excel & SQL AI",
-        tab: "excelsql",
-        stepId: 1,
         style: "primary"
       }
     ]
