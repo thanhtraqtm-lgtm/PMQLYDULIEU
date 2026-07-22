@@ -11,7 +11,7 @@ import { LogIn, Key, HelpCircle, ShieldAlert, Radio, Users, Shield, CheckCircle 
 // @ts-ignore
 import logoImg from "./image/logo.jpg";
 // @ts-ignore
-import bannerImg from "./image/banner.jpg";
+import bannerImg from "./image/panner.jpg";
 // --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) INTEGRATED DIRECTLY FOR RELIABLE PORTABILITY ---
 const DB_NAME = "VTongDatabase";
 const DB_VERSION = 1;
@@ -364,12 +364,12 @@ import {
   Cpu,
   Zap,
   Save,
-  Video,
   ChevronDown,
   ChevronUp,
   Mic,
   MicOff,
-  Globe
+  Globe,
+  Camera
 } from "lucide-react";
 
 import { 
@@ -519,7 +519,7 @@ export function AuthScreen() {
             Cổng Kết Nối Liên Ngành
           </h1>
           <p className="text-xs text-slate-400">
-            Nhập liệu &amp; Quản trị dữ liệu trực tuyến qua Cloud Firebase
+            Nhập liệu &amp; Đồng bộ dữ liệu qua Cloud Firebase
           </p>
         </div>
 
@@ -905,7 +905,7 @@ export function MainAppContent() {
       setCollapsedBlocks(prev => ({ ...prev, phantich: false }));
     } else if (["pdf2word"].includes(activeTab)) {
       setCollapsedBlocks(prev => ({ ...prev, utilities: false }));
-    } else if (["dataentry", "excelsql", "admindashboard"].includes(activeTab)) {
+    } else if (["dataentry", "excelassistant", "admindashboard"].includes(activeTab)) {
       setCollapsedBlocks(prev => ({ ...prev, congtac: false }));
     }
   }, [activeTab]);
@@ -7484,16 +7484,24 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
         {/* Right: Banner Image & User Controls */}
         <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
-          {/* Banner decoration */}
-          <div className="hidden md:block relative h-11 w-48 rounded-lg overflow-hidden border border-white/20 shadow-inner">
-            <img 
-              src={bannerImg} 
-              alt="VSIC Banner" 
-              className="h-full w-full object-cover opacity-90 hover:opacity-100 transition-opacity"
-              onError={(e) => {
-                e.currentTarget.src = "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=240&q=80";
-              }}
-            />
+          {/* Panel Máy ảnh & Scan OCR - Cách xử lý hình ảnh */}
+          <div 
+            onClick={() => setActiveTab("dataentry")}
+            className="hidden md:flex items-center gap-2.5 bg-gradient-to-r from-indigo-900/80 via-purple-900/80 to-slate-900/80 border border-white/20 px-3.5 py-1.5 rounded-xl shadow-md hover:border-amber-300/60 transition-all cursor-pointer group hover:scale-[1.02]"
+            title="Nhấp để mở giao diện Máy ảnh & Scan OCR xử lý biểu mẫu"
+          >
+            <div className="w-8 h-8 rounded-lg bg-amber-400/20 border border-amber-300/40 flex items-center justify-center shrink-0 group-hover:bg-amber-400/30 transition-colors">
+              <Camera className="w-4 h-4 text-amber-300" />
+            </div>
+            <div className="text-left">
+              <div className="text-[11px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span>📸 Máy ảnh &amp; Scan OCR</span>
+                <span className="bg-amber-400/20 text-amber-200 text-[9px] px-1.5 py-0.2 rounded font-bold">AI Active</span>
+              </div>
+              <div className="text-[10px] text-slate-200 font-medium">
+                Cách xử lý: Quét trực tiếp phiếu &amp; nhận dạng biểu mẫu
+              </div>
+            </div>
           </div>
 
           {/* Hệ thống Công khai - Không yêu cầu Tài khoản */}
@@ -7569,7 +7577,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "xemdulieu" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <FileSpreadsheet className="w-4 h-4 text-sky-500 shrink-0" />
-                  Cấu trúc &amp; Định nghĩa cột
+                  Tải file &amp; Định nghĩa cột
                 </button>
                 <button 
                   onClick={() => { setActiveTab("ghepnoi"); setOpenDropdown(null); }}
@@ -7747,14 +7755,14 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 setOpenDropdown(openDropdown === "congtac" ? null : "congtac");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
-                ["pdf2word", "excelsql"].includes(activeTab)
+                ["pdf2word", "excelassistant"].includes(activeTab)
                   ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "congtac"
                     ? "bg-white/20 text-white border border-white/35"
                     : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <Users className={`w-4 h-4 shrink-0 ${["pdf2word", "excelsql"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
+              <Users className={`w-4 h-4 shrink-0 ${["pdf2word", "excelassistant"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
               🛠️ Tiện ích &amp; Cộng tác
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "congtac" ? "rotate-180" : ""}`} />
             </button>
@@ -7771,8 +7779,8 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   Đọc PDF &amp; Chuyển sang Word
                 </button>
                 <button 
-                  onClick={() => { setActiveTab("excelsql"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "excelsql" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
+                  onClick={() => { setActiveTab("excelassistant"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "excelassistant" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
                   Trợ lý Excel &amp; Truy vấn SQL AI
@@ -7865,165 +7873,14 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           {activeTab === "trangchu" && (
             <div className="space-y-8 animate-fade-in font-sans">
               
-              {/* FEATURE HIGHLIGHT HERO SECTION - 4 CORE AI SUPERPOWERS (LIGHT ELEGANT STYLE) */}
-              <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm border border-slate-200/80 relative overflow-hidden">
-                <div className="relative z-10 space-y-5">
-                  {/* Title & Badge Header */}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="bg-amber-100 text-amber-900 border border-amber-200/80 font-black text-[11px] px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-2xs">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-600 fill-current" /> TÍNH NĂNG XUẤT BẢN NỔI BẬT
-                        </span>
-                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                          <BrainCircuit className="w-3.5 h-3.5 text-indigo-600" /> Tích hợp AI Gemini
-                        </span>
-                      </div>
-                      <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2 pt-1">
-                        🚀 ÁP DỤNG AI TRONG CÔNG TÁC KIỂM TRA LÀM SẠCH DỮ LIỆU
-                      </h2>
-                      <p className="text-xs text-slate-600 font-medium leading-relaxed max-w-3xl">
-                        Giải pháp tổng thể rà soát mâu thuẫn logic, phát hiện bất thường, tự động chuẩn hóa mã ngành VSIC bằng AI và công cụ ghép/tách/đối chiếu dữ liệu nâng cao.
-                      </p>
-                    </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button 
-                        onClick={() => setActiveTab("chuanhoanganh")}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 active:scale-95"
-                      >
-                        <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" /> Trải Nghiệm AI VSIC
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 4 Core Highlight Cards (Light Pastel Theme) */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Card 1: Rà Soát Logic */}
-                    <div 
-                      onClick={() => setActiveTab("kiemtralogic")}
-                      className="bg-slate-50/80 hover:bg-white border border-slate-200/90 hover:border-indigo-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer group relative flex flex-col justify-between"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center justify-center group-hover:scale-105 transition-transform">
-                            <CheckSquare className="w-5 h-5" />
-                          </div>
-                          <span className="text-[10px] font-mono font-extrabold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                            RÀ SOÁT #1
-                          </span>
-                        </div>
-                        <div>
-                          <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-indigo-700 transition-colors flex items-center gap-1.5">
-                            Rà Soát Logic Đa Chiều
-                          </h3>
-                          <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
-                            Quét toàn bộ dữ liệu theo bộ quy tắc nghiệp vụ, phát hiện mâu thuẫn chỉ tiêu, vi phạm logic &amp; ô rỗng.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="pt-3 mt-3 border-t border-slate-200/60 flex items-center justify-between text-[11px] font-bold text-indigo-700">
-                        <span>Kiểm Tra Logic</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                      </div>
-                    </div>
-
-                    {/* Card 2: Outliers */}
-                    <div 
-                      onClick={() => setActiveTab("outliers")}
-                      className="bg-amber-50/40 hover:bg-white border border-amber-200/80 hover:border-amber-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer group relative flex flex-col justify-between"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 border border-amber-200 flex items-center justify-center group-hover:scale-105 transition-transform">
-                            <AlertTriangle className="w-5 h-5" />
-                          </div>
-                          <span className="text-[10px] font-mono font-extrabold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-md border border-amber-200">
-                            RÀ SOÁT #2
-                          </span>
-                        </div>
-                        <div>
-                          <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-amber-800 transition-colors flex items-center gap-1.5">
-                            Phát Hiện Bất Thường (Outlier)
-                          </h3>
-                          <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
-                            Thuật toán Z-Score &amp; IQR tự động cảnh báo biến động đột biến, lệch đơn vị tính, nghi ngờ sai số.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="pt-3 mt-3 border-t border-amber-200/60 flex items-center justify-between text-[11px] font-bold text-amber-800">
-                        <span>Outliers Engine</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                      </div>
-                    </div>
-
-                    {/* Card 3: AI VSIC */}
-                    <div 
-                      onClick={() => setActiveTab("chuanhoanganh")}
-                      className="bg-sky-50/50 hover:bg-white border border-sky-200 hover:border-sky-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer group relative flex flex-col justify-between ring-1 ring-sky-200/60"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-800 border border-sky-200 flex items-center justify-center group-hover:scale-105 transition-transform">
-                            <BrainCircuit className="w-5 h-5" />
-                          </div>
-                          <span className="text-[10px] font-mono font-extrabold text-sky-900 bg-sky-100 px-2 py-0.5 rounded-md border border-sky-300 flex items-center gap-1">
-                            <Sparkles className="w-2.5 h-2.5 text-amber-600 fill-current" /> AI GEMINI
-                          </span>
-                        </div>
-                        <div>
-                          <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-sky-800 transition-colors flex items-center gap-1.5">
-                            Lệch mã với mô tả
-                          </h3>
-                          <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
-                            Tự động gom để xác định nhanh cùng 1 loại mô tả nhưng có thể đc ghi làm nhiều mã ngành khác nhau và ngược lại.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="pt-3 mt-3 border-t border-sky-200/60 flex items-center justify-between text-[11px] font-bold text-sky-800">
-                        <span>AI VSIC Mapper</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                      </div>
-                    </div>
-
-                    {/* Card 4: Super Data Tools */}
-                    <div 
-                      onClick={() => setActiveTab("ghepnoi")}
-                      className="bg-emerald-50/40 hover:bg-white border border-emerald-200/80 hover:border-emerald-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer group relative flex flex-col justify-between"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center justify-center group-hover:scale-105 transition-transform">
-                            <FileSpreadsheet className="w-5 h-5" />
-                          </div>
-                          <span className="text-[10px] font-mono font-extrabold text-emerald-900 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-300">
-                            TRUNG TÂM DỮ LIỆU
-                          </span>
-                        </div>
-                        <div>
-                          <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-800 transition-colors flex items-center gap-1.5">
-                            Hỗ trợ & tiện ích
-                          </h3>
-                          <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
-                           AI chuyển ngôn ngữ tự nhiên thành các câu lệnh để trúy vẫn qua SQL, excel hoặc lọc danh sách theo yêu cầu  .
-                          </p>
-                        </div>
-                      </div>
-                      <div className="pt-3 mt-3 border-t border-emerald-200/60 flex items-center justify-between text-[11px] font-bold text-emerald-800">
-                        <span>Ghép, Tách, So Sánh</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
               {/* 2. PIPELINE STEPS */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-150 pb-2">
                   <Layers className="w-5 h-5 text-indigo-600" />
                   <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">
-                    ⚙️ Các bước Kiểm tra xử lý và tổng hợp dữ liệu 
+                    ⚙️ Các bước nạp file và xử lý dữ liệu
                   </h3>
                 </div>
                 
@@ -10237,7 +10094,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             </div>
           )}
 
-          {activeTab === "excelsql" && (
+          {activeTab === "excelassistant" && (
             <div className="space-y-6 animate-fade-in">
               <React.Suspense fallback={<LazyTabFallback />}>
                 <ExcelSqlAssistant mainData={mainData} fileName={fileName} />
