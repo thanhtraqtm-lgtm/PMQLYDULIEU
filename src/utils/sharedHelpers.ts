@@ -518,4 +518,51 @@ export function parse2DArrayWithSmartHeader(rows: any[][]): { data: any[], colum
   };
 }
 
+// Chuyển từ components/sectorRevenueChart.tsx sang đây để App.tsx (và các module khác) có thể
+// dùng hàm này ngay lập tức (đồng bộ), không phụ thuộc việc lazy-load component biểu đồ.
+export function parseRobustNumber(val: any): number {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === "number") return val;
+  let str = String(val).trim();
+  if (!str) return 0;
+
+  str = str.replace(/\s+/g, "").replace(/[đđVNDvnd]/g, "");
+
+  const hasComma = str.includes(",");
+  const hasDot = str.includes(".");
+
+  if (hasComma && hasDot) {
+    if (str.indexOf(".") < str.indexOf(",")) {
+      str = str.replace(/\./g, "").replace(/,/g, ".");
+    } else {
+      str = str.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    const commas = (str.match(/,/g) || []).length;
+    if (commas > 1) {
+      str = str.replace(/,/g, "");
+    } else {
+      const parts = str.split(",");
+      if (parts[1].length === 3) {
+        str = str.replace(/,/g, "");
+      } else {
+        str = str.replace(/,/g, ".");
+      }
+    }
+  } else if (hasDot) {
+    const dots = (str.match(/\./g) || []).length;
+    if (dots > 1) {
+      str = str.replace(/\./g, "");
+    } else {
+      const parts = str.split(".");
+      if (parts[1].length === 3) {
+        str = str.replace(/\./g, "");
+      }
+    }
+  }
+
+  const clean = str.replace(/[^0-9.\-]/g, "");
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+}
 

@@ -1,6 +1,6 @@
 {
   "name": "HỆ THỐNG AI SO SÁNH KIỂM TRA XỬ LÝ DỮ LIỆU",
   "description": "Hệ thống tự động so sánh đối chiếu mô tả với mã ngành, rà soát lô-gích toán học, đối chiếu các thời điểm và xử lý tổng hợp dữ liệu ",
-  "requestFramePermissions": ["camera", "microphone"],
+  "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

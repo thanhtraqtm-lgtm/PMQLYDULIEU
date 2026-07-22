@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Sliders, Database, Play, CheckCircle, AlertTriangle, FileSpreadsheet, Sparkles, RefreshCw, ChevronRight, CornerDownRight, HelpCircle } from "lucide-react";
-import { parseRobustNumber } from "./sectorRevenueChart";
+import { parseRobustNumber } from "../utils/sharedHelpers";
 
 interface ComplexCalculationsProps {
   mathFileAId: string;

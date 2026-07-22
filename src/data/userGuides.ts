@@ -218,26 +218,45 @@ export const GUIDE_SCENARIOS: GuideScenario[] = [
   {
     id: "collab",
     icon: "👥",
-    buttonText: "Tôi muốn chia sẻ dữ liệu & Họp trực tuyến",
-    title: "Lộ trình: Nhập liệu đồng bộ đám mây & Họp trực tuyến liên ngành",
-    intro: "Thay vì gửi file Excel qua lại dễ thất lạc và nhầm lẫn phiên bản, bạn có thể đồng bộ hóa dữ liệu khảo sát trực tiếp lên máy chủ đám mây của Chính phủ và họp video trực tiếp để sửa lỗi:",
+    buttonText: "Tôi muốn cộng tác nhập liệu & Quản trị đám mây",
+    title: "Lộ trình: Nhập liệu đồng bộ đám mây & Cộng tác liên ngành",
+    intro: "Thay vì gửi file Excel qua lại dễ thất lạc và nhầm lẫn phiên bản, bạn có thể đồng bộ hóa dữ liệu khảo sát trực tiếp lên máy chủ đám mây của Chính phủ:",
     steps: [
       "Vào tab “Cộng tác liên ngành” ➔ “Nhập liệu trực tuyến”. Tại đây, các thành viên thuộc các tỉnh thành khác nhau có thể đăng nhập bằng email đơn vị và cùng nhau nạp dữ liệu lên một bảng tổng hợp chung thời gian thực.",
-      "If phát hiện số liệu bất thường của một tỉnh, hãy mở tab “Phòng họp trực tuyến”, tạo một cuộc gọi video bảo mật để họp bàn trực tiếp với cán bộ phụ trách tỉnh đó.",
       "Quản trị viên có thể vào “Quản trị hệ thống” (Admin Dashboard) để duyệt tài khoản, phân quyền thao tác và theo dõi hoạt động nạp dữ liệu của từng địa bàn."
     ],
     actionButtons: [
       {
-        text: "📞 Vào phòng họp trực tuyến",
-        tab: "videoroom",
+        text: "📝 Vào form nhập liệu đám mây",
+        tab: "dataentry",
         stepId: 1,
         style: "primary"
       },
       {
-        text: "📝 Vào form nhập liệu đám mây",
-        tab: "dataentry",
+        text: "🛡️ Vào Quản trị hệ thống",
+        tab: "admindashboard",
         stepId: 1,
         style: "secondary"
+      }
+    ]
+  },
+  {
+    id: "excelsql",
+    icon: "🤖",
+    buttonText: "Tôi muốn viết công thức Excel & truy vấn SQL bằng AI",
+    title: "Lộ trình: Trợ lý AI tạo tự động công thức Excel & câu lệnh SQL",
+    intro: "Khi xử lý bảng dữ liệu lớn, việc nhớ chính xác cú pháp hàm Excel phức tạp hay câu lệnh SQL tốn nhiều thời gian. Hãy để Trợ lý AI hỗ trợ bạn:",
+    steps: [
+      "Vào tab “Tiện ích & Cộng tác” ➔ “Trợ lý Excel & Truy vấn SQL AI”.",
+      "Mô tả yêu cầu bằng ngôn ngữ tự nhiên (Ví dụ: 'Tính tổng doanh thu theo tỉnh thành', 'Viết câu lệnh SQL lọc doanh nghiệp có trên 50 lao động').",
+      "Trợ lý AI sẽ phân tích cấu trúc dữ liệu đang mở và sinh ra công thức/truy vấn chuẩn xác kèm giải thích chi tiết để bạn sử dụng ngay."
+    ],
+    actionButtons: [
+      {
+        text: "🤖 Mở Trợ lý Excel & SQL AI",
+        tab: "excelsql",
+        stepId: 1,
+        style: "primary"
       }
     ]
   },

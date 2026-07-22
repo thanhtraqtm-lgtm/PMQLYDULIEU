@@ -2,11 +2,11 @@ import React, { useState, useMemo, useEffect } from "react";
 import { GoogleGenAI } from "@google/genai";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
-import { getFlexibleValue, normalizeAiExpression, parseCSV, beautifyColumnName, scoreColumnForRole, getUniqueRoleAssignments, parse2DArrayWithSmartHeader } from "./utils/sharedHelpers";
+import { getFlexibleValue, normalizeAiExpression, parseCSV, beautifyColumnName, scoreColumnForRole, getUniqueRoleAssignments, parse2DArrayWithSmartHeader, parseRobustNumber } from "./utils/sharedHelpers";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { DataEntry } from "./components/DataEntry";
-import ExcelSqlAssistant from "./components/ExcelSqlAssistant";
-import { GoogleDriveSync } from "./components/GoogleDriveSync";
+const DataEntry = React.lazy(() => import("./components/DataEntry").then(m => ({ default: m.DataEntry })));
+const ExcelSqlAssistant = React.lazy(() => import("./components/ExcelSqlAssistant"));
+const GoogleDriveSync = React.lazy(() => import("./components/GoogleDriveSync").then(m => ({ default: m.GoogleDriveSync })));
 import { LogIn, Key, HelpCircle, ShieldAlert, Radio, Users, Shield, CheckCircle } from "lucide-react";
 // @ts-ignore
 import logoImg from "./image/logo.jpg";
@@ -385,21 +385,19 @@ import {
   clearAllParentsInVSIC
 } from "./data/vsic";
 
-import VsicCatalogExplorer from "./components/vsicCatalogExplorer";
-import { BeautifulReportTable } from "./components/BeautifulReportTable";
-import { MainDataInlinePreview } from "./components/MainDataInlinePreview";
-import SectorRevenueChart, { parseRobustNumber } from "./components/sectorRevenueChart";
-import ComplexCalculations from "./components/ComplexCalculations";
-import PdfToWord from "./components/PdfToWord";
-import StatisticalOutliers from "./components/StatisticalOutliers";
-import SmartCatalogMatcher from "./components/SmartCatalogMatcher";
-import RulesStudio from "./components/RulesStudio";
-import { FrequencyAnalysis } from "./components/FrequencyAnalysis";
-import { CorrelationAnalysis } from "./components/CorrelationAnalysis";
-import LogicChecking from "./components/LogicChecking";
-import SamplingSelection from "./components/SamplingSelection";
-import FileMerger from "./components/FileMerger";
-import DataComparison from "./components/DataComparison";
+const VsicCatalogExplorer = React.lazy(() => import("./components/vsicCatalogExplorer"));
+const BeautifulReportTable = React.lazy(() => import("./components/BeautifulReportTable").then(m => ({ default: m.BeautifulReportTable })));
+const MainDataInlinePreview = React.lazy(() => import("./components/MainDataInlinePreview").then(m => ({ default: m.MainDataInlinePreview })));
+const ComplexCalculations = React.lazy(() => import("./components/ComplexCalculations"));
+const PdfToWord = React.lazy(() => import("./components/PdfToWord"));
+const StatisticalOutliers = React.lazy(() => import("./components/StatisticalOutliers"));
+const RulesStudio = React.lazy(() => import("./components/RulesStudio"));
+const FrequencyAnalysis = React.lazy(() => import("./components/FrequencyAnalysis").then(m => ({ default: m.FrequencyAnalysis })));
+const CorrelationAnalysis = React.lazy(() => import("./components/CorrelationAnalysis").then(m => ({ default: m.CorrelationAnalysis })));
+const LogicChecking = React.lazy(() => import("./components/LogicChecking"));
+const SamplingSelection = React.lazy(() => import("./components/SamplingSelection"));
+const FileMerger = React.lazy(() => import("./components/FileMerger"));
+const DataComparison = React.lazy(() => import("./components/DataComparison"));
 import { PIPELINE_STEPS, GUIDE_SCENARIOS } from "./data/userGuides";
 
 // Interface define
@@ -521,7 +519,7 @@ export function AuthScreen() {
             Cổng Kết Nối Liên Ngành
           </h1>
           <p className="text-xs text-slate-400">
-            Nhập liệu &amp; Hội họp video trực tuyến qua Cloud Firebase &amp; Agora
+            Nhập liệu &amp; Quản trị dữ liệu trực tuyến qua Cloud Firebase
           </p>
         </div>
 
@@ -808,6 +806,16 @@ const getDetailActionBtnColor = (id: number) => {
   }
 };
 
+// Giao diện chờ dùng chung khi một tab công cụ đang được tải (lazy-load) lần đầu tiên.
+function LazyTabFallback() {
+  return (
+    <div className="w-full flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
+      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+      <p className="text-xs font-bold uppercase tracking-wider">Đang tải công cụ...</p>
+    </div>
+  );
+}
+
 export function MainAppContent() {
   const { user, logout } = useAuth();
 
@@ -897,7 +905,7 @@ export function MainAppContent() {
       setCollapsedBlocks(prev => ({ ...prev, phantich: false }));
     } else if (["pdf2word"].includes(activeTab)) {
       setCollapsedBlocks(prev => ({ ...prev, utilities: false }));
-    } else if (["dataentry", "videoroom", "admindashboard"].includes(activeTab)) {
+    } else if (["dataentry", "excelsql", "admindashboard"].includes(activeTab)) {
       setCollapsedBlocks(prev => ({ ...prev, congtac: false }));
     }
   }, [activeTab]);
@@ -7337,139 +7345,223 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
 
   {/* Panel phía trên cùng thanh menu hiển thị Logo & Banner */}
-  {/* Panel phía trên cùng thanh menu hiển thị Logo & Banner chuẩn theo mẫu ảnh vector sắc nét */}
   const renderHeaderPanel = () => {
     return (
-      <div className="relative z-40 bg-gradient-to-r from-[#7dd3fc] via-[#b9e6fe] to-[#68ccfb] border-b border-sky-300 shadow-xs overflow-hidden select-none animate-fade-in">
-        {/* Subtle grid pattern background */}
-        <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(#0284c7_1px,transparent_1px)] [background-size:14px_14px]"></div>
-        
-        <div className="w-full px-4 sm:px-6 md:px-8 py-2.5 flex flex-col md:flex-row items-center justify-between gap-3 relative z-10">
-          
-          {/* Left Section: Logo + Title + Subtitle (Aligned flush to the left margin) */}
-          <div className="flex items-center gap-3 sm:gap-4 flex-1">
-            {/* Vector Badge / Logo */}
-            <div className="relative shrink-0 flex items-center justify-center w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-sky-600 via-blue-500 to-cyan-300 p-0.5 shadow-md">
-              <img 
-                src={logoImg} 
-                alt="Logo" 
-                className="w-full h-full rounded-full object-cover border-2 border-white"
-                onError={(e) => {
-                  e.currentTarget.src = "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=120&q=80";
-                }}
-              />
-              <div className="absolute -bottom-0.5 -right-0.5 bg-emerald-500 border-2 border-white h-3.5 w-3.5 rounded-full flex items-center justify-center">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400"></span>
-              </div>
-            </div>
-
-            {/* Banner Text Titles */}
-            <div className="space-y-0.5">
-              <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl font-black text-[#0c3370] tracking-tight uppercase leading-snug drop-shadow-xs">
-                HỆ THỐNG SO SÁNH KIỂM TRA XỬ LÝ DỮ LIỆU
-              </h1>
-              <p className="text-xs sm:text-sm font-extrabold text-[#990000] leading-snug">
-                Rà soát mâu thuẫn logic, kiểm tra không đồng nhất giữa mô tả và mã ngành, so sánh đối chiếu tổng hợp dữ liệu
-              </p>
+      <div className="bg-white/5 border-b border-white/10 relative z-40 px-6 py-3 flex flex-wrap items-center justify-between gap-4 select-none animate-fade-in">
+        {/* Left: Logo & Title */}
+        <div className="flex items-center gap-3.5">
+          <div className="relative group/logo">
+            <img 
+              src={logoImg} 
+              alt="VSIC Logo" 
+              className="h-12 w-12 rounded-full object-cover shadow-md border-2 border-white/30 group-hover/logo:scale-105 transition-transform"
+              onError={(e) => {
+                e.currentTarget.src = "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=120&q=80";
+              }}
+            />
+            <div className="absolute -bottom-1 -right-1 bg-emerald-500 border border-white h-3.5 w-3.5 rounded-full flex items-center justify-center" title="Hệ thống trực tuyến">
+              <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
             </div>
           </div>
+          <div>
+            <div className="text-sm font-extrabold text-white uppercase tracking-wide flex items-center gap-2">
+              <span>Hệ Thống kiểm tra xử lý so sánh tổng hợp dữ liệu </span>
+              <span className="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block border border-white/20">v4.0 Pro</span>
+            </div>
+            <div className="text-xs text-slate-100 font-bold drop-shadow-sm">
+              Rà soát giữa mô tả ngành và mã ngành, kiểm tra rà soát logic, so sánh đối chiếu tổng hợp dữ liệu
+            </div>
+          </div>
+        </div>
 
-          {/* Right Section: Visits counter pill & City Skyline Vector Graphic */}
-          <div className="hidden lg:flex items-center gap-4 shrink-0">
-            {/* Real-time visits counter badge */}
-            <div className="bg-white/85 backdrop-blur-xs border border-sky-200 rounded-xl px-3.5 py-1.5 shadow-xs flex items-center gap-2">
+        {/* Center: Live Interactive/Animated Analytics & Processing Pipeline */}
+        <div className="hidden lg:flex items-center gap-5 bg-white/10 border border-white/15 px-4 py-1.5 rounded-2xl shadow-inner max-w-sm xl:max-w-md flex-1 mx-4">
+          {/* Live indicator & Pulse Line */}
+          <div className="flex flex-col shrink-0 select-none">
+            <div className="flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <div className="text-[11px] font-bold text-slate-700">
-                Lượt truy cập: <span className="text-sky-700 font-extrabold">{totalQueries.toLocaleString("vi-VN")}</span>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (window.confirm("Bạn có chắc chắn muốn đặt lại bộ đếm lượt mở ứng dụng về 0?")) {
-                    localStorage.setItem("vsic_visit_count", "0");
-                    setTotalQueries(0);
-                  }
-                }}
-                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-all cursor-pointer"
-                title="Đặt lại bộ đếm"
-              >
-                <RotateCcw className="w-3 h-3" />
-              </button>
+              <span className="text-[10px] text-white font-extrabold uppercase tracking-wider">Bộ xử lý trung tâm</span>
             </div>
-
-            {/* Sharp Vector City Skyline Graphic */}
-            <div className="h-10 w-32 opacity-80 hover:opacity-100 transition-opacity flex items-end">
-              <svg viewBox="0 0 140 40" className="w-full h-full text-[#034b82] fill-current">
-                {/* Radio Tower / Mast */}
-                <line x1="12" y1="38" x2="12" y2="8" stroke="currentColor" strokeWidth="1.5" />
-                <line x1="8" y1="38" x2="16" y2="38" stroke="currentColor" strokeWidth="1.5" />
-                <circle cx="12" cy="6" r="2" fill="#ef4444" className="animate-ping" />
-
-                {/* Buildings */}
-                <rect x="22" y="16" width="10" height="24" rx="0.5" opacity="0.6" />
-                <rect x="34" y="10" width="14" height="30" rx="0.5" opacity="0.8" />
-                <rect x="50" y="20" width="8" height="20" rx="0.5" opacity="0.5" />
-                <rect x="60" y="6" width="16" height="34" rx="0.5" opacity="0.9" />
-                <rect x="78" y="14" width="12" height="26" rx="0.5" opacity="0.7" />
-                <rect x="92" y="2" width="18" height="38" rx="0.5" opacity="0.8" />
-                <rect x="112" y="12" width="12" height="28" rx="0.5" opacity="0.6" />
-                <rect x="126" y="18" width="10" height="22" rx="0.5" opacity="0.7" />
-              </svg>
+            
+            {/* Real-time stats text */}
+            <div className="text-[11px] text-slate-100 font-bold flex items-center gap-1.5 mt-0.5">
+              <span className="text-emerald-400">Đang hoạt động</span>
+              <span className="text-white/30">•</span>
+              <span className="text-white font-extrabold flex items-center gap-1" title="Tổng số lượt mở ứng dụng">
+                <span>{totalQueries.toLocaleString("vi-VN")} lượt</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm("Bạn có chắc chắn muốn đặt lại bộ đếm lượt mở ứng dụng về 0?")) {
+                      localStorage.setItem("vsic_visit_count", "0");
+                      setTotalQueries(0);
+                    }
+                  }}
+                  className="p-0.5 hover:bg-white/10 rounded text-sky-200 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
+                  title="Đặt lại bộ đếm về 0"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" />
+                </button>
+              </span>
             </div>
           </div>
 
+          {/* Animated SVG Sparkline Wave */}
+          <div className="flex-1 h-8 relative flex items-center justify-center min-w-[120px] overflow-hidden rounded-lg bg-white/5 px-2 border border-white/10">
+            <svg viewBox="0 0 100 30" className="w-full h-full overflow-visible">
+              <defs>
+                <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+                  <stop offset="50%" stopColor="#4f46e5" stopOpacity="0.9" />
+                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.2" />
+                </linearGradient>
+                <linearGradient id="fillGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.1" />
+                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+              
+              {/* Background area wave */}
+              <path 
+                d="M 0 22 C 15 12, 25 32, 40 15 C 55 2, 65 25, 80 10 C 90 0, 95 15, 100 12 L 100 30 L 0 30 Z" 
+                fill="url(#fillGrad)"
+                className="animate-pulse"
+              />
+              
+              {/* Glowing active path line */}
+              <path 
+                d="M 0 22 C 15 12, 25 32, 40 15 C 55 2, 65 25, 80 10 C 90 0, 95 15, 100 12" 
+                fill="none" 
+                stroke="url(#waveGrad)" 
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={{
+                  strokeDasharray: '200',
+                  strokeDashoffset: '0',
+                  animation: 'shiftPath 4s linear infinite'
+                }}
+              />
+              
+              {/* Moving dot tracker */}
+              <circle r="2.5" fill="#4f46e5" className="animate-ping" style={{ transformOrigin: 'center' }}>
+                <animateMotion 
+                  path="M 0 22 C 15 12, 25 32, 40 15 C 55 2, 65 25, 80 10 C 90 0, 95 15, 100 12" 
+                  dur="4s" 
+                  repeatCount="indefinite" 
+                />
+              </circle>
+              <circle r="1.5" fill="#06b6d4">
+                <animateMotion 
+                  path="M 0 22 C 15 12, 25 32, 40 15 C 55 2, 65 25, 80 10 C 90 0, 95 15, 100 12" 
+                  dur="4s" 
+                  repeatCount="indefinite" 
+                />
+              </circle>
+            </svg>
+
+            {/* Custom keyframe animation style tag */}
+            <style>{`
+              @keyframes shiftPath {
+                0% { strokeDashoffset: 200; }
+                100% { strokeDashoffset: 0; }
+              }
+            `}</style>
+          </div>
+
+          {/* Equalizer Wave simulation */}
+          <div className="flex items-end gap-1 h-7 px-1 shrink-0">
+            <div className="w-1 bg-white rounded-full animate-pulse h-3" style={{ animationDelay: '0.1s', animationDuration: '0.8s' }}></div>
+            <div className="w-1 bg-sky-200 rounded-full animate-pulse h-5" style={{ animationDelay: '0.3s', animationDuration: '1.2s' }}></div>
+            <div className="w-1 bg-cyan-200 rounded-full animate-pulse h-6" style={{ animationDelay: '0.5s', animationDuration: '0.9s' }}></div>
+            <div className="w-1 bg-emerald-300 rounded-full animate-pulse h-4" style={{ animationDelay: '0.2s', animationDuration: '1.1s' }}></div>
+            <div className="w-1 bg-teal-250 rounded-full animate-pulse h-2" style={{ animationDelay: '0.4s', animationDuration: '0.7s' }}></div>
+          </div>
+        </div>
+
+        {/* Right: Banner Image & User Controls */}
+        <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
+          {/* Banner decoration */}
+          <div className="hidden md:block relative h-11 w-48 rounded-lg overflow-hidden border border-white/20 shadow-inner">
+            <img 
+              src={bannerImg} 
+              alt="VSIC Banner" 
+              className="h-full w-full object-cover opacity-90 hover:opacity-100 transition-opacity"
+              onError={(e) => {
+                e.currentTarget.src = "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=240&q=80";
+              }}
+            />
+          </div>
+
+          {/* Hệ thống Công khai - Không yêu cầu Tài khoản */}
+          <div className="flex items-center gap-2 bg-emerald-600 border border-emerald-700 px-3.5 py-1.5 rounded-xl shadow-md transition-all hover:bg-emerald-700">
+            <div className="text-right">
+              <div className="text-[10px] text-emerald-100 font-extrabold uppercase tracking-wider flex items-center gap-1 justify-end">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-200"></span>
+                </span>
+                Hệ Thống
+              </div>
+              <div className="text-xs font-extrabold text-white flex items-center gap-1">
+                <Globe className="w-3.5 h-3.5 text-white shrink-0" />
+                Mở / Công khai
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   };
 
-  {/* Thanh Menu Ngang chuẩn 6 mục sát lề bên trái theo đúng yêu cầu */}
+  {/* Thanh Menu Ngang (Sub-header Navigation) sang trọng thay thế hoàn toàn Sidebar dọc */}
   const renderHorizontalMenu = () => {
     return (
-      <div className="bg-[#034b82] border-t border-sky-400/30 shadow-md relative z-30 px-4 sm:px-6 md:px-8 py-0 flex flex-nowrap items-center justify-start overflow-x-auto lg:overflow-visible select-none custom-scrollbar">
-        <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap shrink-0 w-full">
+      <div className="bg-blue-950/45 backdrop-blur-md border-t border-white/10 shadow-md relative z-30 px-6 py-2 flex flex-nowrap items-center justify-between gap-3 overflow-x-auto lg:overflow-visible select-none animate-fade-in custom-scrollbar">
+        <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
           
-          {/* 1. Trang chủ */}
+          {/* Nút TRANG CHỦ */}
           <button 
             onClick={(e) => {
               e.stopPropagation();
               setActiveTab("trangchu");
               setOpenDropdown(null);
             }}
-            className={`px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
               activeTab === "trangchu" 
-                ? "bg-[#002e52] text-white border-b-2 border-sky-300 shadow-inner" 
-                : "text-white hover:bg-white/10 hover:text-sky-100"
+                ? "bg-white text-indigo-950 shadow-md border border-white/25" 
+                : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
             }`}
           >
+            <Home className={`w-4 h-4 shrink-0 ${activeTab === "trangchu" ? "text-indigo-600" : "text-slate-300"}`} />
             Trang chủ
           </button>
 
-          {/* 2. Trung tâm dữ liệu */}
+          {/* DROPDOWN 1: TRẠM DỮ LIỆU */}
           <div className="relative">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "quanlytep" ? null : "quanlytep");
               }}
-              className={`px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
                 ["xemdulieu", "ghepnoi", "tachfile", "sosanh"].includes(activeTab)
-                  ? "bg-[#002e52] text-white border-b-2 border-sky-300 shadow-inner"
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "quanlytep"
-                    ? "bg-white/20 text-white"
-                    : "text-white hover:bg-white/10 hover:text-sky-100"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <span>Trung tâm dữ liệu</span>
+              <FileSpreadsheet className={`w-4 h-4 shrink-0 ${["xemdulieu", "ghepnoi", "tachfile", "sosanh"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
+              📂 Trung Tâm Dữ Liệu
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "quanlytep" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "quanlytep" && (
               <div 
-                className="absolute left-0 mt-0.5 w-60 bg-white text-slate-850 rounded-b-xl shadow-2xl border border-sky-100 py-2.5 z-50 animate-fade-in"
+                className="absolute left-0 mt-1.5 w-60 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button 
@@ -7507,27 +7599,28 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             )}
           </div>
 
-          {/* 3. Kiểm tra Rà soát */}
+          {/* DROPDOWN 2: RÀ SOÁT & KIỂM TRA */}
           <div className="relative">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "rasoat" ? null : "rasoat");
               }}
-              className={`px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
                 ["kiemtralogic", "outliers", "rulesstudio"].includes(activeTab)
-                  ? "bg-[#002e52] text-white border-b-2 border-sky-300 shadow-inner"
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "rasoat"
-                    ? "bg-white/20 text-white"
-                    : "text-white hover:bg-white/10 hover:text-sky-100"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <span>Kiểm tra Rà soát</span>
+              <CheckSquare className={`w-4 h-4 shrink-0 ${["kiemtralogic", "outliers", "rulesstudio"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
+              🔍 Rà soát &amp; Kiểm tra
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "rasoat" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "rasoat" && (
               <div 
-                className="absolute left-0 mt-0.5 w-64 bg-white text-slate-850 rounded-b-xl shadow-2xl border border-sky-100 py-2.5 z-50 animate-fade-in"
+                className="absolute left-0 mt-1.5 w-64 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button 
@@ -7555,27 +7648,28 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             )}
           </div>
 
-          {/* 4. Kiểm tra ngành VISC */}
+          {/* DROPDOWN 3: TRA CỨU & CHUẨN HÓA VSIC */}
           <div className="relative">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "vsic" ? null : "vsic");
               }}
-              className={`px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
                 ["chuanhoanganh", "danhmucvsic"].includes(activeTab)
-                  ? "bg-[#002e52] text-white border-b-2 border-sky-300 shadow-inner"
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "vsic"
-                    ? "bg-white/20 text-white"
-                    : "text-white hover:bg-white/10 hover:text-sky-100"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <span>Kiểm tra ngành VISC</span>
+              <BrainCircuit className={`w-4 h-4 shrink-0 ${["chuanhoanganh", "danhmucvsic"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
+              🏷️ Lệch mã và tên gọi
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "vsic" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "vsic" && (
               <div 
-                className="absolute left-0 mt-0.5 w-60 bg-white text-slate-850 rounded-b-xl shadow-2xl border border-sky-100 py-2.5 z-50 animate-fade-in"
+                className="absolute left-0 mt-1.5 w-60 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button 
@@ -7583,7 +7677,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "chuanhoanganh" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
-                  Chuẩn hóa khớp ngành VSIC
+                  Kiểm tra lệch mã với mô tả
                 </button>
                 <button 
                   onClick={() => { setActiveTab("danhmucvsic"); setOpenDropdown(null); }}
@@ -7596,27 +7690,28 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             )}
           </div>
 
-          {/* 5. Phân tích & Tổng hợp */}
+          {/* DROPDOWN 4: PHÂN TÍCH & TỔNG HỢP */}
           <div className="relative">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "phantich" ? null : "phantich");
               }}
-              className={`px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
                 ["tonghop", "tansuat", "tuongquan"].includes(activeTab)
-                  ? "bg-[#002e52] text-white border-b-2 border-sky-300 shadow-inner"
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "phantich"
-                    ? "bg-white/20 text-white"
-                    : "text-white hover:bg-white/10 hover:text-sky-100"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <span>Phân tích &amp; Tổng hợp</span>
+              <BarChart3 className={`w-4 h-4 shrink-0 ${["tonghop", "tansuat", "tuongquan"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
+              📊 Phân tích &amp; Tổng hợp
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "phantich" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "phantich" && (
               <div 
-                className="absolute left-0 mt-0.5 w-60 bg-white text-slate-850 rounded-b-xl shadow-2xl border border-sky-100 py-2.5 z-50 animate-fade-in"
+                className="absolute left-0 mt-1.5 w-60 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button 
@@ -7644,42 +7739,43 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             )}
           </div>
 
-          {/* 6. Trợ lý & Tiện ích */}
+          {/* DROPDOWN 5: Hỗ trợ & tiện ích */}
           <div className="relative">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenDropdown(openDropdown === "congtac" ? null : "congtac");
               }}
-              className={`px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                ["pdf2word", "videoroom"].includes(activeTab)
-                  ? "bg-[#002e52] text-white border-b-2 border-sky-300 shadow-inner"
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer ${
+                ["pdf2word", "excelsql"].includes(activeTab)
+                  ? "bg-white text-indigo-950 shadow-md border border-white/25"
                   : openDropdown === "congtac"
-                    ? "bg-white/20 text-white"
-                    : "text-white hover:bg-white/10 hover:text-sky-100"
+                    ? "bg-white/20 text-white border border-white/35"
+                    : "text-slate-100 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              <span>Trợ lý &amp; Tiện ích</span>
+              <Users className={`w-4 h-4 shrink-0 ${["pdf2word", "excelsql"].includes(activeTab) ? "text-indigo-600" : "text-slate-300"}`} />
+              🛠️ Tiện ích &amp; Cộng tác
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${openDropdown === "congtac" ? "rotate-180" : ""}`} />
             </button>
             {openDropdown === "congtac" && (
               <div 
-                className="absolute right-0 lg:left-auto mt-0.5 w-60 bg-white text-slate-850 rounded-b-xl shadow-2xl border border-sky-100 py-2.5 z-50 animate-fade-in"
+                className="absolute right-0 lg:left-auto mt-1.5 w-60 bg-white text-slate-850 rounded-xl shadow-2xl border border-indigo-100 py-2.5 z-50 animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button 
-                  onClick={() => { setActiveTab("videoroom"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "videoroom" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
-                  Trợ lý Excel &amp; Truy vấn SQL AI
-                </button>
                 <button 
                   onClick={() => { setActiveTab("pdf2word"); setOpenDropdown(null); }}
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "pdf2word" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <FileText className="w-4 h-4 text-amber-500 shrink-0" />
                   Đọc PDF &amp; Chuyển sang Word
+                </button>
+                <button 
+                  onClick={() => { setActiveTab("excelsql"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "excelsql" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
+                  Trợ lý Excel &amp; Truy vấn SQL AI
                 </button>
               </div>
             )}
@@ -7692,7 +7788,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex flex-col">
-      <div className="sticky top-0 z-50 flex flex-col shadow-md bg-[#034b82] border-b border-sky-400/40">
+      <div className="sticky top-0 z-50 flex flex-col shadow-md bg-gradient-to-r from-blue-800 via-sky-600 to-blue-800 border-b border-blue-900/40">
         {renderHeaderPanel()}
         {renderHorizontalMenu()}
       </div>
@@ -7784,7 +7880,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         </span>
                       </div>
                       <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2 pt-1">
-                        🚀 TOP 4 CÔNG CỤ ĐỘT PHÁ & TÍCH HỢP AI TRONG HỆ THỐNG
+                        🚀 ÁP DỤNG AI TRONG CÔNG TÁC KIỂM TRA LÀM SẠCH DỮ LIỆU
                       </h2>
                       <p className="text-xs text-slate-600 font-medium leading-relaxed max-w-3xl">
                         Giải pháp tổng thể rà soát mâu thuẫn logic, phát hiện bất thường, tự động chuẩn hóa mã ngành VSIC bằng AI và công cụ ghép/tách/đối chiếu dữ liệu nâng cao.
@@ -7877,10 +7973,10 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         </div>
                         <div>
                           <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-sky-800 transition-colors flex items-center gap-1.5">
-                            AI Chuẩn Hóa VSIC &amp; Gộp Mô Tả
+                            Lệch mã với mô tả
                           </h3>
                           <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
-                            AI tự đọc văn bản mô tả ngành thô, tự gộp chuỗi mô tả &amp; đối chiếu gán chính xác mã ngành VSIC 2018.
+                            Tự động gom để xác định nhanh cùng 1 loại mô tả nhưng có thể đc ghi làm nhiều mã ngành khác nhau và ngược lại.
                           </p>
                         </div>
                       </div>
@@ -7906,10 +8002,10 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                         </div>
                         <div>
                           <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-800 transition-colors flex items-center gap-1.5">
-                            Siêu Công Cụ Dữ Liệu
+                            Hỗ trợ & tiện ích
                           </h3>
                           <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed font-normal">
-                            Ghép nối nhiều tệp Excel (Merge), Tách tệp tự động (Split) &amp; So sánh đối chiếu sai biệt (Data Diff) siêu tốc.
+                           AI chuyển ngôn ngữ tự nhiên thành các câu lệnh để trúy vẫn qua SQL, excel hoặc lọc danh sách theo yêu cầu  .
                           </p>
                         </div>
                       </div>
@@ -8279,6 +8375,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               </div>
 
               {/* GOOGLE DRIVE SYNC CENTER */}
+              <React.Suspense fallback={<LazyTabFallback />}>
               <GoogleDriveSync 
                 mainData={mainData}
                 rawImportedData={rawImportedData}
@@ -8306,6 +8403,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   }, true, dataMode);
                 }}
               />
+              </React.Suspense>
 
               {/* === HỆ THỐNG AI HỌC LỆNH ĐỊNH NGHĨA CỘT === */}
               {rawImportedData.length > 0 && (
@@ -9029,6 +9127,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
                   <div className="w-full">
                     {/* Main Data Table */}
+                    <React.Suspense fallback={<LazyTabFallback />}>
                     <MainDataInlinePreview 
                       data={filteredData}
                       columns={columns}
@@ -9042,6 +9141,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                       selectedRows={selectedRows}
                       onSelectedRowsChange={setSelectedRows}
                     />
+                    </React.Suspense>
                   </div>
                 </div>
               ) : (
@@ -9061,6 +9161,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           
           {/* 3. TAB GHÉP NỐI DỮ LIỆU */}
           {activeTab === "ghepnoi" && (
+            <React.Suspense fallback={<LazyTabFallback />}>
             <FileMerger
               mainData={mainData}
               fileName={fileName}
@@ -9075,10 +9176,12 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               setStatusMessage={setStatusMessage}
               onExportExcel={handleExportExcel}
             />
+            </React.Suspense>
           )}
 
           {/* 4. TAB SO SÁNH ĐỐI CHIẾU HAI NIÊN ĐỘ (DIFF) */}
           {activeTab === "sosanh" && (
+            <React.Suspense fallback={<LazyTabFallback />}>
             <DataComparison
               mainData={mainData}
               fileName={fileName}
@@ -9093,6 +9196,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               setStatusMessage={setStatusMessage}
               onExportExcel={handleExportExcel}
             />
+            </React.Suspense>
           )}
 
           {/* 5. TAB TÁCH DỮ LIỆU THEO CỘT */}
@@ -9133,6 +9237,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               </div>
 
               {activeTab === "tachfile" && mainData.length > 0 && (
+                <React.Suspense fallback={<LazyTabFallback />}>
                 <MainDataInlinePreview 
                   data={mainData} 
                   columns={columns} 
@@ -9140,6 +9245,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   subtitle="Xem nhanh danh sách dữ liệu chính sẽ được phân chia hệ thống."
                   mapping={mapping}
                 />
+                </React.Suspense>
               )}
             </div>
           )}
@@ -9579,6 +9685,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                     {/* BẢNG HIỂN THỊ KẾT QUẢ ĐẦU RA (ĐÃ ĐƯỢC DI CHUYỂN LÊN TRÊN PHÉP TÍNH PHỨC TẠP) */}
                     {activeTab === "tonghop" && quickReportResultRows.length > 0 && (
                       <div className="space-y-8 pt-4 animate-fade-in text-slate-800">
+                        <React.Suspense fallback={<LazyTabFallback />}>
                         <BeautifulReportTable
                           rows={quickReportResultRows}
                           cols={quickReportResultCols}
@@ -9586,10 +9693,12 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                           reportType={reportType}
                           onExport={handleExportQuickReport}
                         />
+                        </React.Suspense>
                       </div>
                     )}
 
                     {/* 3. KHU VỰC PHÉP TÍNH PHỨC TẠP CỘNG TRỪ NHÂN CHIA GIỮA CỘT CỦA CÁC FILE KHÁC NHAU (ĐƯA XUỐNG DƯỚI CÙNG CÁC BƯỚC) */}
+                    <React.Suspense fallback={<LazyTabFallback />}>
                     <ComplexCalculations
                       mathFileAId={mathFileAId}
                       setMathFileAId={setMathFileAId}
@@ -9634,6 +9743,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                       allAvailableFiles={allAvailableFiles}
                       handlePerformCrossFileMath={handlePerformCrossFileMath}
                     />
+                    </React.Suspense>
                   </div>
                 ) : (
                   <div className="bg-amber-50 rounded-xl p-6 text-center text-xs text-amber-800 border border-amber-200 font-sans">
@@ -9952,6 +10062,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                       </button>
                     </div>
                   )}
+                  <React.Suspense fallback={<LazyTabFallback />}>
                   <MainDataInlinePreview 
                     data={augmentedFilteredData} 
                     columns={viewerColumns} 
@@ -9960,6 +10071,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                     mapping={mapping}
                     onExportExcel={handleExportExcel}
                   />
+                  </React.Suspense>
                 </div>
               )}
             </div>
@@ -9968,6 +10080,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           
           {/* 8. TAB KIỂM TRA LOGIC ĐA ĐIỀU KIỆN */}
           {activeTab === "kiemtralogic" && (
+            <React.Suspense fallback={<LazyTabFallback />}>
             <LogicChecking
               mainData={mainData}
               columns={columns}
@@ -9994,10 +10107,12 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               setQuickReportLaoDongCol={setQuickReportLaoDongCol}
               handleQuickReport={handleQuickReport}
             />
+            </React.Suspense>
           )}
 
           {/* 9. TAB CHỌN MẪU KHẢO SÁT CHUYÊN ĐỀ */}
           {activeTab === "chonmau" && (
+            <React.Suspense fallback={<LazyTabFallback />}>
             <SamplingSelection
               mainData={mainData}
               columns={columns}
@@ -10013,15 +10128,19 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               sampIndFileName={sampIndFileName}
               setSampIndFileName={setSampIndFileName}
             />
+            </React.Suspense>
           )}
 
           {/* TAB PHÂN TÍCH TẦN SUẤT */}
           {activeTab === "tansuat" && (
-            <FrequencyAnalysis mainData={mainData} columns={columns} />
+            <React.Suspense fallback={<LazyTabFallback />}>
+              <FrequencyAnalysis mainData={mainData} columns={columns} />
+            </React.Suspense>
           )}
 
           {/* TAB PHÂN TÍCH TƯƠNG QUAN */}
           {activeTab === "tuongquan" && (
+            <React.Suspense fallback={<LazyTabFallback />}>
             <CorrelationAnalysis 
               mainData={mainData} 
               columns={columns} 
@@ -10030,25 +10149,31 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               setViewPage={setViewPage} 
               setActiveTab={setActiveTab} 
             />
+            </React.Suspense>
           )}
 
           {/* 10. TAB TRA CỨU DANH MỤC NGÀNH VSIC CHUẨN */}
           {activeTab === "danhmucvsic" && (
             <div className="space-y-6 animate-fade-in">
-              <VsicCatalogExplorer />
+              <React.Suspense fallback={<LazyTabFallback />}>
+                <VsicCatalogExplorer />
+              </React.Suspense>
             </div>
           )}
 
           {/* 11. TAB ĐỌC PDF & CHUYỂN SANG WORD */}
           {activeTab === "pdf2word" && (
             <div className="space-y-6 animate-fade-in">
-              <PdfToWord />
+              <React.Suspense fallback={<LazyTabFallback />}>
+                <PdfToWord />
+              </React.Suspense>
             </div>
           )}
 
           {/* KHỐI 2: BỘ QUÉT LỆCH QUY LUẬT PHÂN PHỐI */}
           {activeTab === "outliers" && (
             <div className="space-y-6 animate-fade-in">
+              <React.Suspense fallback={<LazyTabFallback />}>
               <StatisticalOutliers 
                 mainData={mainData} 
                 columns={columns} 
@@ -10069,6 +10194,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   }, true);
                 }}
               />
+              </React.Suspense>
             </div>
           )}
 
@@ -10077,6 +10203,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           {/* KHỐI 4: TRUNG TÂM QUẢN TRỊ QUY TẮC LOGIC */}
           {activeTab === "rulesstudio" && (
             <div className="space-y-6 animate-fade-in">
+              <React.Suspense fallback={<LazyTabFallback />}>
               <RulesStudio 
                 mainData={mainData} 
                 columns={columns} 
@@ -10097,19 +10224,24 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   }, true);
                 }}
               />
+              </React.Suspense>
             </div>
           )}
 
           {/* HỆ THỐNG CỘNG TÁC CLOUD - TỰ ĐỘNG ĐƯỢC CHÈN VÀO ROUTER */}
           {activeTab === "dataentry" && (
             <div className="space-y-6 animate-fade-in">
-              <DataEntry />
+              <React.Suspense fallback={<LazyTabFallback />}>
+                <DataEntry />
+              </React.Suspense>
             </div>
           )}
 
-          {activeTab === "videoroom" && (
+          {activeTab === "excelsql" && (
             <div className="space-y-6 animate-fade-in">
-              <ExcelSqlAssistant mainData={mainData} fileName={fileName} />
+              <React.Suspense fallback={<LazyTabFallback />}>
+                <ExcelSqlAssistant mainData={mainData} fileName={fileName} />
+              </React.Suspense>
             </div>
           )}
 
