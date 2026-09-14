@@ -329,43 +329,48 @@ export const CorrelationAnalysis = React.memo(function CorrelationAnalysis({
   }
 
   return (
-    <div className="space-y-6 animate-fade-in font-sans">
-      {/* Tab Header Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-          <div className="space-y-1">
-            <h3 className="text-base font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-emerald-600 animate-pulse" />
+    <div className="bg-sky-50/30 border border-sky-200 rounded-none shadow-xs overflow-hidden font-sans space-y-3 p-3.5">
+      {/* Tab Header Banner - Chuẩn hóa giao diện #286e42 */}
+      <div className="bg-sky-100/60 p-2.5 rounded-none border border-sky-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-[#286e42] flex items-center justify-center text-white shrink-0 rounded-none shadow-2xs">
+            <Activity className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-900">
               PHÂN TÍCH TƯƠNG QUAN HỘ &amp; CHỈ TIÊU LIÊN KẾT
             </h3>
-            <p className="text-xs text-slate-500">
-              Đo lường mối tương quan liên hệ giữa các đặc trưng, xây dựng bảng liên đới chéo (Cross-Tabulation) trực quan hoặc đo hệ số Pearson tương quan tuyến tính.
+            <p className="text-[11px] text-slate-600 leading-tight">
+              Đo lường mối tương quan liên hệ giữa các đặc trưng, xây dựng bảng liên đới chéo (Cross-Tabulation) hoặc đo hệ số tương quan.
             </p>
           </div>
-
-          <div className="flex border border-slate-200 rounded-xl overflow-hidden shrink-0 bg-slate-50 p-1">
-            <button
-              onClick={() => setTqSubTab("bang_cheo")}
-              className={`px-4 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg border-0 flex items-center gap-1.5 ${
-                tqSubTab === "bang_cheo"
-                  ? "bg-emerald-600 text-white shadow-sm font-black"
-                  : "bg-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              📊 Thống kê tương quan hộ (Bảng Chéo)
-            </button>
-            <button
-              onClick={() => setTqSubTab("tuyen_tinh")}
-              className={`px-4 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg border-0 flex items-center gap-1.5 ${
-                tqSubTab === "tuyen_tinh"
-                  ? "bg-indigo-600 text-white shadow-sm font-black"
-                  : "bg-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              📈 Tương quan tuyến tính &amp; Trung bình
-            </button>
-          </div>
         </div>
+
+        <div className="flex border border-sky-300 rounded-none overflow-hidden shrink-0 bg-white shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setTqSubTab("bang_cheo")}
+            className={`px-3 py-1 text-xs font-bold transition-all cursor-pointer rounded-none border-0 flex items-center gap-1 ${
+              tqSubTab === "bang_cheo"
+                ? "bg-[#286e42] text-white shadow-xs"
+                : "bg-transparent text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            <span>Thống kê tương quan hộ (Bảng Chéo)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTqSubTab("tuyen_tinh")}
+            className={`px-3 py-1 text-xs font-bold transition-all cursor-pointer rounded-none border-0 flex items-center gap-1 ${
+              tqSubTab === "tuyen_tinh"
+                ? "bg-[#0284c7] text-white shadow-xs"
+                : "bg-transparent text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            <span>Tương quan tuyến tính &amp; Trung bình</span>
+          </button>
+        </div>
+      </div>
 
         {!isTqCalculated ? (
           <div className="bg-slate-900 text-slate-100 rounded-2xl p-8 border border-slate-800 flex flex-col items-center justify-center text-center space-y-4 max-w-xl mx-auto my-6 shadow-md animate-fade-in font-sans">
@@ -1389,8 +1394,9 @@ export const CorrelationAnalysis = React.memo(function CorrelationAnalysis({
                                   y2={endYPix} 
                                   stroke="#6366f1" 
                                   strokeWidth="2.5" 
-                                  title="Đường hồi quy tuyến tính" 
-                                />
+                                >
+                                  <title>Đường hồi quy tuyến tính</title>
+                                </line>
                               );
                             }
                             return null;
@@ -1564,7 +1570,6 @@ export const CorrelationAnalysis = React.memo(function CorrelationAnalysis({
             })()
           )
         )}
-      </div>
     </div>
   );
 });

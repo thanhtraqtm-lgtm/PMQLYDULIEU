@@ -720,7 +720,7 @@ export const DataEntry: React.FC = () => {
         if (field.type === "number") {
           customDataPayload[field.name] = parseFloat(val) || 0;
         } else if (field.type === "boolean") {
-          customDataPayload[field.name] = val === "true" || val === true;
+          customDataPayload[field.name] = val === "true" || (val as unknown) === true;
         } else {
           customDataPayload[field.name] = val;
         }
@@ -877,7 +877,7 @@ export const DataEntry: React.FC = () => {
         if (field.type === "number") {
           customDataPayload[field.name] = parseFloat(val) || 0;
         } else if (field.type === "boolean") {
-          customDataPayload[field.name] = val === "true" || val === true;
+          customDataPayload[field.name] = val === "true" || (val as unknown) === true;
         } else {
           customDataPayload[field.name] = val;
         }
@@ -1078,7 +1078,7 @@ export const DataEntry: React.FC = () => {
         if (field.type === "number") {
           customDataPayload[field.name] = parseFloat(val) || 0;
         } else if (field.type === "boolean") {
-          customDataPayload[field.name] = val === "true" || val === true;
+          customDataPayload[field.name] = val === "true" || (val as unknown) === true;
         } else {
           customDataPayload[field.name] = val;
         }
@@ -5289,7 +5289,7 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
                           maxLength={5}
                           placeholder="Mã 5 số..."
                           value={ctMaNganhChinh}
-                          onChange={e => setCtMaNganhChinh(e.replace(/\D/g, ""))}
+                          onChange={e => setCtMaNganhChinh(e.target.value.replace(/\D/g, ""))}
                           className="w-18 px-1.5 py-0.5 border border-slate-300 rounded text-[11px] font-mono text-center focus:ring-1 focus:ring-indigo-500"
                         />
                       </div>
@@ -6763,7 +6763,7 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
                         </td>
                         <td className="px-4 py-3 text-slate-600 font-medium">{r.representative || r.respondent_name || "-"}</td>
                         <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]" title={r.address}>{r.address || "-"}</td>
-                        <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/35">{r.customData?.ma_xa_phuong || r.ma_xa_phuong || "-"}</td>
+                        <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/35">{r.customData?.ma_xa_phuong || (r as any).ma_xa_phuong || "-"}</td>
                         <td className="px-4 py-3 font-mono font-semibold text-slate-600">{r.manganh || "-"}</td>
                         <td className="px-4 py-3 text-center">
                           {r.is_signed ? (
@@ -6886,7 +6886,7 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
                         </td>
                         <td className="px-4 py-3 text-slate-600 font-medium">{r.representative || r.respondent_name || "-"}</td>
                         <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]" title={r.address}>{r.address || "-"}</td>
-                        <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/35">{r.customData?.ma_xa_phuong || r.ma_xa_phuong || "-"}</td>
+                        <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/35">{r.customData?.ma_xa_phuong || (r as any).ma_xa_phuong || "-"}</td>
                         <td className="px-4 py-3 font-mono font-semibold text-slate-600">{r.manganh || "-"}</td>
                         <td className="px-4 py-3 text-center">
                           {r.is_signed ? (
@@ -7012,7 +7012,7 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ nằm trong dấu nháy
                         <td className="px-4 py-3 font-extrabold text-slate-900">{r.name}</td>
                         <td className="px-4 py-3 text-slate-600">{r.representative || r.respondent_name || "-"}</td>
                         <td className="px-4 py-3 text-slate-500 truncate max-w-[150px]" title={r.address}>{r.address || "-"}</td>
-                        <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/20">{r.customData?.ma_xa_phuong || r.ma_xa_phuong || "-"}</td>
+                        <td className="px-4 py-3 text-center font-mono font-bold text-slate-700 bg-slate-50/20">{r.customData?.ma_xa_phuong || (r as any).ma_xa_phuong || "-"}</td>
                         <td className="px-4 py-3 font-mono font-medium text-slate-600">{r.manganh || "-"}</td>
                         <td className="px-4 py-3 text-center">
                           {r.is_signed ? (

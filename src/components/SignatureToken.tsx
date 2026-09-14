@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Key, Shield, ShieldCheck, RefreshCw, Smartphone, Check, Lock, Cpu, Eye, EyeOff } from "lucide-react";
 
-interface SignatureTokenProps {
-  onSave: (dataUrl: string, hash: string, certInfo: string) => void;
-  onClear: () => void;
-  mst: string;
-  enterpriseName: string;
-  representative: string;
+export interface SignatureTokenProps {
+  onSave?: (dataUrl: string, hash: string, certInfo: string) => void;
+  onClear?: () => void;
+  mst?: string;
+  enterpriseName?: string;
+  representative?: string;
+  value?: string;
+  onVerified?: (hash: any) => void;
+  signedBy?: string;
+  signedTime?: string;
+  hash?: string;
 }
 
 const CA_PROVIDERS = [

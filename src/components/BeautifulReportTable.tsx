@@ -267,22 +267,27 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden space-y-4 p-5" id="beautiful_report_container">
-      {/* HEADER BAR */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 font-sans">
-        <div>
-          <span className="text-xs font-black text-slate-800 font-mono tracking-widest uppercase block mb-1">
-            📊 KẾT QUẢ TỔNG HỢP {level === 0 ? "PHÂN NHÓM" : (level === 6 ? "NHÓM NGÀNH CHÍNH" : `DANH MỤC NGÀNH CẤP ${level}`)} × ĐỊA BÀN
-          </span>
-          <span className="text-xs text-slate-600 block leading-normal">
-            Nhấp chuột trực tiếp vào bất kỳ ô số liệu nào để <strong>chỉnh sửa số lại</strong>. Hệ thống sẽ tự động cộng dồn và cập nhật biểu mẫu toàn bảng.
-          </span>
+    <div className="bg-sky-50/30 border border-sky-200 rounded-none shadow-xs overflow-hidden space-y-3 p-3.5 font-sans" id="beautiful_report_container">
+      {/* HEADER BAR - Đồng bộ phong cách chuẩn #286e42 */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-sky-100/60 p-2.5 rounded-none border border-sky-200 font-sans">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-[#286e42] flex items-center justify-center text-white shrink-0 rounded-none shadow-2xs">
+            <Columns className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-slate-900 uppercase tracking-wide block">
+              KẾT QUẢ TỔNG HỢP {level === 0 ? "PHÂN NHÓM" : (level === 6 ? "NHÓM NGÀNH CHÍNH" : `DANH MỤC NGÀNH CẤP ${level}`)} × ĐỊA BÀN
+            </span>
+            <span className="text-[11px] text-slate-600 block leading-tight">
+              Nhấp chuột trực tiếp vào bất kỳ ô số liệu nào để <strong>chỉnh sửa số lại</strong>. Hệ thống tự động cộng dồn và cập nhật biểu mẫu toàn bảng.
+            </span>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* SEARCH BAR */}
           <div className="relative">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
               <Search className="h-3.5 w-3.5 text-slate-400" />
             </span>
             <input
@@ -290,37 +295,37 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               placeholder="Tìm kiếm địa bàn xã..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-52 font-medium"
+              className="bg-white border border-slate-300 rounded-none pl-8 pr-2.5 py-1 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 w-48 font-medium"
             />
           </div>
 
           {/* CHOOSE NECESSARY COLUMNS MANAGER */}
           <button
             onClick={() => setShowColumnSelector(!showColumnSelector)}
-            className={`text-xs font-bold py-1.5 px-3 rounded-lg border transition-all flex items-center gap-1.5 select-none md:w-auto w-full justify-center cursor-pointer ${
+            className={`text-xs font-bold py-1 px-2.5 rounded-none border transition-all flex items-center gap-1 select-none cursor-pointer ${
               showColumnSelector
-                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-sm"
+                ? "bg-[#0284c7] text-white border-[#0369a1] shadow-2xs"
+                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100 shadow-2xs"
             }`}
             title="Nhấn để chọn và chỉ giữ lại các cột cần thiết"
           >
             <Columns className="w-3.5 h-3.5" />
-            {showColumnSelector ? "Đóng bộ lọc cột" : "⚙️ Chỉ giữ lại cột cần thiết"}
+            <span>{showColumnSelector ? "Đóng bộ lọc cột" : "Chỉ giữ lại cột cần thiết"}</span>
           </button>
 
           {/* HIDE EMPTY COLUMNS TOGGLE (ONLY FOR PIVOT) */}
           {reportType === "pivot" && pivotAnalysis.sectors.length > 0 && (
             <button
               onClick={() => setHideZeroColumns(!hideZeroColumns)}
-              className={`text-xs font-bold py-1.5 px-3 rounded-lg border transition-all flex items-center gap-1.5 select-none md:w-auto w-full justify-center cursor-pointer ${
+              className={`text-xs font-bold py-1 px-2.5 rounded-none border transition-all flex items-center gap-1 select-none cursor-pointer ${
                 hideZeroColumns
-                  ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100/60"
-                  : "bg-slate-100 text-slate-700 border-slate-250 hover:bg-slate-200"
+                  ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100 shadow-2xs"
               }`}
               title="Nhấn để ẩn/hiện các cột ngành không phát sinh dữ liệu"
             >
               {hideZeroColumns ? <EyeOff className="w-3.5 h-3.5 text-amber-700" /> : <Eye className="w-3.5 h-3.5 text-slate-600" />}
-              {hideZeroColumns ? `Đang ẩn cột rỗng` : "Hiện tất cả cột ngành"}
+              <span>{hideZeroColumns ? `Đang ẩn cột rỗng` : "Hiện tất cả cột ngành"}</span>
             </button>
           )}
 
@@ -354,9 +359,9 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
               });
               onExport(exportRowsClean, reportType === "pivot" ? Object.keys(exportRowsClean[0] || {}) : visibleFlatCols);
             }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-md inline-flex justify-center border-0"
+            className="bg-[#286e42] hover:bg-[#205835] text-white font-bold text-xs px-3 py-1 rounded-none transition-all flex items-center gap-1 cursor-pointer shadow-2xs inline-flex justify-center border-0"
           >
-            <Download className="w-3.5 h-3.5" /> Xuất Excel đã sửa (.xlsx)
+            <Download className="w-3.5 h-3.5" /> <span>Xuất Excel (.xlsx)</span>
           </button>
         </div>
       </div>
@@ -520,7 +525,7 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
           </div>
         ) : reportType === "pivot" ? (
           /* ================== PIVOT MATRIX LAYOUT (DYNAMIC & HIGHLY POLISHED) ================== */
-          <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[500px]">
+          <div className="overflow-x-auto border border-sky-200 rounded-none bg-white max-h-[500px] shadow-2xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 {/* FIRST HEADER ROW: GROUPED SECTORS */}
@@ -837,13 +842,13 @@ export const BeautifulReportTable = React.memo<BeautifulReportTableProps>(({
           </div>
         ) : (
           /* ================== STANDARD FLAT TABLE LAYOUT ================== */
-          <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[500px]">
+          <div className="overflow-x-auto border border-sky-200 rounded-none bg-white max-h-[500px] shadow-2xs">
             <table className="w-full text-left text-xs border-collapse font-sans">
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-200 text-slate-800 font-mono text-[11px] sticky top-0 z-10 uppercase">
-                  <th className="p-3 w-12 text-center text-slate-400 font-sans">STT</th>
+                <tr className="bg-[#286e42] border-b border-[#1d4f2f] text-white font-bold text-[11px] sticky top-0 z-10 uppercase">
+                  <th className="p-2.5 w-12 text-center text-white/90 font-sans border-r border-[#1d4f2f]">STT</th>
                   {visibleFlatCols.map((col) => (
-                    <th key={col} className="p-3 font-semibold whitespace-nowrap">{col}</th>
+                    <th key={col} className="p-2.5 font-bold whitespace-nowrap border-r border-[#1d4f2f]">{col}</th>
                   ))}
                 </tr>
               </thead>

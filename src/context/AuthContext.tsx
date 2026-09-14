@@ -128,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isMock: true
     };
   });
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [forceOffline, setForceOffline] = useState<boolean>(() => {
     return localStorage.getItem("force_offline_mode") === "true";
   });
@@ -149,8 +149,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Đọc phiên mock user đã lưu từ localStorage khi khởi động
   useEffect(() => {
+    // Safety timer: đảm bảo loading luôn kết thúc sau tối đa 1.5s
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 1500);
+
     if (isFirebaseInitialized && auth && !forceOffline) {
       const unsubscribe = onAuthStateChanged(auth, (firebaseUser: User | null) => {
+        clearTimeout(safetyTimer);
         if (firebaseUser) {
           const info = determineUnitInfo(firebaseUser.email, firebaseUser.uid);
           setUser({
@@ -173,7 +179,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setLoading(false);
       });
-      return unsubscribe;
+      return () => {
+        clearTimeout(safetyTimer);
+        unsubscribe();
+      };
     } else {
       // Mock mode: khôi phục từ localStorage nếu có
       const stored = localStorage.getItem("system_auth_user");

@@ -1,2336 +1,2599 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import {
-  RefreshCw,
-  FileUp,
-  Calendar,
-  TrendingUp,
-  HelpCircle,
-  ArrowRight,
+  GitCompare,
+  Upload,
   Download,
-  BarChart2,
   CheckCircle2,
-  Database,
-  Trash2,
-  Save,
+  AlertTriangle,
+  Search,
   Sparkles,
+  ArrowRight,
+  RefreshCw,
+  Copy,
+  Check,
+  Filter,
+  Layers,
+  ChevronRight,
+  Database,
+  Sliders,
+  Wand2,
+  FileSpreadsheet,
+  CheckSquare,
+  Square,
+  BarChart3,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Info,
+  SlidersHorizontal,
   FolderOpen,
-  AlertCircle,
-  Plus,
-  CloudLightning,
-  CheckCircle,
-  Loader2,
-  Upload
+  Building2,
+  GitMerge
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { parseCSV } from "../utils/sharedHelpers";
-import { MainDataInlinePreview } from "./MainDataInlinePreview";
-import { useAuth } from "../context/AuthContext";
+import { parse2DArrayWithSmartHeader } from "../utils/sharedHelpers";
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend
-} from "recharts";
+  autoDetectMatchingColumns,
+  cleanForComparison,
+  removeVietnameseTones
+} from "../utils/fuzzyCompare";
+import { AdminMergeResolver } from "./AdminMergeResolver";
 
 interface DataComparisonProps {
   mainData: any[];
-  fileName: string;
-  setMainData: (data: any[]) => void;
-  setRawImportedData: (data: any[]) => void;
-  setColumns: (cols: string[]) => void;
-  setFileName: (name: string) => void;
-  setCustomColConfigs: (configs: any[]) => void;
-  setMapping: (mapping: any) => void;
-  setLoading: (loading: boolean) => void;
-  setProgress: (progress: number) => void;
-  setStatusMessage: (msg: string) => void;
-  onExportExcel: () => void;
+  fileName?: string;
+  setMainData?: (data: any[]) => void;
+  setRawImportedData?: (data: any[]) => void;
+  setColumns?: (cols: string[]) => void;
+  setFileName?: (name: string) => void;
+  setCustomColConfigs?: (configs: any[]) => void;
+  setMapping?: (mapping: any) => void;
+  setLoading?: (loading: boolean) => void;
+  setProgress?: (progress: number) => void;
+  setStatusMessage?: (msg: string) => void;
+  onExportExcel?: () => void;
+  detectedSheets?: string[];
+  sheetDataStore?: Record<string, { data: any[]; columns: string[] }>;
+  currentActiveSheet?: string;
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// --- LONG-TERM INDEXEDDB DATABASE FOR SAVED SNAPSHOTS ---
-export interface SavedSnapshot {
-  id: string;
-  name: string;
-  month?: number;
-  year: number;
-  cycleType?: "month" | "quarter" | "year";
-  cycleValue?: number;
-  category?: string;
-  fileName: string;
-  data: any[];
-  columns: string[];
-  createdAt: string;
-}
-
-export function getFormattedPeriod(snap: SavedSnapshot): string {
-  const type = snap.cycleType || "month";
-  const val = snap.cycleValue ?? snap.month ?? 1;
-  if (type === "quarter") return `Quý ${val}/${snap.year}`;
-  if (type === "year") return `Năm ${snap.year}`;
-  return `Tháng ${val}/${snap.year}`;
-}
-
-export function openSnapshotsDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    try {
-      if (typeof window === "undefined" || !window.indexedDB) {
-        reject(new Error("IndexedDB is not supported in this environment"));
-        return;
-      }
-      const request = indexedDB.open("VTongSnapshotsDatabase", 1);
-      request.onerror = () => reject(request.error || new Error("Failed to open snapshots DB"));
-      request.onsuccess = () => resolve(request.result);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains("snapshots")) {
-          db.createObjectStore("snapshots", { keyPath: "id" });
-        }
-      };
-    } catch (e) {
-      reject(e);
-    }
-  });
-}
-
-export function saveSnapshotToDB(snapshot: SavedSnapshot): Promise<void> {
-  return openSnapshotsDB().then((db) => {
-    return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction("snapshots", "readwrite");
-      const store = transaction.objectStore("snapshots");
-      const request = store.put(snapshot);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error || new Error("Failed to save snapshot"));
-    });
-  });
-}
-
-export function getAllSnapshotsFromDB(): Promise<SavedSnapshot[]> {
-  return openSnapshotsDB().then((db) => {
-    return new Promise<SavedSnapshot[]>((resolve, reject) => {
-      const transaction = db.transaction("snapshots", "readonly");
-      const store = transaction.objectStore("snapshots");
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error || new Error("Failed to load snapshots"));
-    });
-  });
-}
-
-export function deleteSnapshotFromDB(id: string): Promise<void> {
-  return openSnapshotsDB().then((db) => {
-    return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction("snapshots", "readwrite");
-      const store = transaction.objectStore("snapshots");
-      const request = store.delete(id);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error || new Error("Failed to delete snapshot"));
-    });
-  });
-}
-
-export default function DataComparison({
-  mainData,
-  fileName,
+export const DataComparison: React.FC<DataComparisonProps> = ({
+  mainData = [],
+  fileName = "",
   setMainData,
   setRawImportedData,
   setColumns,
   setFileName,
-  setCustomColConfigs,
-  setMapping,
-  setLoading,
-  setProgress,
-  setStatusMessage,
-  onExportExcel,
-}: DataComparisonProps) {
-  // Mode switcher: diff (2 separate files) vs time-series (Month-by-Month / YoY) vs saved-snapshots
-  const [subMode, setSubMode] = useState<"diff" | "time-series" | "saved-snapshots">("diff");
+  detectedSheets = [],
+  sheetDataStore = {},
+  currentActiveSheet = "",
+}) => {
+  // Dữ liệu nội bộ cho Tệp A nếu người dùng tải tệp trực tiếp trong tab này
+  const [localDataA, setLocalDataA] = useState<any[] | null>(null);
+  const [localFileNameA, setLocalFileNameA] = useState<string>("");
 
-  // === PHẦN 3: SO SÁNH GIỮA CÁC KỲ ===
-  const [savedSnapshots, setSavedSnapshots] = useState<SavedSnapshot[]>([]);
+  const activeMainData = localDataA !== null ? localDataA : mainData;
+  const activeFileName = localFileNameA || fileName;
 
-  // --- GOOGLE DRIVE INTEGRATION STATES ---
-  const { user: authUser, googleAccessToken, signInWithGoogle } = useAuth();
-  const [showDrivePanel, setShowDrivePanel] = useState(false);
-  const [isDriveSyncing, setIsDriveSyncing] = useState(false);
-  const [driveSyncLogs, setDriveSyncLogs] = useState<string[]>([]);
-  const [driveBackups, setDriveBackups] = useState<any[]>([]);
-  const [loadingDriveBackups, setLoadingDriveBackups] = useState(false);
+  const [compareFile, setCompareFile] = useState<File | null>(null);
+  const [compareData, setCompareData] = useState<any[]>([]);
+  const [compareColumns, setCompareColumns] = useState<string[]>([]);
+  const [compareSheetName, setCompareSheetName] = useState<string>("");
 
-  const loadSnapshotsList = () => {
-    getAllSnapshotsFromDB().then((snaps) => {
-      setSavedSnapshots(snaps || []);
-    }).catch(err => {
-      console.error("Lỗi khi tải kho dữ liệu:", err);
-    });
-  };
+  // Khóa định danh 2 kỳ
+  const [keyColA, setKeyColA] = useState<string>("");
+  const [keyColB, setKeyColB] = useState<string>("");
 
-  const fetchDriveBackups = async () => {
-    if (!googleAccessToken) return;
-    setLoadingDriveBackups(true);
-    setDriveSyncLogs(prev => [...prev, "🔍 Đang quét các bản sao lưu kho lưu trữ trên Google Drive..."]);
-    try {
-      const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=name+contains+'VTong_DB_Backup_'+and+mimeType='application/json'&fields=files(id,name,createdTime,size)&orderBy=createdTime+desc`,
-        {
-          headers: {
-            Authorization: `Bearer ${googleAccessToken}`
-          }
-        }
-      );
-      if (!response.ok) throw new Error("Không thể truy vấn Google Drive API.");
-      const data = await response.json();
-      setDriveBackups(data.files || []);
-      setDriveSyncLogs(prev => [...prev, `🎉 Đã tìm thấy ${data.files?.length || 0} bản sao lưu sẵn có.`]);
-    } catch (err: any) {
-      console.error(err);
-      setDriveSyncLogs(prev => [...prev, `❌ Lỗi tải danh sách sao lưu: ${err.message}`]);
-    } finally {
-      setLoadingDriveBackups(false);
-    }
-  };
+  // Cột chỉ tiêu đối chiếu giá trị số liệu (VD: Doanh thu, Sản lượng, Số tiền...)
+  const [compareValColA, setCompareValColA] = useState<string>("");
+  const [compareValColB, setCompareValColB] = useState<string>("");
 
-  useEffect(() => {
-    if (googleAccessToken && showDrivePanel) {
-      fetchDriveBackups();
-    }
-  }, [googleAccessToken, showDrivePanel]);
+  // Tùy chọn làm sạch khóa khi so khớp (bỏ qua những thứ không ảnh hưởng)
+  const [ignoreDiacritics, setIgnoreDiacritics] = useState<boolean>(true);
+  const [ignoreSpaces, setIgnoreSpaces] = useState<boolean>(true);
+  const [ignorePunctuation, setIgnorePunctuation] = useState<boolean>(true);
+  const [ignoreCase, setIgnoreCase] = useState<boolean>(true);
+  const [trimLeadingZeros, setTrimLeadingZeros] = useState<boolean>(false);
 
-  const handleBackupSnapshotsToDrive = async () => {
-    if (!googleAccessToken) {
-      setDriveSyncLogs(prev => [...prev, "❌ Vui lòng kết nối Google Drive trước!"]);
-      return;
-    }
-    if (savedSnapshots.length === 0) {
-      alert("Kho dữ liệu rỗng, không có gì để sao lưu!");
-      return;
-    }
+  // === 1. TÍNH NĂNG MỚI: LÀM SẠCH KHOẢNG CÁCH & CHỮ HOA / CHỮ THƯỜNG THEO CỘT ===
+  const [showCleanPanel, setShowCleanPanel] = useState<boolean>(false);
+  const [cleanTarget, setCleanTarget] = useState<"A" | "B" | "BOTH">("A");
+  const [cleanSelectedCols, setCleanSelectedCols] = useState<string[]>([]);
+  const [cleanTrimSpaces, setCleanTrimSpaces] = useState<boolean>(true);
+  const [cleanCollapseSpaces, setCleanCollapseSpaces] = useState<boolean>(true);
+  const [cleanRemoveAllSpaces, setCleanRemoveAllSpaces] = useState<boolean>(false);
+  const [cleanCaseOption, setCleanCaseOption] = useState<"none" | "upper" | "lower" | "title">("upper");
+  const [cleanRemoveAccents, setCleanRemoveAccents] = useState<boolean>(false);
+  const [cleanSuccessMsg, setCleanSuccessMsg] = useState<string | null>(null);
 
-    setIsDriveSyncing(true);
-    setDriveSyncLogs(["🔄 Bắt đầu đóng gói toàn bộ snapshot từ IndexedDB..."]);
+  // === 2. TÍNH NĂNG MỚI: DANH SÁCH TRÙNG, DANH SÁCH LỆCH & BẢNG TỔNG HỢP ===
+  const [activeResultTab, setActiveResultTab] = useState<"summary" | "same" | "diff" | "all">("summary");
+  const [diffSubFilter, setDiffSubFilter] = useState<"all" | "diff_val" | "only_in_a" | "only_in_b">("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
-    try {
-      const fileName = `VTong_DB_Backup_${new Date().toISOString().slice(0, 10)}_${Date.now()}.json`;
-      const contentStr = JSON.stringify(savedSnapshots, null, 2);
+  // === 3. TÍNH NĂNG CHUYÊN BIỆT: GHÉP NỐI & ĐỐI SOÁT SÁP NHẬP XÃ / THÔN ===
+  const [showAdminMergeMode, setShowAdminMergeMode] = useState<boolean>(false);
 
-      const boundary = "foo_bar_boundary";
-      const metadata = {
-        name: fileName,
-        mimeType: "application/json"
-      };
+  // Tính năng chuyển/nhặt cột từ Tệp B sang Tệp A
+  const [showTransferPanel, setShowTransferPanel] = useState<boolean>(false);
+  const [selectedColToTransfer, setSelectedColToTransfer] = useState<string>("");
+  const [targetColName, setTargetColName] = useState<string>("");
+  const [transferMode, setTransferMode] = useState<"overwrite" | "empty_only" | "new_col">("new_col");
+  const [transferSuccessMsg, setTransferSuccessMsg] = useState<string | null>(null);
 
-      const multipartBody = 
-        `\r\n--${boundary}\r\n` +
-        `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-        `${JSON.stringify(metadata)}\r\n` +
-        `\r\n--${boundary}\r\n` +
-        `Content-Type: application/json\r\n\r\n` +
-        `${contentStr}\r\n` +
-        `--${boundary}--`;
+  const mainColumns = useMemo(() => {
+    if (activeMainData.length === 0) return [];
+    return Object.keys(activeMainData[0]);
+  }, [activeMainData]);
 
-      setDriveSyncLogs(prev => [...prev, `📤 Đang truyền tải tệp "${fileName}" lên Google Drive...`]);
-      
-      const response = await fetch(
-        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${googleAccessToken}`,
-            "Content-Type": `multipart/related; boundary=${boundary}`
-          },
-          body: multipartBody
-        }
-      );
+  // Cột có sẵn tùy theo đối tượng làm sạch
+  const availableColumnsForClean = useMemo(() => {
+    if (cleanTarget === "A") return mainColumns;
+    if (cleanTarget === "B") return compareColumns;
+    // Cả 2: lấy tất cả các cột duy nhất
+    return Array.from(new Set([...mainColumns, ...compareColumns]));
+  }, [cleanTarget, mainColumns, compareColumns]);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Lỗi Google API: ${errorText}`);
-      }
+  // Tự động tìm kiếm các cột tương đồng / đồng nghĩa (>= 90% hoặc từ điển)
+  const detectedMatchingPairs = useMemo(() => {
+    if (mainColumns.length === 0 || compareColumns.length === 0) return [];
+    return autoDetectMatchingColumns(mainColumns, compareColumns);
+  }, [mainColumns, compareColumns]);
 
-      setDriveSyncLogs(prev => [...prev, "🎉 Sao lưu kho lưu trữ lên Google Drive thành công!"]);
-      fetchDriveBackups();
-    } catch (err: any) {
-      console.error(err);
-      setDriveSyncLogs(prev => [...prev, `❌ Thất bại: ${err.message}`]);
-    } finally {
-      setIsDriveSyncing(false);
-    }
-  };
-
-  const handleRestoreFromDrive = async (fileId: string, fileName: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn khôi phục kho dữ liệu từ bản sao lưu "${fileName}"? Thao tác này sẽ cập nhật các snapshot trùng ID trong máy của bạn.`)) {
-      return;
-    }
-
-    setIsDriveSyncing(true);
-    setDriveSyncLogs(prev => [...prev, `📥 Đang tải xuống dữ liệu từ tệp tin ID: ${fileId}...`]);
-
-    try {
-      const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-        {
-          headers: {
-            Authorization: `Bearer ${googleAccessToken}`
-          }
-        }
-      );
-      if (!response.ok) throw new Error("Tải tệp tin thất bại.");
-      const data = await response.json();
-      
-      if (!Array.isArray(data)) {
-        throw new Error("Dữ liệu sao lưu không đúng định dạng danh sách.");
-      }
-
-      setDriveSyncLogs(prev => [...prev, `💾 Đang ghi đè ${data.length} bản ghi vào IndexedDB cục bộ...`]);
-      for (const snap of data) {
-        await saveSnapshotToDB(snap);
-      }
-
-      setDriveSyncLogs(prev => [...prev, "🎉 Khôi phục kho dữ liệu thành công!"]);
-      loadSnapshotsList();
-    } catch (err: any) {
-      console.error(err);
-      setDriveSyncLogs(prev => [...prev, `❌ Khôi phục thất bại: ${err.message}`]);
-    } finally {
-      setIsDriveSyncing(false);
-    }
-  };
-  
-  // State variables for saving new snapshot
-  const [newSnapFile, setNewSnapFile] = useState<any[] | null>(null);
-  const [newSnapFileName, setNewSnapFileName] = useState<string>("");
-  const [newSnapName, setNewSnapName] = useState<string>("");
-  const [newSnapMonth, setNewSnapMonth] = useState<number>(new Date().getMonth() + 1);
-  const [newSnapYear, setNewSnapYear] = useState<number>(new Date().getFullYear());
-  const [newSnapColumns, setNewSnapColumns] = useState<string[]>([]);
-
-  // New states for flexible cycle & category folders
-  const [newSnapCycleType, setNewSnapCycleType] = useState<"month" | "quarter" | "year">("month");
-  const [newSnapCycleValue, setNewSnapCycleValue] = useState<number>(new Date().getMonth() + 1);
-  const [newSnapCategory, setNewSnapCategory] = useState<string>("Mặc định");
-  const [newCustomCategory, setNewCustomCategory] = useState<string>("");
-  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
-
-  // State variables for comparing 2 snapshots
-  const [snapAId, setSnapAId] = useState<string>("");
-  const [snapBId, setSnapBId] = useState<string>("");
-  const [snapAKeyCol, setSnapAKeyCol] = useState<string>("");
-  const [snapAMetricCol, setSnapAMetricCol] = useState<string>("");
-  const [snapBKeyCol, setSnapBKeyCol] = useState<string>("");
-  const [snapBMetricCol, setSnapBMetricCol] = useState<string>("");
-
-  const [snapCompareResult, setSnapCompareResult] = useState<any[] | null>(null);
-
-  // Load snapshots on mount
-  useEffect(() => {
-    getAllSnapshotsFromDB().then((snaps) => {
-      setSavedSnapshots(snaps || []);
-    }).catch(err => {
-      console.error("Lỗi khi tải kho dữ liệu:", err);
-    });
-  }, []);
-
-  const uniqueCategories = useMemo(() => {
-    const cats = new Set<string>(["Mặc định", "Lưu Cá Thể", "Lưu Doanh Nghiệp", "Xây dựng vốn"]);
-    savedSnapshots.forEach(s => {
-      if (s.category) cats.add(s.category);
-    });
-    return Array.from(cats).sort();
-  }, [savedSnapshots]);
-
-  const groupedSnapshots = useMemo<Record<string, SavedSnapshot[]>>(() => {
-    const groups: Record<string, SavedSnapshot[]> = {};
-    savedSnapshots.forEach(snap => {
-      const cat = snap.category || "Mặc định";
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(snap);
-    });
-    return groups;
-  }, [savedSnapshots]);
-
-  const guessMonthYearFromFileName = (name: string) => {
-    const clean = name.toLowerCase();
-    // Look for patterns like T2, T02, thang 2, thang02, month 2, month02
-    const mMatch = clean.match(/(?:t|thang|thg|month|m)\s*(\d+)/) || clean.match(/(?:_|-|q)(\d+)/);
-    if (mMatch) {
-      const parsedM = parseInt(mMatch[1]);
-      if (parsedM >= 1 && parsedM <= 12) {
-        setNewSnapMonth(parsedM);
-      }
-    }
-    // Look for year 2020 to 2030
-    const yMatch = clean.match(/(20\d{2})/);
-    if (yMatch) {
-      setNewSnapYear(parseInt(yMatch[1]));
-    }
-  };
-
-  const handleSnapFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Đọc file chính A (Kỳ 1)
+  const handleFileUploadA = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setLoading(true);
-    setStatusMessage(`Đang đọc tệp tin: ${file.name}...`);
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const buffer = evt.target?.result;
+        const wb = XLSX.read(buffer, { type: "binary" });
+        const wsName = wb.SheetNames[0];
+        const rawRows = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[wsName], { header: 1, defval: "" });
+        const parsed = parse2DArrayWithSmartHeader(rawRows);
 
-    const isCSV = file.name.toLowerCase().endsWith(".csv") || file.name.toLowerCase().endsWith(".txt");
+        setLocalDataA(parsed.data);
+        setLocalFileNameA(file.name);
+        if (setMainData) setMainData(parsed.data);
+        if (setColumns) setColumns(parsed.columns);
+        if (setRawImportedData) setRawImportedData(parsed.data);
+        if (setFileName) setFileName(file.name);
 
-    if (isCSV) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const text = evt.target?.result as string;
-          if (!text) throw new Error("Không thể đọc nội dung!");
-          const data = parseCSV(text);
-          if (data.length === 0) {
-            alert("Tệp rỗng hoặc sai định dạng!");
-            setLoading(false);
-            return;
+        // Tự động gán khóa nếu đã có dữ liệu file B
+        if (compareColumns.length > 0) {
+          const matches = autoDetectMatchingColumns(parsed.columns, compareColumns);
+          if (matches.length > 0) {
+            setKeyColA(matches[0].col1);
+            setKeyColB(matches[0].col2);
+            if (matches.length > 1) {
+              setCompareValColA(matches[1].col1);
+              setCompareValColB(matches[1].col2);
+            }
           }
-          const keys = Object.keys(data[0] || {});
-          setNewSnapFile(data);
-          setNewSnapFileName(file.name);
-          setNewSnapName(file.name.replace(/\.[^/.]+$/, ""));
-          setNewSnapColumns(keys);
-          
-          guessMonthYearFromFileName(file.name);
-          setStatusMessage(`Đã nạp tạm thời ${data.length} dòng. Vui lòng chọn Kỳ báo cáo và lưu lại.`);
-        } catch (err: any) {
-          alert("Lỗi khi nạp file CSV: " + err.message);
-        } finally {
-          setLoading(false);
+        } else if (parsed.columns.length > 0) {
+          setKeyColA(parsed.columns[0]);
+          setCompareValColA(parsed.columns[1] || parsed.columns[0]);
         }
-      };
-      reader.readAsText(file, "UTF-8");
-    } else {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const arrayBuffer = evt.target?.result as ArrayBuffer;
-          if (!arrayBuffer) throw new Error("Không thể đọc nội dung!");
-          const wb = XLSX.read(arrayBuffer, { type: "array" });
-          const wsName = wb.SheetNames[0];
-          const ws = wb.Sheets[wsName];
-          const data = XLSX.utils.sheet_to_json(ws) as any[];
-          if (data.length === 0) {
-            alert("Tệp Excel rỗng!");
-            setLoading(false);
-            return;
-          }
-          const keys = Object.keys(data[0] || {});
-          setNewSnapFile(data);
-          setNewSnapFileName(file.name);
-          setNewSnapName(file.name.replace(/\.[^/.]+$/, ""));
-          setNewSnapColumns(keys);
-
-          guessMonthYearFromFileName(file.name);
-          setStatusMessage(`Đã nạp tạm thời ${data.length} dòng. Vui lòng chọn Kỳ báo cáo và lưu lại.`);
-        } catch (err: any) {
-          alert("Lỗi khi nạp file Excel: " + err.message);
-        } finally {
-          setLoading(false);
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    }
+      } catch (err: any) {
+        alert("Lỗi đọc tệp A: " + err.message);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
   };
 
-  const handleSaveActiveDataAsSnapshot = () => {
-    if (mainData.length === 0) {
-      alert("Không có dữ liệu chính nào đang chạy trong hệ thống để lưu trữ!");
-      return;
-    }
-    const cols = Object.keys(mainData[0] || {});
-    setNewSnapFile(mainData);
-    setNewSnapFileName(fileName || "DuLieuHeThong.xlsx");
-    setNewSnapName(fileName ? fileName.replace(/\.[^/.]+$/, "") : "Dữ liệu đang chạy");
-    setNewSnapColumns(cols);
-    guessMonthYearFromFileName(fileName || "");
-    alert("Đã lấy dữ liệu đang chạy trên màn hình chính! Hãy kiểm tra thông tin Kỳ báo cáo, Tên Snapshot bên dưới và bấm 'Lưu vào Kho' để hoàn tất.");
-  };
+  // Chọn nhanh Sheet làm File A
+  const handleSelectSheetA = (sheetName: string) => {
+    if (!sheetDataStore[sheetName]) return;
+    const sData = sheetDataStore[sheetName].data || [];
+    const sCols = sheetDataStore[sheetName].columns || (sData[0] ? Object.keys(sData[0]) : []);
+    setLocalDataA(sData);
+    setLocalFileNameA(`Sheet: ${sheetName}`);
+    if (setMainData) setMainData(sData);
+    if (setColumns) setColumns(sCols);
+    if (setRawImportedData) setRawImportedData(sData);
+    if (setFileName) setFileName(`Sheet: ${sheetName}`);
 
-  const handleSaveSnapshot = async () => {
-    if (!newSnapFile || newSnapFile.length === 0) {
-      alert("Vui lòng tải một file hoặc lấy dữ liệu hiện tại trước khi lưu!");
-      return;
-    }
-    if (!newSnapName.trim()) {
-      alert("Vui lòng đặt tên gợi nhớ cho bản ghi lưu trữ này!");
-      return;
-    }
-
-    setLoading(true);
-    setStatusMessage("Đang lưu bản ghi vào kho lưu trữ lâu dài...");
-    await sleep(200);
-
-    try {
-      const id = "snap_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
-      const finalCategory = newSnapCategory === "custom" 
-        ? (newCustomCategory.trim() || "Mặc định") 
-        : newSnapCategory;
-      const finalCycleValue = newSnapCycleType === "year" ? 1 : newSnapCycleValue;
-
-      const newSnap: SavedSnapshot = {
-        id,
-        name: newSnapName.trim(),
-        month: newSnapCycleType === "month" ? finalCycleValue : 1,
-        year: newSnapYear,
-        cycleType: newSnapCycleType,
-        cycleValue: finalCycleValue,
-        category: finalCategory,
-        fileName: newSnapFileName,
-        data: newSnapFile,
-        columns: newSnapColumns,
-        createdAt: new Date().toLocaleString("vi-VN")
-      };
-
-      await saveSnapshotToDB(newSnap);
-      
-      const updated = await getAllSnapshotsFromDB();
-      setSavedSnapshots(updated || []);
-
-      setNewSnapFile(null);
-      setNewSnapFileName("");
-      setNewSnapName("");
-      setNewCustomCategory("");
-      setNewSnapCategory("Mặc định");
-      setStatusMessage("Đã lưu trữ dữ liệu lâu dài thành công!");
-      alert(`Đã lưu thành công Bản ghi "${newSnap.name}" vào mục "${finalCategory}" (Chu kỳ: ${getFormattedPeriod(newSnap)}) vào bộ nhớ lưu trữ lâu dài của hệ thống!`);
-    } catch (err: any) {
-      alert("Không thể lưu trữ do lỗi: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteSnapshot = async (id: string, name: string) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn bản ghi lưu trữ: "${name}" khỏi kho hệ thống không?`)) {
-      return;
-    }
-    setLoading(true);
-    setStatusMessage("Đang xóa bản ghi...");
-    try {
-      await deleteSnapshotFromDB(id);
-      const updated = await getAllSnapshotsFromDB();
-      setSavedSnapshots(updated || []);
-      setStatusMessage("Xóa thành công.");
-    } catch (err: any) {
-      alert("Lỗi khi xóa: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLoadSnapshotAsActive = async (snap: SavedSnapshot) => {
-    if (!snap.data || snap.data.length === 0) return;
-    setLoading(true);
-    setStatusMessage(`Đang tải dữ liệu "${snap.name}" lên màn hình chính...`);
-    await sleep(200);
-
-    try {
-      setMainData(snap.data);
-      setRawImportedData(snap.data);
-      setColumns(snap.columns);
-      setFileName(snap.fileName || `${snap.name}.xlsx`);
-      
-      setMapping({
-        mota: "",
-        manganh: "",
-        xa: "",
-        doanhthu: "",
-        laodong: "",
-        idCol: "",
-      });
-
-      const initConfigs = snap.columns.map((c) => ({
-        originalName: c,
-        use: true,
-        newName: c,
-        role: "" as any,
-      }));
-      setCustomColConfigs(initConfigs);
-      setStatusMessage(`Đã nạp thành công ${snap.data.length} dòng từ Kho Lưu trữ.`);
-      alert(`Đã nạp toàn bộ ${snap.data.length} dòng của Snapshot "${snap.name}" vào bảng phân tích chính! Bạn có thể xem và thực hiện các nghiệp vụ khác ngay bây giờ.`);
-    } catch (err: any) {
-      alert("Lỗi khi tải dữ liệu: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Auto detect columns for Snapshot A and Snapshot B when selected
-  useEffect(() => {
-    const snapA = savedSnapshots.find(s => s.id === snapAId);
-    if (snapA && snapA.columns.length > 0) {
-      const guessedKey = snapA.columns.find(c => {
-        const l = c.toLowerCase();
-        return l.includes("id") || l.includes("mst") || l.includes("mã") || l.includes("key") || l.includes("code") || l.includes("định danh");
-      }) || snapA.columns[0];
-      setSnapAKeyCol(guessedKey);
-
-      const guessedMetric = snapA.columns.find(c => {
-        const l = c.toLowerCase();
-        return l.includes("doanh thu") || l.includes("doanhthu") || l.includes("lao động") || l.includes("laodong") || l.includes("số lượng") || l.includes("soluong") || l.includes("sản lượng") || l.includes("giá trị") || l.includes("value") || l.includes("amount") || l.includes("tong") || l.includes("tổng");
-      }) || snapA.columns[snapA.columns.length - 1] || "";
-      setSnapAMetricCol(guessedMetric);
-    }
-  }, [snapAId, savedSnapshots]);
-
-  useEffect(() => {
-    const snapB = savedSnapshots.find(s => s.id === snapBId);
-    if (snapB && snapB.columns.length > 0) {
-      const guessedKey = snapB.columns.find(c => {
-        const l = c.toLowerCase();
-        return l.includes("id") || l.includes("mst") || l.includes("mã") || l.includes("key") || l.includes("code") || l.includes("định danh");
-      }) || snapB.columns[0];
-      setSnapBKeyCol(guessedKey);
-
-      const guessedMetric = snapB.columns.find(c => {
-        const l = c.toLowerCase();
-        return l.includes("doanh thu") || l.includes("doanhthu") || l.includes("lao động") || l.includes("laodong") || l.includes("số lượng") || l.includes("soluong") || l.includes("sản lượng") || l.includes("giá trị") || l.includes("value") || l.includes("amount") || l.includes("tong") || l.includes("tổng");
-      }) || snapB.columns[snapB.columns.length - 1] || "";
-      setSnapBMetricCol(guessedMetric);
-    }
-  }, [snapBId, savedSnapshots]);
-
-  const handleCompareTwoSnapshots = async () => {
-    if (!snapAId || !snapBId) {
-      alert("Vui lòng chọn cả hai Bản ghi cần so sánh đối chiếu!");
-      return;
-    }
-    if (snapAId === snapBId) {
-      alert("Bạn phải chọn hai Bản ghi lưu trữ khác nhau để so sánh!");
-      return;
-    }
-    if (!snapAKeyCol || !snapBKeyCol) {
-      alert("Vui lòng cấu hình Cột khóa định danh khớp nối cho cả hai Bản ghi!");
-      return;
-    }
-    if (!snapAMetricCol || !snapBMetricCol) {
-      alert("Vui lòng cấu hình Cột chỉ tiêu đo lường số lượng cho cả hai Bản ghi!");
-      return;
-    }
-
-    const snapA = savedSnapshots.find(s => s.id === snapAId);
-    const snapB = savedSnapshots.find(s => s.id === snapBId);
-
-    if (!snapA || !snapB) {
-      alert("Không tìm thấy dữ liệu Bản ghi trong hệ thống!");
-      return;
-    }
-
-    setLoading(true);
-    setProgress(0);
-    setStatusMessage("Đang thực hiện phân tích đối chiếu liên kỳ...");
-    await sleep(300);
-
-    try {
-      const mapA = new Map<string, any>();
-      snapA.data.forEach(row => {
-        const k = String(row[snapAKeyCol] || "").trim();
-        if (k) mapA.set(k, row);
-      });
-
-      const mapB = new Map<string, any>();
-      snapB.data.forEach(row => {
-        const k = String(row[snapBKeyCol] || "").trim();
-        if (k) mapB.set(k, row);
-      });
-
-      const results: any[] = [];
-      const allKeys = Array.from(new Set([...mapA.keys(), ...mapB.keys()]));
-      const totalKeys = allKeys.length;
-      const batchSize = Math.max(1, Math.floor(totalKeys / 20));
-
-      for (let i = 0; i < totalKeys; i++) {
-        const key = allKeys[i];
-        const rowA = mapA.get(key);
-        const rowB = mapB.get(key);
-
-        let valA = 0;
-        let valB = 0;
-
-        if (rowA) {
-          const rawA = rowA[snapAMetricCol];
-          valA = parseFloat(String(rawA || "").replace(/[^0-9.-]/g, "")) || 0;
-        }
-        if (rowB) {
-          const rawB = rowB[snapBMetricCol];
-          valB = parseFloat(String(rawB || "").replace(/[^0-9.-]/g, "")) || 0;
-        }
-
-        let diff = valB - valA;
-        let percent = valA !== 0 ? (diff / valA) * 100 : 0;
-        let statusStr = "";
-
-        if (rowA && !rowB) {
-          statusStr = "❌ Đã xóa";
-        } else if (!rowA && rowB) {
-          statusStr = "✅ Mới thêm";
-        } else {
-          statusStr = diff > 0 ? "📈 Tăng" : diff < 0 ? "📉 Giảm" : "💡 Không đổi";
-        }
-
-        results.push({
-          [snapBKeyCol || "Khóa định danh"]: key,
-          "Kỳ đối chiếu": getFormattedPeriod(snapA),
-          [`[Gốc] ${snapAMetricCol || "Chỉ tiêu"}`]: parseFloat(valA.toFixed(2)),
-          "Kỳ báo cáo": getFormattedPeriod(snapB),
-          [`[So khớp] ${snapBMetricCol || "Chỉ tiêu"}`]: parseFloat(valB.toFixed(2)),
-          [`Chênh lệch (${snapBMetricCol || "Chỉ tiêu"})`]: parseFloat(diff.toFixed(2)),
-          "% Thay đổi": parseFloat(percent.toFixed(2)),
-          "Trạng thái": statusStr
-        });
-
-        if (i % batchSize === 0 || i === totalKeys - 1) {
-          setProgress(Math.floor((i / totalKeys) * 100));
-          await sleep(5);
+    if (compareColumns.length > 0) {
+      const matches = autoDetectMatchingColumns(sCols, compareColumns);
+      if (matches.length > 0) {
+        setKeyColA(matches[0].col1);
+        setKeyColB(matches[0].col2);
+        if (matches.length > 1) {
+          setCompareValColA(matches[1].col1);
+          setCompareValColB(matches[1].col2);
         }
       }
-
-      setSnapCompareResult(results);
-      
-      const resCols = Object.keys(results[0] || {});
-      setMainData(results);
-      setRawImportedData(results);
-      setColumns(resCols);
-      
-      const cleanFileA = snapA.name.replace(/\s+/g, "_");
-      const cleanFileB = snapB.name.replace(/\s+/g, "_");
-      setFileName(`SoSanh_${cleanFileB}_vs_${cleanFileA}.xlsx`);
-
-      setProgress(100);
-      setStatusMessage(`Đã đối chiếu thành công! Tìm thấy ${results.length} thực thể khớp nối.`);
-      alert(`Đã đối chiếu thành công Bản ghi "${snapB.name}" (${getFormattedPeriod(snapB)}) so với "${snapA.name}" (${getFormattedPeriod(snapA)})!\nKết quả so sánh đã được nạp trực tiếp vào Bảng Dữ liệu Phân tích chính.`);
-    } catch (err: any) {
-      alert("Lỗi khi đối chiếu: " + err.message);
-    } finally {
-      setLoading(false);
+    } else if (sCols.length > 0) {
+      setKeyColA(sCols[0]);
+      setCompareValColA(sCols[1] || sCols[0]);
     }
   };
 
-  // === PHẦN 1: SO SÁNH GIỮA CÁC THỜI KỲ ===
-  const [oldData, setOldData] = useState<any[]>([]);
-  const [oldFileName, setOldFileName] = useState<string>("");
-  const [newData, setNewData] = useState<any[]>([]);
-  const [newFileName, setNewFileName] = useState<string>("");
-  const [diffKey, setDiffKey] = useState<string>("");
-  const [compareResultData, setCompareResultData] = useState<any[] | null>(null);
-
-  // === PHẦN 2: SO SÁNH THEO THỜI GIAN (Yêu cầu Mới) ===
-  const [tsData, setTsData] = useState<any[]>([]);
-  const [tsFileName, setTsFileName] = useState<string>("");
-  const [tsKey, setTsKey] = useState<string>(""); // Khóa định danh địa bàn/DN
-  
-  // Cấu hình thời gian
-  const [timeConfigType, setTimeConfigType] = useState<"single" | "separate">("separate");
-  const [singleDateCol, setSingleDateCol] = useState<string>("");
-  const [monthCol, setMonthCol] = useState<string>("");
-  const [yearCol, setYearCol] = useState<string>("");
-  const [metricCol, setMetricCol] = useState<string>(""); // Cột chỉ tiêu số lượng (Doanh thu, lao động...)
-  const [comparisonType, setComparisonType] = useState<"adjacent" | "yoy">("adjacent");
-  
-  // Kết quả so sánh chuỗi thời gian
-  const [tsResultRows, setTsResultRows] = useState<any[]>([]);
-  const [selectedChartEntity, setSelectedChartEntity] = useState<string>(""); // Bộ lọc biểu đồ theo thực thể
-
-  // Đọc file tải lên cho phần 1 & 2
-  const handleLocalFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "old" | "new" | "ts") => {
+  // Đọc file đối chiếu B
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setLoading(true);
-    setStatusMessage(`Đang nạp file: ${file.name}...`);
+    setCompareFile(file);
+    setCompareSheetName(file.name);
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const buffer = evt.target?.result;
+        const wb = XLSX.read(buffer, { type: "binary" });
+        const wsName = wb.SheetNames[0];
+        const rawRows = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[wsName], { header: 1, defval: "" });
+        const parsed = parse2DArrayWithSmartHeader(rawRows);
+        setCompareData(parsed.data);
+        setCompareColumns(parsed.columns);
 
-    const isCSV = file.name.toLowerCase().endsWith(".csv") || file.name.toLowerCase().endsWith(".txt");
-
-    if (isCSV) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const text = evt.target?.result as string;
-          if (!text) throw new Error("Không thể đọc nội dung tệp tin!");
-
-          const data = parseCSV(text);
-          if (data.length === 0) {
-            alert("Tệp rỗng hoặc sai định dạng!");
-            setLoading(false);
-            return;
+        // Tự động gán khóa nếu phát hiện cột tương đồng
+        const matches = autoDetectMatchingColumns(mainColumns, parsed.columns);
+        if (matches.length > 0) {
+          setKeyColA(matches[0].col1);
+          setKeyColB(matches[0].col2);
+          if (matches.length > 1) {
+            setCompareValColA(matches[1].col1);
+            setCompareValColB(matches[1].col2);
           }
-
-          const keys = Object.keys(data[0] || {});
-          if (type === "old") {
-            setOldData(data);
-            setOldFileName(file.name);
-            if (keys.length > 0 && !diffKey) setDiffKey(keys[0]);
-          } else if (type === "new") {
-            setNewData(data);
-            setNewFileName(file.name);
-            if (keys.length > 0 && !diffKey) setDiffKey(keys[0]);
-          } else {
-            setTsData(data);
-            setTsFileName(file.name);
-            autoGuessTSConfigs(data);
-          }
-          setStatusMessage(`Đã nạp thành công ${data.length} dòng.`);
-        } catch (err: any) {
-          alert("Lỗi khi đọc file CSV: " + err.message);
-        } finally {
-          setLoading(false);
+        } else if (parsed.columns.length > 0) {
+          setKeyColB(parsed.columns[0]);
+          setCompareValColB(parsed.columns[1] || parsed.columns[0]);
         }
-      };
-      reader.readAsText(file, "UTF-8");
-    } else {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const arrayBuffer = evt.target?.result as ArrayBuffer;
-          if (!arrayBuffer) throw new Error("Không thể đọc nội dung!");
+      } catch (err: any) {
+        alert("Lỗi đọc tệp đối chiếu: " + err.message);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  };
 
-          const wb = XLSX.read(arrayBuffer, {
-            type: "array",
-            dense: true,
-            cellFormula: false,
-            cellHTML: false,
-            cellStyles: false,
-          });
+  // Hoặc chọn nhanh từ Sheet khác trong cùng Workbook (nếu có)
+  const handleSelectSheetFromWorkbook = (sheetName: string) => {
+    if (!sheetDataStore[sheetName]) return;
+    const sData = sheetDataStore[sheetName].data || [];
+    const sCols = sheetDataStore[sheetName].columns || (sData[0] ? Object.keys(sData[0]) : []);
+    setCompareData(sData);
+    setCompareColumns(sCols);
+    setCompareSheetName(`Sheet: ${sheetName}`);
+    setCompareFile(null);
 
-          const wsName = wb.SheetNames[0];
-          const ws = wb.Sheets[wsName];
-          const data = XLSX.utils.sheet_to_json(ws) as any[];
-
-          if (data.length === 0) {
-            alert("Tệp Excel rỗng hoặc sai định dạng!");
-            setLoading(false);
-            return;
-          }
-
-          const keys = Object.keys(data[0] || {});
-          if (type === "old") {
-            setOldData(data);
-            setOldFileName(file.name);
-            if (keys.length > 0 && !diffKey) setDiffKey(keys[0]);
-          } else if (type === "new") {
-            setNewData(data);
-            setNewFileName(file.name);
-            if (keys.length > 0 && !diffKey) setDiffKey(keys[0]);
-          } else {
-            setTsData(data);
-            setTsFileName(file.name);
-            autoGuessTSConfigs(data);
-          }
-          setStatusMessage(`Đã nạp thành công ${data.length} dòng.`);
-        } catch (err: any) {
-          alert("Lỗi khi đọc file Excel: " + err.message);
-        } finally {
-          setLoading(false);
-        }
-      };
-      reader.readAsArrayBuffer(file);
+    // Tự động gán khóa nếu khớp
+    const matches = autoDetectMatchingColumns(mainColumns, sCols);
+    if (matches.length > 0) {
+      setKeyColA(matches[0].col1);
+      setKeyColB(matches[0].col2);
+      if (matches.length > 1) {
+        setCompareValColA(matches[1].col1);
+        setCompareValColB(matches[1].col2);
+      }
+    } else if (sCols.length > 0) {
+      setKeyColB(sCols[0]);
+      setCompareValColB(sCols[1] || sCols[0]);
     }
   };
 
-  // Tự động phân tích và đoán cột thời gian, khóa định danh
-  const autoGuessTSConfigs = (data: any[]) => {
-    if (data.length === 0) return;
-    const cols = Object.keys(data[0] || {});
-    
-    // Tìm khóa định danh
-    const guessedKey = cols.find(c => {
-      const l = c.toLowerCase();
-      return l.includes("id") || l.includes("mst") || l.includes("mã") || l.includes("key") || l.includes("code") || l.includes("định danh");
+  // Hàm chuẩn hóa khóa
+  const normalizeKey = (val: any): string => {
+    let k = cleanForComparison(val, {
+      ignoreCase,
+      ignoreDiacritics,
+      ignoreSpaces,
+      ignorePunctuation,
     });
-    if (guessedKey) setTsKey(guessedKey);
-
-    // Tìm cột tháng, năm riêng biệt hoặc chung
-    const guessedMonth = cols.find(c => c.toLowerCase().includes("tháng") || c.toLowerCase() === "thang" || c.toLowerCase() === "month" || c.toLowerCase() === "thg");
-    const guessedYear = cols.find(c => c.toLowerCase().includes("năm") || c.toLowerCase() === "nam" || c.toLowerCase() === "year" || c.toLowerCase() === "nm");
-    const guessedDate = cols.find(c => c.toLowerCase().includes("ngày") || c.toLowerCase().includes("date") || c.toLowerCase().includes("thời gian") || c.toLowerCase().includes("period"));
-
-    if (guessedMonth && guessedYear) {
-      setTimeConfigType("separate");
-      setMonthCol(guessedMonth);
-      setYearCol(guessedYear);
-    } else if (guessedDate) {
-      setTimeConfigType("single");
-      setSingleDateCol(guessedDate);
-    } else {
-      // Dự phòng
-      setTimeConfigType("separate");
-      if (cols.length > 1) {
-        setMonthCol(cols[1]);
-        setYearCol(cols[2] || cols[1]);
-      }
+    if (trimLeadingZeros) {
+      k = k.replace(/^0+/, "");
     }
-
-    // Dự đoán cột chỉ tiêu số học
-    const guessedMetric = cols.find(c => {
-      const l = c.toLowerCase();
-      return l.includes("doanh thu") || l.includes("doanhthu") || l.includes("lao động") || l.includes("laodong") || l.includes("số lượng") || l.includes("soluong") || l.includes("sản lượng") || l.includes("giá trị") || l.includes("value") || l.includes("amount") || l.includes("tong") || l.includes("tổng");
-    });
-    if (guessedMetric) {
-      setMetricCol(guessedMetric);
-    } else {
-      // Tìm cột đầu tiên có kiểu số hoặc giữ cột cuối
-      setMetricCol(cols[cols.length - 1] || "");
-    }
+    return k;
   };
 
-  // Logic 1: So sánh đối chiếu cũ - mới (Diff)
-  const handleCompare = async () => {
-    if (oldData.length === 0 || newData.length === 0) {
-      alert("Vui lòng tải đầy đủ tệp dữ liệu Cũ và Mới!");
-      return;
+  // =========================================================================
+  // LOGIC LÀM SẠCH KHOẢNG CÁCH & ĐỊNH DẠNG CHỮ HOA/THƯỜNG THEO CỘT
+  // =========================================================================
+  const cleanStringHelper = (val: any): string => {
+    if (val === undefined || val === null) return "";
+    let s = String(val);
+
+    // 1. Xóa dấu nếu chọn
+    if (cleanRemoveAccents) {
+      s = removeVietnameseTones(s);
     }
-    if (!diffKey) {
-      alert("Vui lòng chọn Cột Khóa định danh độc nhất (Unique Key)!");
-      return;
-    }
 
-    setLoading(true);
-    setProgress(0);
-    setStatusMessage("Khởi động so sánh dữ liệu...");
-    await sleep(200);
-
-    const oldMap = new Map();
-    oldData.forEach((row) => {
-      if (!row || typeof row !== "object") return;
-      const k = String(row[diffKey] || "").trim();
-      if (k) oldMap.set(k, row);
-    });
-
-    const newMap = new Map();
-    newData.forEach((row) => {
-      if (!row || typeof row !== "object") return;
-      const k = String(row[diffKey] || "").trim();
-      if (k) newMap.set(k, row);
-    });
-
-    const resultRows: any[] = [];
-    const allKeys = Array.from(new Set([...oldMap.keys(), ...newMap.keys()]));
-    const batchSize = Math.max(1, Math.floor(allKeys.length / 20));
-
-    const firstOldRow = oldData.find((r) => r && typeof r === "object") || {};
-    const firstNewRow = newData.find((r) => r && typeof r === "object") || {};
-    const oldCols = Object.keys(firstOldRow);
-    const newCols = Object.keys(firstNewRow);
-    const unionCols = Array.from(new Set([...oldCols, ...newCols])).filter((c) => c !== diffKey);
-
-    for (let i = 0; i < allKeys.length; i++) {
-      const key = allKeys[i];
-      const oldRow = oldMap.get(key);
-      const newRow = newMap.get(key);
-
-      const combined: any = { [diffKey]: key };
-
-      if (oldRow && !newRow) {
-        unionCols.forEach((col) => {
-          combined[`${col}_Cu`] = oldRow[col] || "";
-          combined[`${col}_Moi`] = "";
-        });
-        combined["TrangThai_SoSanh"] = "❌ Đã xóa";
-      } else if (!oldRow && newRow) {
-        unionCols.forEach((col) => {
-          combined[`${col}_Cu`] = "";
-          combined[`${col}_Moi`] = newRow[col] || "";
-        });
-        combined["TrangThai_SoSanh"] = "✅ Mới thêm";
-      } else {
-        const changedCols: string[] = [];
-        unionCols.forEach((col) => {
-          const valCu = String(oldRow[col] !== undefined ? oldRow[col] : "").trim();
-          const valMoi = String(newRow[col] !== undefined ? newRow[col] : "").trim();
-
-          combined[`${col}_Cu`] = oldRow[col] || "";
-          combined[`${col}_Moi`] = newRow[col] || "";
-
-          if (valCu !== valMoi) {
-            changedCols.push(col);
-          }
-        });
-
-        if (changedCols.length > 0) {
-          combined["TrangThai_SoSanh"] = `⚠️ Thay đổi: [${changedCols.join(", ")}]`;
-        } else {
-          combined["TrangThai_SoSanh"] = "💡 Không đổi";
-        }
+    // 2. Xử lý khoảng cách
+    if (cleanRemoveAllSpaces) {
+      s = s.replace(/\s+/g, "");
+    } else {
+      if (cleanCollapseSpaces) {
+        s = s.replace(/\s+/g, " ");
       }
-
-      resultRows.push(combined);
-
-      if (i % batchSize === 0 || i === allKeys.length - 1) {
-        const pct = Math.floor((i / allKeys.length) * 100);
-        setProgress(pct);
-        setStatusMessage(`Đang so sánh đối chiếu: ${i}/${allKeys.length} dòng...`);
-        await sleep(10);
+      if (cleanTrimSpaces) {
+        s = s.trim();
       }
     }
 
-    const compareCols = Object.keys(resultRows[0] || {});
-    setMainData(resultRows);
-    setRawImportedData(resultRows);
-    setColumns(compareCols);
-    setFileName(`SoSanhDiff_${oldFileName.replace(/\.[^/.]+$/, "")}_vs_${newFileName.replace(/\.[^/.]+$/, "")}.xlsx`);
-    setCompareResultData(resultRows);
-    setMapping({
-      mota: "",
-      manganh: "",
-      xa: "",
-      doanhthu: "",
-      laodong: "",
-      idCol: "",
-    });
+    // 3. Xử lý chữ hoa / chữ thường
+    if (cleanCaseOption === "upper") {
+      s = s.toUpperCase();
+    } else if (cleanCaseOption === "lower") {
+      s = s.toLowerCase();
+    } else if (cleanCaseOption === "title") {
+      // Viết hoa chữ cái đầu mỗi từ
+      s = s.toLowerCase().replace(/(^|\s)\S/g, char => char.toUpperCase());
+    }
 
-    const initCompareConfigs = compareCols.map((c) => {
-      return {
-        originalName: c,
-        use: true,
-        newName: c,
-        role: "" as any,
-      };
-    });
-    setCustomColConfigs(initCompareConfigs);
-
-    setProgress(100);
-    setStatusMessage(`So sánh thành công! Tìm thấy tổng cộng ${resultRows.length} khóa định danh.`);
-    await sleep(400);
-    setLoading(false);
+    return s;
   };
 
-  // Logic 2: So sánh Chuỗi Thời gian (Adjacent & YoY same month)
-  const handleTimeSeriesCompare = async () => {
-    const activeDataset = tsData.length > 0 ? tsData : mainData;
-    const activeName = tsFileName || fileName || "Hệ thống hiện tại";
-
-    if (activeDataset.length === 0) {
-      alert("Không có dữ liệu nguồn để so sánh chuỗi thời gian! Vui lòng nạp dữ liệu.");
+  const handleExecuteCleanColumns = () => {
+    if (cleanSelectedCols.length === 0) {
+      alert("Vui lòng tích chọn ít nhất một cột cần làm sạch khoảng cách và định dạng chữ hoa/thường!");
       return;
     }
 
-    if (!tsKey) {
-      alert("Vui lòng chọn Cột Khóa định danh địa bàn/thực thể!");
-      return;
-    }
+    let modifiedCellsCount = 0;
+    let modifiedRowsA = 0;
+    let modifiedRowsB = 0;
 
-    if (!metricCol) {
-      alert("Vui lòng chọn Cột Chỉ tiêu số liệu cần đối chiếu!");
-      return;
-    }
-
-    if (timeConfigType === "separate" && (!monthCol || !yearCol)) {
-      alert("Vui lòng cấu hình đầy đủ cột Tháng và cột Năm!");
-      return;
-    }
-
-    if (timeConfigType === "single" && !singleDateCol) {
-      alert("Vui lòng chọn cột Ngày/Tháng thời gian!");
-      return;
-    }
-
-    setLoading(true);
-    setProgress(0);
-    setStatusMessage("Bắt đầu xử lý chuỗi thời gian...");
-    await sleep(300);
-
-    // BƯỚC 1: PARSE THỜI GIAN VÀ GROUP DỮ LIỆU
-    // Cấu trúc map lưu trữ: Key -> Year -> Month -> Value
-    const groupedMap = new Map<string, Map<number, Map<number, number>>>();
-    const allYearsSet = new Set<number>();
-    const allMonthsSet = new Set<number>();
-    const allEntitiesSet = new Set<string>();
-
-    activeDataset.forEach((row) => {
-      const entityId = String(row[tsKey] || "").trim();
-      if (!entityId) return;
-
-      allEntitiesSet.add(entityId);
-
-      let m = 0;
-      let y = 0;
-
-      if (timeConfigType === "separate") {
-        m = parseInt(String(row[monthCol]).replace(/[^0-9]/g, "")) || 0;
-        y = parseInt(String(row[yearCol]).replace(/[^0-9]/g, "")) || 0;
-      } else {
-        // Tự động phân tích trường thời gian chung (ví dụ: '02/2026', '2026-02-15')
-        const rawDateStr = String(row[singleDateCol] || "").trim();
-        if (rawDateStr) {
-          // Định dạng MM/YYYY
-          if (rawDateStr.includes("/")) {
-            const parts = rawDateStr.split("/");
-            if (parts.length >= 2) {
-              m = parseInt(parts[0]) || 0;
-              y = parseInt(parts[1]) || 0;
+    // Xử lý Kỳ 1 (Tệp A) nếu được chọn
+    if ((cleanTarget === "A" || cleanTarget === "BOTH") && activeMainData.length > 0) {
+      const updatedA = activeMainData.map(row => {
+        let changed = false;
+        const newRow = { ...row };
+        cleanSelectedCols.forEach(col => {
+          if (newRow[col] !== undefined && newRow[col] !== null) {
+            const originalVal = String(newRow[col]);
+            const cleanedVal = cleanStringHelper(originalVal);
+            if (originalVal !== cleanedVal) {
+              newRow[col] = cleanedVal;
+              modifiedCellsCount++;
+              changed = true;
             }
-          } else if (rawDateStr.includes("-")) {
-            // Định dạng YYYY-MM-DD
-            const parts = rawDateStr.split("-");
-            if (parts[0].length === 4) {
-              y = parseInt(parts[0]) || 0;
-              m = parseInt(parts[1]) || 0;
-            } else if (parts[2]?.length === 4) {
-              // DD-MM-YYYY
-              y = parseInt(parts[2]) || 0;
-              m = parseInt(parts[1]) || 0;
-            }
-          } else {
-            // Chuyển trực tiếp thành số
-            const parsedVal = parseInt(rawDateStr);
-            if (parsedVal > 100000) { // Giả lập timestamp hoặc YYMMDD
-              const d = new Date(parsedVal);
-              m = d.getMonth() + 1;
-              y = d.getFullYear();
-            } else {
-              y = parsedVal;
-            }
-          }
-        }
-      }
-
-      // Đảm bảo tháng và năm hợp lệ
-      if (m < 1 || m > 12) m = 1;
-      if (y < 1900 || y > 2100) y = new Date().getFullYear();
-
-      allYearsSet.add(y);
-      allMonthsSet.add(m);
-
-      const rawMetricVal = row[metricCol];
-      const metricVal = parseFloat(String(rawMetricVal).replace(/[^0-9.-]/g, "")) || 0;
-
-      // Đưa vào nhóm
-      let yearMap = groupedMap.get(entityId);
-      if (!yearMap) {
-        yearMap = new Map();
-        groupedMap.set(entityId, yearMap);
-      }
-
-      let monthMap = yearMap.get(y);
-      if (!monthMap) {
-        monthMap = new Map();
-        yearMap.set(y, monthMap);
-      }
-
-      // Cộng dồn nếu có nhiều bản ghi cùng kỳ
-      const existingVal = monthMap.get(m) || 0;
-      monthMap.set(m, existingVal + metricVal);
-    });
-
-    // BƯỚC 2: TIẾN HÀNH ĐỐI CHIẾU SO SÁNH THEO LOẠI YÊU CẦU
-    const results: any[] = [];
-    const entityList = Array.from(allEntitiesSet);
-    const sortedYears = Array.from(allYearsSet).sort((a, b) => a - b);
-    const sortedMonths = Array.from(allMonthsSet).sort((a, b) => a - b);
-
-    entityList.forEach((entityId) => {
-      const yearMap = groupedMap.get(entityId);
-      if (!yearMap) return;
-
-      sortedYears.forEach((y) => {
-        const monthMap = yearMap.get(y);
-        if (!monthMap) return;
-
-        sortedMonths.forEach((m) => {
-          const valCurrent = monthMap.get(m);
-          if (valCurrent === undefined) return;
-
-          let valPrior = 0;
-          let priorLabel = "";
-          let hasPrior = false;
-
-          if (comparisonType === "adjacent") {
-            // 1. SO SÁNH THÁNG LIÊN TIẾP GẦN NHAU (T vs T-1)
-            let priorM = m - 1;
-            let priorY = y;
-            if (priorM === 0) {
-              priorM = 12;
-              priorY = y - 1;
-            }
-
-            const priorYearMap = yearMap.get(priorY);
-            if (priorYearMap) {
-              const val = priorYearMap.get(priorM);
-              if (val !== undefined) {
-                valPrior = val;
-                hasPrior = true;
-              }
-            }
-            priorLabel = `Tháng ${priorM}/${priorY}`;
-          } else {
-            // 2. SO SÁNH CÙNG KỲ NĂM TRƯỚC (YoY) - Ví dụ Tháng 2 năm nay vs Tháng 2 năm trước
-            const priorY = y - 1;
-            const priorYearMap = yearMap.get(priorY);
-            if (priorYearMap) {
-              const val = priorYearMap.get(m);
-              if (val !== undefined) {
-                valPrior = val;
-                hasPrior = true;
-              }
-            }
-            priorLabel = `Tháng ${m}/${priorY}`;
-          }
-
-          if (hasPrior) {
-            const diff = valCurrent - valPrior;
-            const percent = valPrior !== 0 ? (diff / valPrior) * 100 : 0;
-            const statusStr = diff > 0 ? "📈 Tăng" : diff < 0 ? "📉 Giảm" : "💡 Không đổi";
-
-            results.push({
-              [tsKey]: entityId,
-              "Kỳ hiện tại": `Tháng ${m}/${y}`,
-              "Giá trị kỳ này": valCurrent,
-              "Kỳ đối chiếu": priorLabel,
-              "Giá trị kỳ trước": valPrior,
-              "Chênh lệch tuyệt đối": parseFloat(diff.toFixed(2)),
-              "% Thay đổi": parseFloat(percent.toFixed(2)),
-              "Trạng thái": statusStr,
-              "_year": y,
-              "_month": m
-            });
           }
         });
+        if (changed) modifiedRowsA++;
+        return newRow;
       });
-    });
-
-    setTsResultRows(results);
-    if (entityList.length > 0) {
-      setSelectedChartEntity(entityList[0]);
+      setLocalDataA(updatedA);
+      if (setMainData) setMainData(updatedA);
+      if (setRawImportedData) {
+        setRawImportedData(updatedA);
+      }
     }
 
-    // Nạp kết quả vào bảng chính để xem
-    if (results.length > 0) {
-      const resCols = Object.keys(results[0]).filter(k => !k.startsWith("_"));
-      setMainData(results);
-      setRawImportedData(results);
-      setColumns(resCols);
-      setFileName(`SoSanhChuoiThoiGian_${comparisonType === "adjacent" ? "LienTiep" : "CungKy"}_${activeName.replace(/\.[^/.]+$/, "")}.xlsx`);
+    // Xử lý Kỳ 2 (Tệp B) nếu được chọn
+    if ((cleanTarget === "B" || cleanTarget === "BOTH") && compareData.length > 0) {
+      const updatedB = compareData.map(row => {
+        let changed = false;
+        const newRow = { ...row };
+        cleanSelectedCols.forEach(col => {
+          if (newRow[col] !== undefined && newRow[col] !== null) {
+            const originalVal = String(newRow[col]);
+            const cleanedVal = cleanStringHelper(originalVal);
+            if (originalVal !== cleanedVal) {
+              newRow[col] = cleanedVal;
+              modifiedCellsCount++;
+              changed = true;
+            }
+          }
+        });
+        if (changed) modifiedRowsB++;
+        return newRow;
+      });
+      setCompareData(updatedB);
     }
 
-    setProgress(100);
-    setStatusMessage(`Đối chiếu chuỗi thời gian thành công! Tạo ra ${results.length} dòng chênh lệch đối chiếu.`);
-    await sleep(400);
-    setLoading(false);
+    const targetDesc =
+      cleanTarget === "BOTH"
+        ? "Cả 2 kỳ (A & B)"
+        : cleanTarget === "A"
+        ? "Kỳ 1 (Tệp A)"
+        : "Kỳ 2 (Tệp B)";
+
+    const caseDesc =
+      cleanCaseOption === "upper"
+        ? "CHỮ HOA"
+        : cleanCaseOption === "lower"
+        ? "chữ thường"
+        : cleanCaseOption === "title"
+        ? "Viết Hoa Chữ Đầu"
+        : "Giữ nguyên kiểu chữ";
+
+    const msg = `Đã làm sạch khoảng cách và chuyển ${caseDesc} thành công cho ${cleanSelectedCols.length} cột trên ${targetDesc}! (Đã chuẩn hóa ${modifiedCellsCount.toLocaleString("vi-VN")} ô dữ liệu). Bảng so sánh đã tự động cập nhật.`;
+    setCleanSuccessMsg(msg);
   };
 
-  // Lọc dữ liệu hiển thị trên biểu đồ theo thực thể được chọn
-  const chartDataForSelected = useMemo(() => {
-    if (!selectedChartEntity) return [];
-    return tsResultRows
-      .filter(row => row[tsKey] === selectedChartEntity)
-      .sort((a, b) => {
-        if (a._year !== b._year) return a._year - b._year;
-        return a._month - b._month;
+  // Chọn nhanh các cột văn bản/mã thường gặp
+  const handleQuickSelectTextCols = () => {
+    const textCols = availableColumnsForClean.filter(c =>
+      /mã|ma|tên|ten|họ|ho|mst|cccd|cmnd|id|địa chỉ|dia chi|xã|xa|huyện|huyen|tỉnh|tinh|phòng|ban|loại|loai|nhóm|nhom|số|so/i.test(c)
+    );
+    if (textCols.length > 0) {
+      setCleanSelectedCols(textCols);
+    } else {
+      setCleanSelectedCols(availableColumnsForClean.slice(0, 5));
+    }
+  };
+
+  // =========================================================================
+  // TÍNH TOÁN KẾT QUẢ SO SÁNH 2 KỲ (CHI TIẾT & TỔNG HỢP)
+  // =========================================================================
+  const comparisonResults = useMemo(() => {
+    if (!keyColA || !keyColB || compareData.length === 0) return null;
+
+    // Index hóa Tệp B bằng Map
+    const mapB = new Map<string, any>();
+    compareData.forEach(row => {
+      const k = normalizeKey(row[keyColB]);
+      if (k) {
+        if (!mapB.has(k)) {
+          mapB.set(k, row);
+        }
+      }
+    });
+
+    const diffs: {
+      key: string;
+      originalKeyA: string;
+      originalKeyB?: string;
+      status: "diff" | "only_in_a" | "same";
+      valA: any;
+      valB: any;
+      numA: number;
+      numB: number;
+      valDiff: number;
+      percentChange?: number;
+      rowA: any;
+      rowB: any;
+    }[] = [];
+
+    const matchedKeysInB = new Set<string>();
+
+    activeMainData.forEach(row => {
+      const origKeyA = String(row[keyColA] || "");
+      const k = normalizeKey(origKeyA);
+      if (!k) return;
+
+      const rowB = mapB.get(k);
+      if (rowB) {
+        matchedKeysInB.add(k);
+        const vA = compareValColA ? row[compareValColA] : "";
+        const vB = compareValColB ? rowB[compareValColB] : "";
+
+        const numA = parseFloat(String(vA || "").replace(/,/g, "").replace(/\s/g, ""));
+        const numB = parseFloat(String(vB || "").replace(/,/g, "").replace(/\s/g, ""));
+        const hasNumbers = !isNaN(numA) && !isNaN(numB);
+
+        const valDiff = hasNumbers ? numB - numA : 0;
+        const percentChange = hasNumbers && numA !== 0 ? ((numB - numA) / Math.abs(numA)) * 100 : undefined;
+
+        let isSame = false;
+        if (!compareValColA && !compareValColB) {
+          // Chỉ so khớp mã định danh
+          isSame = true;
+        } else if (hasNumbers) {
+          isSame = Math.abs(numA - numB) < 0.0001;
+        } else {
+          isSame = String(vA || "").trim().toLowerCase() === String(vB || "").trim().toLowerCase();
+        }
+
+        diffs.push({
+          key: k,
+          originalKeyA: origKeyA,
+          originalKeyB: String(rowB[keyColB] || ""),
+          status: isSame ? "same" : "diff",
+          valA: vA,
+          valB: vB,
+          numA: isNaN(numA) ? 0 : numA,
+          numB: isNaN(numB) ? 0 : numB,
+          valDiff,
+          percentChange,
+          rowA: row,
+          rowB: rowB,
+        });
+      } else {
+        const vA = compareValColA ? row[compareValColA] : "";
+        const numA = parseFloat(String(vA || "").replace(/,/g, "").replace(/\s/g, ""));
+        diffs.push({
+          key: k,
+          originalKeyA: origKeyA,
+          status: "only_in_a",
+          valA: vA,
+          valB: "(Không có ở Kỳ 2)",
+          numA: isNaN(numA) ? 0 : numA,
+          numB: 0,
+          valDiff: isNaN(numA) ? 0 : -numA,
+          rowA: row,
+          rowB: null,
+        });
+      }
+    });
+
+    // Các khóa chỉ có ở B (Kỳ 2)
+    const onlyInB: {
+      key: string;
+      originalKeyB: string;
+      valB: any;
+      numB: number;
+      rowB: any;
+    }[] = [];
+
+    compareData.forEach(rowB => {
+      const origKeyB = String(rowB[keyColB] || "");
+      const k = normalizeKey(origKeyB);
+      if (k && !matchedKeysInB.has(k)) {
+        const vB = compareValColB ? rowB[compareValColB] : "";
+        const numB = parseFloat(String(vB || "").replace(/,/g, "").replace(/\s/g, ""));
+        onlyInB.push({
+          key: k,
+          originalKeyB: origKeyB,
+          valB: vB,
+          numB: isNaN(numB) ? 0 : numB,
+          rowB,
+        });
+      }
+    });
+
+    return { diffs, onlyInB };
+  }, [
+    activeMainData,
+    compareData,
+    keyColA,
+    keyColB,
+    compareValColA,
+    compareValColB,
+    ignoreCase,
+    ignoreDiacritics,
+    ignoreSpaces,
+    ignorePunctuation,
+    trimLeadingZeros,
+  ]);
+
+  // Danh sách Trùng (Khớp hoàn toàn)
+  const matchingList = useMemo(() => {
+    if (!comparisonResults) return [];
+    return comparisonResults.diffs.filter(d => d.status === "same");
+  }, [comparisonResults]);
+
+  // Danh sách Lệch (Gồm: Lệch số liệu, Chỉ có ở Kỳ 1, Chỉ có ở Kỳ 2)
+  const discrepancyList = useMemo(() => {
+    if (!comparisonResults) return [];
+    const diffsInA = comparisonResults.diffs.filter(d => d.status === "diff" || d.status === "only_in_a");
+    const formattedOnlyInB = comparisonResults.onlyInB.map(b => ({
+      key: b.key,
+      originalKeyA: "(Không có ở Kỳ 1)",
+      originalKeyB: b.originalKeyB,
+      status: "only_in_b" as const,
+      valA: "(Không có)",
+      valB: b.valB,
+      numA: 0,
+      numB: b.numB,
+      valDiff: b.numB,
+      rowA: null,
+      rowB: b.rowB,
+    }));
+    return [...diffsInA, ...formattedOnlyInB];
+  }, [comparisonResults]);
+
+  // Toàn bộ danh sách kết hợp
+  const allCombinedList = useMemo(() => {
+    if (!comparisonResults) return [];
+    const formattedOnlyInB = comparisonResults.onlyInB.map(b => ({
+      key: b.key,
+      originalKeyA: "(Không có ở Kỳ 1)",
+      originalKeyB: b.originalKeyB,
+      status: "only_in_b" as const,
+      valA: "(Không có)",
+      valB: b.valB,
+      numA: 0,
+      numB: b.numB,
+      valDiff: b.numB,
+      rowA: null,
+      rowB: b.rowB,
+    }));
+    return [...comparisonResults.diffs, ...formattedOnlyInB];
+  }, [comparisonResults]);
+
+  // Thống kê & Tổng hợp chuyên sâu
+  const stats = useMemo(() => {
+    if (!comparisonResults) return null;
+    const same = comparisonResults.diffs.filter(d => d.status === "same").length;
+    const diff = comparisonResults.diffs.filter(d => d.status === "diff").length;
+    const onlyA = comparisonResults.diffs.filter(d => d.status === "only_in_a").length;
+    const onlyB = comparisonResults.onlyInB.length;
+    const totalA = activeMainData.length;
+    const totalB = compareData.length;
+    const totalDiff = diff + onlyA + onlyB;
+    const totalAll = same + totalDiff;
+    const matchRate = totalA > 0 ? (same / totalA) * 100 : 0;
+
+    // Tổng hợp giá trị số liệu nếu có chọn cột
+    const hasValCol = Boolean(compareValColA || compareValColB);
+
+    // Tính tổng giá trị Kỳ 1 (trên các dòng chung + chỉ có ở A)
+    const sumValA = comparisonResults.diffs.reduce((acc, d) => acc + (d.numA || 0), 0);
+    // Tính tổng giá trị Kỳ 2 (trên các dòng chung + chỉ có ở B)
+    const sumValB =
+      comparisonResults.diffs
+        .filter(d => d.status !== "only_in_a")
+        .reduce((acc, d) => acc + (d.numB || 0), 0) +
+      comparisonResults.onlyInB.reduce((acc, b) => acc + (b.numB || 0), 0);
+
+    const sumDiffVal = sumValB - sumValA;
+
+    // Tổng hợp theo từng nhóm trạng thái
+    const sameSumA = comparisonResults.diffs
+      .filter(d => d.status === "same")
+      .reduce((acc, d) => acc + (d.numA || 0), 0);
+    const sameSumB = comparisonResults.diffs
+      .filter(d => d.status === "same")
+      .reduce((acc, d) => acc + (d.numB || 0), 0);
+
+    const diffSumA = comparisonResults.diffs
+      .filter(d => d.status === "diff")
+      .reduce((acc, d) => acc + (d.numA || 0), 0);
+    const diffSumB = comparisonResults.diffs
+      .filter(d => d.status === "diff")
+      .reduce((acc, d) => acc + (d.numB || 0), 0);
+
+    const onlyASumA = comparisonResults.diffs
+      .filter(d => d.status === "only_in_a")
+      .reduce((acc, d) => acc + (d.numA || 0), 0);
+
+    const onlyBSumB = comparisonResults.onlyInB.reduce((acc, b) => acc + (b.numB || 0), 0);
+
+    return {
+      same,
+      diff,
+      onlyA,
+      onlyB,
+      totalA,
+      totalB,
+      totalDiff,
+      totalAll,
+      matchRate,
+      hasValCol,
+      sumValA,
+      sumValB,
+      sumDiffVal,
+      sameSumA,
+      sameSumB,
+      diffSumA,
+      diffSumB,
+      onlyASumA,
+      onlyBSumB,
+    };
+  }, [comparisonResults, activeMainData.length, compareData.length, compareValColA, compareValColB]);
+
+  // Bộ lọc danh sách bảng chi tiết
+  const currentDisplayList = useMemo(() => {
+    let baseList: any[] = [];
+    if (activeResultTab === "same") {
+      baseList = matchingList;
+    } else if (activeResultTab === "diff") {
+      if (diffSubFilter === "diff_val") {
+        baseList = discrepancyList.filter(d => d.status === "diff");
+      } else if (diffSubFilter === "only_in_a") {
+        baseList = discrepancyList.filter(d => d.status === "only_in_a");
+      } else if (diffSubFilter === "only_in_b") {
+        baseList = discrepancyList.filter(d => d.status === "only_in_b");
+      } else {
+        baseList = discrepancyList;
+      }
+    } else if (activeResultTab === "all") {
+      baseList = allCombinedList;
+    } else {
+      // Summary: không hiển thị danh sách này
+      return [];
+    }
+
+    if (!searchQuery.trim()) return baseList;
+    const q = searchQuery.toLowerCase().trim();
+    return baseList.filter(item => {
+      if (item.key && item.key.toLowerCase().includes(q)) return true;
+      if (item.originalKeyA && String(item.originalKeyA).toLowerCase().includes(q)) return true;
+      if (item.originalKeyB && String(item.originalKeyB).toLowerCase().includes(q)) return true;
+      if (item.valA !== undefined && String(item.valA).toLowerCase().includes(q)) return true;
+      if (item.valB !== undefined && String(item.valB).toLowerCase().includes(q)) return true;
+      if (item.rowA && Object.values(item.rowA).some(v => v !== null && v !== undefined && String(v).toLowerCase().includes(q))) return true;
+      if (item.rowB && Object.values(item.rowB).some(v => v !== null && v !== undefined && String(v).toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [activeResultTab, matchingList, discrepancyList, allCombinedList, diffSubFilter, searchQuery]);
+
+  // Tính tổng chân trang (Footer sum) cho danh sách đang hiển thị
+  const tableFooterSummary = useMemo(() => {
+    if (currentDisplayList.length === 0) return null;
+    let sumA = 0;
+    let sumB = 0;
+    let sumDiff = 0;
+    let countNumA = 0;
+    let countNumB = 0;
+
+    currentDisplayList.forEach(item => {
+      if (item.numA !== undefined && !isNaN(item.numA)) {
+        sumA += item.numA;
+        countNumA++;
+      }
+      if (item.numB !== undefined && !isNaN(item.numB)) {
+        sumB += item.numB;
+        countNumB++;
+      }
+      if (item.valDiff !== undefined && !isNaN(item.valDiff)) {
+        sumDiff += item.valDiff;
+      }
+    });
+
+    return {
+      sumA,
+      sumB,
+      sumDiff,
+      hasNumbers: countNumA > 0 || countNumB > 0,
+    };
+  }, [currentDisplayList]);
+
+  // =========================================================================
+  // XUẤT EXCEL THÔNG MINH (HIỂN THỊ ĐỦ TẤT CẢ CÁC CỘT CỦA CẢ 2 FILE)
+  // =========================================================================
+  const handleExportMatchingList = () => {
+    if (matchingList.length === 0) {
+      alert("Không có bản ghi trùng khớp nào để xuất!");
+      return;
+    }
+    const exportRows = matchingList.map((d, i) => {
+      const rowA = d.rowA || {};
+      const rowB = d.rowB || {};
+      const rowObj: Record<string, any> = {
+        STT: i + 1,
+        "Trạng thái": "Trùng khớp hoàn toàn",
+      };
+
+      // Xuất trọn vẹn tất cả các cột của Tệp A (Kỳ 1)
+      mainColumns.forEach(col => {
+        rowObj[`[Tệp A] ${col}`] = rowA[col] !== undefined ? rowA[col] : "";
+      });
+
+      // Xuất trọn vẹn tất cả các cột của Tệp B (Kỳ 2)
+      compareColumns.forEach(col => {
+        rowObj[`[Tệp B] ${col}`] = rowB[col] !== undefined ? rowB[col] : "";
+      });
+
+      if (d.valDiff !== undefined && !isNaN(d.valDiff)) {
+        rowObj["Chênh lệch (K2 - K1)"] = d.valDiff;
+      }
+
+      return rowObj;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Danh_Sach_Trung");
+    XLSX.writeFile(wb, `Danh_Sach_Trung_Day_Du_Cot_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleExportDiscrepancyList = () => {
+    if (discrepancyList.length === 0) {
+      alert("Không có bản ghi sai lệch nào để xuất!");
+      return;
+    }
+    const exportRows = discrepancyList.map((d, i) => {
+      const rowA = d.rowA || {};
+      const rowB = d.rowB || {};
+      let statusText = "Sai lệch số liệu";
+      if (d.status === "only_in_a") statusText = "Chỉ có ở Kỳ 1 (Thiếu ở Kỳ 2)";
+      else if (d.status === "only_in_b") statusText = "Chỉ có ở Kỳ 2 (Mới phát sinh)";
+
+      const rowObj: Record<string, any> = {
+        STT: i + 1,
+        "Trạng thái lệch": statusText,
+      };
+
+      // Xuất trọn vẹn tất cả các cột của Tệp A (Kỳ 1)
+      mainColumns.forEach(col => {
+        rowObj[`[Tệp A] ${col}`] = rowA[col] !== undefined ? rowA[col] : "";
+      });
+
+      // Xuất trọn vẹn tất cả các cột của Tệp B (Kỳ 2)
+      compareColumns.forEach(col => {
+        rowObj[`[Tệp B] ${col}`] = rowB[col] !== undefined ? rowB[col] : "";
+      });
+
+      if (d.valDiff !== undefined && !isNaN(d.valDiff)) {
+        rowObj["Chênh lệch (K2 - K1)"] = d.valDiff;
+      }
+
+      return rowObj;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Danh_Sach_Lech");
+    XLSX.writeFile(wb, `Danh_Sach_Lech_Day_Du_Cot_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleExportFullSummaryExcel = () => {
+    if (!stats || !comparisonResults) return;
+
+    const wb = XLSX.utils.book_new();
+
+    // 1. Sheet Tổng hợp
+    const summaryRows = [
+      { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": "Tổng số bản ghi Kỳ 1 (Tệp A)", "GIÁ TRỊ": stats.totalA, "ĐƠN VỊ": "Dòng" },
+      { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": "Tổng số bản ghi Kỳ 2 (Tệp B)", "GIÁ TRỊ": stats.totalB, "ĐƠN VỊ": "Dòng" },
+      { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": "Số lượng bản ghi TRÙNG (Khớp cả 2 kỳ)", "GIÁ TRỊ": stats.same, "ĐƠN VỊ": "Dòng" },
+      { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": "Tỷ lệ trùng khớp (%)", "GIÁ TRỊ": Number(stats.matchRate.toFixed(2)), "ĐƠN VỊ": "%" },
+      { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": "Tổng số bản ghi SAI LỆCH", "GIÁ TRỊ": stats.totalDiff, "ĐƠN VỊ": "Dòng" },
+      { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": "- Trong đó: Trùng khóa nhưng lệch số liệu", "GIÁ TRỊ": stats.diff, "ĐƠN VỊ": "Dòng" },
+      { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": "- Trong đó: Chỉ có ở Kỳ 1 (Thiếu ở Kỳ 2)", "GIÁ TRỊ": stats.onlyA, "ĐƠN VỊ": "Dòng" },
+      { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": "- Trong đó: Chỉ có ở Kỳ 2 (Mới phát sinh)", "GIÁ TRỊ": stats.onlyB, "ĐƠN VỊ": "Dòng" },
+    ];
+
+    if (stats.hasValCol) {
+      summaryRows.push(
+        { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": `Tổng giá trị Kỳ 1 (${compareValColA})`, "GIÁ TRỊ": stats.sumValA, "ĐƠN VỊ": "Số liệu" },
+        { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": `Tổng giá trị Kỳ 2 (${compareValColB})`, "GIÁ TRỊ": stats.sumValB, "ĐƠN VỊ": "Số liệu" },
+        { "CHỈ TIÊU ĐỐI SOÁT 2 KỲ": "Tổng chênh lệch giá trị (Kỳ 2 - Kỳ 1)", "GIÁ TRỊ": stats.sumDiffVal, "ĐƠN VỊ": "Số liệu" }
+      );
+    }
+
+    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Tong_Hop");
+
+    // 2. Sheet Danh Sách Trùng (Đầy đủ tất cả các cột của cả 2 file)
+    const wsMatching = XLSX.utils.json_to_sheet(
+      matchingList.map((d, i) => {
+        const rowA = d.rowA || {};
+        const rowB = d.rowB || {};
+        const rowObj: Record<string, any> = {
+          STT: i + 1,
+          "Trạng thái": "Trùng khớp hoàn toàn",
+        };
+        mainColumns.forEach(col => {
+          rowObj[`[Tệp A] ${col}`] = rowA[col] !== undefined ? rowA[col] : "";
+        });
+        compareColumns.forEach(col => {
+          rowObj[`[Tệp B] ${col}`] = rowB[col] !== undefined ? rowB[col] : "";
+        });
+        if (d.valDiff !== undefined && !isNaN(d.valDiff)) {
+          rowObj["Chênh lệch (K2 - K1)"] = d.valDiff;
+        }
+        return rowObj;
       })
-      .map(row => ({
-        name: row["Kỳ hiện tại"],
-        "Kỳ này": row["Giá trị kỳ này"],
-        "Kỳ trước": row["Giá trị kỳ trước"],
-        "Thay đổi %": row["% Thay đổi"]
-      }));
-  }, [tsResultRows, selectedChartEntity, tsKey]);
+    );
+    XLSX.utils.book_append_sheet(wb, wsMatching, "Danh_Sach_Trung");
+
+    // 3. Sheet Danh Sách Lệch (Đầy đủ tất cả các cột của cả 2 file)
+    const wsDiscrepancy = XLSX.utils.json_to_sheet(
+      discrepancyList.map((d, i) => {
+        const rowA = d.rowA || {};
+        const rowB = d.rowB || {};
+        let statusText = "Sai lệch số liệu";
+        if (d.status === "only_in_a") statusText = "Chỉ có ở Kỳ 1 (Thiếu ở Kỳ 2)";
+        else if (d.status === "only_in_b") statusText = "Chỉ có ở Kỳ 2 (Mới phát sinh)";
+
+        const rowObj: Record<string, any> = {
+          STT: i + 1,
+          "Trạng thái lệch": statusText,
+        };
+        mainColumns.forEach(col => {
+          rowObj[`[Tệp A] ${col}`] = rowA[col] !== undefined ? rowA[col] : "";
+        });
+        compareColumns.forEach(col => {
+          rowObj[`[Tệp B] ${col}`] = rowB[col] !== undefined ? rowB[col] : "";
+        });
+        if (d.valDiff !== undefined && !isNaN(d.valDiff)) {
+          rowObj["Chênh lệch (K2 - K1)"] = d.valDiff;
+        }
+        return rowObj;
+      })
+    );
+    XLSX.utils.book_append_sheet(wb, wsDiscrepancy, "Danh_Sach_Lech");
+
+    XLSX.writeFile(wb, `BaoCao_SoSanh_Day_Du_Cot_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // Tính năng chuyển cột từ Tệp B sang Tệp A (VLOOKUP Transfer)
+  const handleTransferColumnToA = () => {
+    if (!keyColA || !keyColB || !selectedColToTransfer || !setMainData) {
+      alert("Vui lòng chọn đủ khóa 2 tệp và cột cần chuyển từ Tệp B!");
+      return;
+    }
+
+    const colNameFinal = targetColName.trim() || selectedColToTransfer;
+    const mapB = new Map<string, any>();
+    compareData.forEach(row => {
+      const k = normalizeKey(row[keyColB]);
+      if (k && !mapB.has(k)) {
+        mapB.set(k, row);
+      }
+    });
+
+    let fillCount = 0;
+    const updatedMainData = activeMainData.map(row => {
+      const origKeyA = String(row[keyColA] || "");
+      const k = normalizeKey(origKeyA);
+      const rowB = k ? mapB.get(k) : null;
+      const valFromB = rowB ? rowB[selectedColToTransfer] : "";
+
+      const updatedRow = { ...row };
+      if (transferMode === "empty_only") {
+        if (
+          updatedRow[colNameFinal] === undefined ||
+          updatedRow[colNameFinal] === null ||
+          String(updatedRow[colNameFinal]).trim() === ""
+        ) {
+          if (valFromB !== undefined && valFromB !== "") {
+            updatedRow[colNameFinal] = valFromB;
+            fillCount++;
+          }
+        }
+      } else {
+        if (valFromB !== undefined && valFromB !== "") {
+          updatedRow[colNameFinal] = valFromB;
+          fillCount++;
+        } else if (updatedRow[colNameFinal] === undefined) {
+          updatedRow[colNameFinal] = "";
+        }
+      }
+
+      return updatedRow;
+    });
+
+    if (setColumns && !mainColumns.includes(colNameFinal)) {
+      setColumns([...mainColumns, colNameFinal]);
+    }
+
+    setLocalDataA(updatedMainData);
+    if (setMainData) setMainData(updatedMainData);
+    setTransferSuccessMsg(
+      `Đã chuyển thành công cột "${colNameFinal}" từ Tệp B sang Tệp A! Đã điền dữ liệu cho ${fillCount.toLocaleString("vi-VN")} dòng khớp.`
+    );
+    setShowTransferPanel(false);
+  };
 
   return (
-    <div className="space-y-6 animate-fade-in font-sans">
-      
-      {/* Pill switcher for Sub modes */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setSubMode("diff")}
-          className={`py-3 px-6 text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            subMode === "diff"
-              ? "border-sky-500 text-sky-600 bg-sky-50/40"
-              : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          <RefreshCw className="w-4 h-4 text-sky-500" />
-          So sánh Hai Niên Độ (Diff)
-        </button>
-        <button
-          onClick={() => setSubMode("time-series")}
-          className={`py-3 px-6 text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            subMode === "time-series"
-              ? "border-sky-500 text-sky-600 bg-sky-50/40"
-              : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          <Calendar className="w-4 h-4 text-amber-500" />
-          So sánh Chuỗi Thời gian (Tháng liên tiếp & Cùng kỳ YoY)
-          <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">Mới</span>
-        </button>
-        <button
-          onClick={() => setSubMode("saved-snapshots")}
-          className={`py-3 px-6 text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            subMode === "saved-snapshots"
-              ? "border-sky-500 text-sky-600 bg-sky-50/40"
-              : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          <Database className="w-4 h-4 text-emerald-500" />
-          Kho Lưu trữ Lâu dài & Đối chiếu Liên kỳ
-          <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">Lưu lâu dài</span>
-        </button>
-      </div>
-
-      {/* CHẾ ĐỘ 1: ĐỐI CHIẾU HAI THỜI KỲ */}
-      {subMode === "diff" && (
-        <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 space-y-6 text-slate-800">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <RefreshCw className="w-5 h-5 text-sky-500 animate-spin-slow" /> SO SÁNH ĐỐI CHIẾU HAI NIÊN ĐỘ (DIFF)
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Hệ thống tự động rà soát đối chiếu chéo hai bảng dữ liệu Cũ và Mới để tìm ra phần tử Mới thêm, Đã xóa hoặc Thay đổi thuộc tính giữa hai thời kỳ.
-            </p>
+    <div className="bg-sky-50/30 border border-sky-200 rounded-none shadow-xs overflow-hidden font-sans space-y-3">
+      {/* THANH TIÊU ĐỀ CHÍNH */}
+      <div className="px-3.5 py-2.5 bg-sky-100/60 border-b border-sky-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-7 h-7 bg-[#286e42] flex items-center justify-center text-white shrink-0 rounded-none shadow-2xs">
+            <GitCompare className="w-4 h-4" />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* BẢNG CŨ */}
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl space-y-4">
-              <span className="text-xs font-bold text-amber-600 tracking-wider uppercase font-mono block">
-                📁 1. BẢNG DỮ LIỆU CŨ (MỐC ĐỐI CHIẾU)
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                So Sánh 2 Kỳ Dữ Liệu &amp; Đối Soát Số Liệu
               </span>
-
-              <label className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-sm font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer w-full justify-center">
-                <FileUp className="w-4 h-4 text-amber-500" /> CHỌN BẢNG CŨ (.xlsx, .xls, .csv)
-                <input
-                  type="file"
-                  accept=".xlsx, .xls, .csv"
-                  onChange={(e) => handleLocalFileUpload(e, "old")}
-                  className="hidden"
-                />
-              </label>
-
-              {mainData && mainData.length > 0 && (
-                <button
-                  onClick={() => {
-                    setOldData(mainData);
-                    setOldFileName(fileName || "Dữ liệu chính hệ thống");
-                  }}
-                  type="button"
-                  className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-[11px] px-3 py-2 rounded-xl border border-amber-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                >
-                  📥 SỬ DỤNG FILE CHÍNH ĐÃ NẠP
-                </button>
+              {activeMainData.length > 0 && (
+                <span className="text-[11px] font-mono text-sky-900 bg-sky-200/80 px-2 py-0.5 rounded-none font-bold border border-sky-300">
+                  File A: {activeMainData.length.toLocaleString("vi-VN")} dòng • {mainColumns.length} cột
+                  {activeFileName && ` (${activeFileName})`}
+                </span>
               )}
-
-              {oldFileName && (
-                <div className="bg-white border border-slate-200 p-3 rounded-lg text-xs flex justify-between items-center text-slate-700 shadow-sm">
-                  <span className="truncate max-w-[200px]" title={oldFileName}>📄 {oldFileName}</span>
-                  <span className="font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{oldData.length} dòng</span>
-                </div>
-              )}
-            </div>
-
-            {/* BẢNG MỚI */}
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl space-y-4">
-              <span className="text-xs font-bold text-sky-600 tracking-wider uppercase font-mono block">
-                📁 2. BẢNG DỮ LIỆU MỚI (CẬP NHẬT)
-              </span>
-
-              <label className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-sm font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer w-full justify-center">
-                <FileUp className="w-4 h-4 text-sky-500" /> CHỌN BẢNG MỚI (.xlsx, .xls, .csv)
-                <input
-                  type="file"
-                  accept=".xlsx, .xls, .csv"
-                  onChange={(e) => handleLocalFileUpload(e, "new")}
-                  className="hidden"
-                />
-              </label>
-
-              {mainData && mainData.length > 0 && (
-                <button
-                  onClick={() => {
-                    setNewData(mainData);
-                    setNewFileName(fileName || "Dữ liệu chính hệ thống");
-                  }}
-                  type="button"
-                  className="w-full bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[11px] px-3 py-2 rounded-xl border border-sky-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                >
-                  📥 SỬ DỤNG FILE CHÍNH ĐÃ NẠP
-                </button>
-              )}
-
-              {newFileName && (
-                <div className="bg-white border border-slate-200 p-3 rounded-lg text-xs flex justify-between items-center text-slate-700 shadow-sm">
-                  <span className="truncate max-w-[200px]" title={newFileName}>📄 {newFileName}</span>
-                  <span className="font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{newData.length} dòng</span>
-                </div>
+              {compareData.length > 0 && (
+                <span className="text-[11px] font-mono text-emerald-900 bg-emerald-200/80 px-2 py-0.5 rounded-none font-bold border border-emerald-300">
+                  File B: {compareData.length.toLocaleString("vi-VN")} dòng • {compareColumns.length} cột
+                  {compareSheetName && ` (${compareSheetName})`}
+                </span>
               )}
             </div>
           </div>
+        </div>
 
-          {/* KHÓA CHÍNH ĐỂ ĐỐI CHIẾU */}
-          {(oldData.length > 0 || newData.length > 0) && (
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl space-y-3 shadow-sm">
-              <label className="text-xs font-bold text-slate-700 block">
-                🔑 Chọn Cột Khóa Chính Định Danh Độc Nhất (Unique Key):
-              </label>
-              <p className="text-[10px] text-slate-400">
-                Chọn cột thông tin duy nhất dùng để đối chiếu so khớp từng dòng (ví dụ: Mã Số Thuế, Số định danh, ID doanh nghiệp...).
-              </p>
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          {/* CỤM NÚT TẢI TỆP: TẢI FILE A VÀ TẢI FILE B (VÀO 1 MỐI) */}
+          <div className="inline-flex items-center bg-white border border-sky-400 p-0.5 shadow-2xs">
+            {/* Nút Tải file A */}
+            <label
+              className="bg-[#0369a1] hover:bg-[#0284c7] text-white font-bold text-xs px-2.5 py-1 rounded-none transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap border-0"
+              title={activeFileName ? `File A: ${activeFileName} (${activeMainData.length.toLocaleString("vi-VN")} dòng). Bấm để tải lại.` : "Tải lên tệp dữ liệu A (Kỳ 1)"}
+            >
+              <Upload className="w-3.5 h-3.5 text-sky-200" />
+              <span>Tải file A</span>
+              <input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFileUploadA} className="hidden" />
+            </label>
+
+            <span className="w-px h-4 bg-slate-300 mx-0.5" />
+
+            {/* Nút Tải file B */}
+            <label
+              className="bg-[#047857] hover:bg-[#059669] text-white font-bold text-xs px-2.5 py-1 rounded-none transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap border-0"
+              title={compareSheetName || compareFile?.name ? `File B: ${compareSheetName || compareFile?.name} (${compareData.length.toLocaleString("vi-VN")} dòng). Bấm để tải lại.` : "Tải lên tệp dữ liệu B (Kỳ 2)"}
+            >
+              <Upload className="w-3.5 h-3.5 text-emerald-200" />
+              <span>Tải file B</span>
+              <input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFileUpload} className="hidden" />
+            </label>
+          </div>
+
+          {/* Nếu có nhiều sheet trong tệp hiện tại */}
+          {detectedSheets.length > 1 && (
+            <div className="relative inline-flex items-center">
               <select
-                value={diffKey}
-                onChange={(e) => setDiffKey(e.target.value)}
-                className="w-full md:max-w-md bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-sky-500"
+                onChange={e => {
+                  if (e.target.value) handleSelectSheetFromWorkbook(e.target.value);
+                }}
+                defaultValue=""
+                className="bg-white border border-emerald-500 text-emerald-900 font-bold text-xs px-2 py-1 rounded-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                title="Chọn Sheet làm File B"
               >
-                <option value="">-- Chọn cột khóa chính --</option>
-                {Object.keys(newData[0] || oldData[0] || {}).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                <option value="" disabled>
+                  Sheet File B...
+                </option>
+                {detectedSheets.map(s => (
+                  <option key={s} value={s}>
+                    {s} ({sheetDataStore[s]?.data?.length || 0})
                   </option>
                 ))}
               </select>
             </div>
           )}
 
+          {/* Nút bật tắt chế độ chuyên biệt Sáp nhập Xã/Thôn */}
           <button
-            onClick={handleCompare}
-            className="w-full bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl border-b-4 border-sky-700 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+            type="button"
+            onClick={() => setShowAdminMergeMode(!showAdminMergeMode)}
+            className={`text-xs font-bold px-2.5 py-1 rounded-none transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap border-0 shadow-2xs ${
+              showAdminMergeMode
+                ? "bg-indigo-900 text-white ring-2 ring-indigo-400"
+                : "bg-indigo-700 hover:bg-indigo-800 text-white"
+            }`}
+            title="Giải quyết bài toán sáp nhập xã/thôn: Hộ NN ↔ Cá thể"
           >
-            <RefreshCw className="w-4 h-4" /> THỰC HIỆN SO SÁNH ĐỐI CHIẾU & NẠP VÀO HỆ THỐNG XEM CHÍNH
+            <Building2 className="w-3.5 h-3.5 text-amber-300" />
+            <span>Sáp nhập</span>
+            <span className="text-[10px]">{showAdminMergeMode ? "▲" : "▼"}</span>
+          </button>
+
+          {/* Nút bật tắt công cụ làm sạch */}
+          <button
+            type="button"
+            onClick={() => setShowCleanPanel(!showCleanPanel)}
+            className={`text-xs font-bold px-2.5 py-1 rounded-none transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap border-0 shadow-2xs ${
+              showCleanPanel ? "bg-amber-700 text-white ring-2 ring-amber-400" : "bg-amber-600 hover:bg-amber-700 text-white"
+            }`}
+            title="Làm sạch khoảng trắng, chữ hoa/thường"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            <span>Làm sạch</span>
+            <span className="text-[10px]">{showCleanPanel ? "▲" : "▼"}</span>
+          </button>
+
+          {comparisonResults && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowTransferPanel(!showTransferPanel)}
+                className={`text-xs font-bold px-2.5 py-1 rounded-none transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap border-0 shadow-2xs ${
+                  showTransferPanel ? "bg-[#4338ca] text-white" : "bg-[#4f46e5] hover:bg-[#4338ca] text-white"
+                }`}
+                title="Chuyển cột từ Tệp B sang Tệp A"
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span>Lấy cột sang A</span>
+                <span className="text-[10px]">{showTransferPanel ? "▲" : "▼"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportFullSummaryExcel}
+                className="bg-[#286e42] hover:bg-[#205835] text-white font-bold text-xs px-2.5 py-1 rounded-none transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap border-0 shadow-2xs"
+                title="Xuất toàn bộ báo cáo Excel"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Xuất Excel</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* THÔNG BÁO THÀNH CÔNG LÀM SẠCH HOẶC CHUYỂN CỘT */}
+      {cleanSuccessMsg && (
+        <div className="mx-3.5 p-2.5 bg-emerald-50 border border-emerald-300 rounded-none text-emerald-900 text-xs font-semibold flex items-center justify-between gap-2 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{cleanSuccessMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCleanSuccessMsg(null)}
+            className="text-emerald-700 hover:text-emerald-900 text-xs font-bold border-0 bg-transparent cursor-pointer"
+          >
+            ✕ Đóng
           </button>
         </div>
       )}
 
-      {/* CHẾ ĐỘ 2: SO SÁNH CHUỖI THỜI GIAN (DÀNH CHO THÁNG GẦN NHAU / THÁNG 2 NĂM NAY VS THÁNG 2 NĂM TRƯỚC) */}
-      {subMode === "time-series" && (
-        <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 space-y-6 text-slate-800 animate-fade-in">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-amber-500" /> ĐỐI CHIẾU CHUỖI THỜI GIAN (LIÊN TIẾP & CÙNG KỲ NĂM TRƯỚC)
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Hỗ trợ phân tích so sánh động chỉ tiêu đo lường giữa các tháng liên tiếp kề nhau hoặc so sánh cùng kỳ tháng này năm nay với tháng này năm ngoái (ví dụ: Tháng 2 năm nay so với Tháng 2 năm trước).
+      {transferSuccessMsg && (
+        <div className="mx-3.5 p-2.5 bg-sky-50 border border-sky-300 rounded-none text-sky-900 text-xs font-semibold flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+            <span>{transferSuccessMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTransferSuccessMsg(null)}
+            className="text-sky-700 hover:text-sky-900 text-xs font-bold border-0 bg-transparent cursor-pointer"
+          >
+            ✕ Đóng
+          </button>
+        </div>
+      )}
+
+      {/* ======================================================================= */}
+      {/* CÔNG CỤ CHUYÊN BIỆT: GHÉP NỐI & ĐỐI SOÁT SÁP NHẬP XÃ / THÔN */}
+      {/* ======================================================================= */}
+      {showAdminMergeMode && (
+        <div className="mx-3.5 animate-slide-up">
+          {compareData.length === 0 ? (
+            <div className="p-4 bg-indigo-50 border-2 border-indigo-400 text-indigo-950 text-xs space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  <Building2 className="w-5 h-5 text-indigo-700" />
+                  <span>CHẾ ĐỘ XỬ LÝ SÁP NHẬP XÃ / THÔN (HỘ ĐIỀU TRA NN ↔ ĐỊA BÀN CÁ THỂ)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdminMergeMode(false)}
+                  className="text-indigo-800 hover:text-black font-bold text-xs bg-indigo-100 hover:bg-indigo-200 px-2 py-0.5 border border-indigo-300 cursor-pointer"
+                >
+                  ✕ Đóng
+                </button>
+              </div>
+              <p className="text-indigo-900 text-xs leading-relaxed">
+                Giải quyết triệt để bài toán: Xã sáp nhập vào nhau sẽ bị mất mã hoặc đổi mã mới, thôn sáp nhập cũng đổi tên hoặc mã địa bàn.
+              </p>
+              <div className="p-3 bg-white border border-indigo-300 flex items-center justify-between gap-3">
+                <div className="text-xs text-slate-700">
+                  <b>Bước 1:</b> Vui lòng tải lên <b>Tệp Kỳ 2 (Tệp B)</b> - là danh sách địa bàn hoặc cơ sở kỳ Cá thể năm nay (đã sáp nhập).
+                </div>
+                <label className="bg-[#0284c7] hover:bg-[#0369a1] text-white font-bold text-xs px-3 py-1.5 shadow-2xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap border-0">
+                  <Upload className="w-4 h-4" />
+                  <span>Tải Lên Tệp Địa Bàn Kỳ 2 (B) Ngay</span>
+                  <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="hidden" />
+                </label>
+              </div>
+            </div>
+          ) : (
+            <AdminMergeResolver
+              mainData={activeMainData}
+              mainColumns={mainColumns}
+              compareData={compareData}
+              compareColumns={compareColumns}
+              compareFileName={compareFile?.name || compareSheetName || "Tệp Kỳ 2"}
+              setMainData={updated => {
+                setLocalDataA(updated);
+                if (setMainData) setMainData(updated);
+              }}
+              setColumns={setColumns}
+              onClose={() => setShowAdminMergeMode(false)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ======================================================================= */}
+      {/* 1. KHU VỰC LÀM SẠCH KHOẢNG CÁCH, CHỮ HOA/CHỮ THƯỜNG THEO CỘT HOẶC NHIỀU CỘT */}
+      {/* ======================================================================= */}
+      {showCleanPanel && (
+        <div className="mx-3.5 bg-amber-50/95 border-2 border-amber-400 p-3 sm:p-4 space-y-3 shadow-xs animate-slide-up">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-300">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-amber-600 text-white flex items-center justify-center font-bold text-xs">
+                <Wand2 className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 uppercase font-mono tracking-wide flex items-center gap-1.5">
+                  Làm sạch khoảng cách &amp; Định dạng chữ hoa/chữ thường theo cột
+                </h4>
+                <p className="text-[11px] text-amber-900">
+                  Chọn một hoặc nhiều cột cần chuẩn hóa, chọn định dạng và ấn nút <b>"Thực hiện làm sạch &gt;"</b> để xử lý trực tiếp.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-amber-950 bg-amber-200/80 px-2 py-0.5 border border-amber-300">
+                Đã chọn: {cleanSelectedCols.length} cột
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowCleanPanel(false)}
+                className="text-xs text-amber-900 hover:text-black font-bold bg-amber-200 hover:bg-amber-300 px-2 py-0.5 border border-amber-400 cursor-pointer"
+              >
+                ✕ Thu gọn
+              </button>
+            </div>
+          </div>
+
+          {/* Bước 1: Chọn kỳ dữ liệu & Bước 2: Tùy chọn định dạng */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+            {/* Cột trái: Chọn kỳ & Kiểu định dạng */}
+            <div className="md:col-span-5 space-y-2.5 bg-white p-2.5 border border-amber-300">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-800 mb-1">
+                  1. Áp dụng cho kỳ dữ liệu nào:
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 text-xs">
+                  <label
+                    className={`flex items-center justify-center gap-1 py-1 px-1.5 border cursor-pointer text-center font-bold ${
+                      cleanTarget === "A"
+                        ? "bg-sky-600 text-white border-sky-700"
+                        : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="cleanTarget"
+                      checked={cleanTarget === "A"}
+                      onChange={() => setCleanTarget("A")}
+                      className="hidden"
+                    />
+                    <span>Kỳ 1 (Tệp A)</span>
+                  </label>
+
+                  <label
+                    className={`flex items-center justify-center gap-1 py-1 px-1.5 border cursor-pointer text-center font-bold ${
+                      cleanTarget === "B"
+                        ? "bg-emerald-600 text-white border-emerald-700"
+                        : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="cleanTarget"
+                      checked={cleanTarget === "B"}
+                      onChange={() => setCleanTarget("B")}
+                      className="hidden"
+                    />
+                    <span>Kỳ 2 (Tệp B)</span>
+                  </label>
+
+                  <label
+                    className={`flex items-center justify-center gap-1 py-1 px-1.5 border cursor-pointer text-center font-bold ${
+                      cleanTarget === "BOTH"
+                        ? "bg-amber-600 text-white border-amber-700"
+                        : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="cleanTarget"
+                      checked={cleanTarget === "BOTH"}
+                      onChange={() => setCleanTarget("BOTH")}
+                      className="hidden"
+                    />
+                    <span>Cả 2 Kỳ (A &amp; B)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Tùy chọn Khoảng cách */}
+              <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                <span className="block text-[11px] font-bold text-slate-800">
+                  2. Làm sạch khoảng cách (Whitespace):
+                </span>
+                <div className="space-y-1 text-xs text-slate-800">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cleanTrimSpaces}
+                      onChange={e => setCleanTrimSpaces(e.target.checked)}
+                      className="rounded-none text-[#286e42]"
+                    />
+                    <span>Xóa khoảng trắng thừa ở đầu và cuối (Trim)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cleanCollapseSpaces}
+                      disabled={cleanRemoveAllSpaces}
+                      onChange={e => setCleanCollapseSpaces(e.target.checked)}
+                      className="rounded-none text-[#286e42]"
+                    />
+                    <span>Gom nhiều khoảng trắng kép liên tiếp thành 1</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-amber-900 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={cleanRemoveAllSpaces}
+                      onChange={e => setCleanRemoveAllSpaces(e.target.checked)}
+                      className="rounded-none text-amber-700"
+                    />
+                    <span>Xóa sạch toàn bộ khoảng trắng (dành cho MST / ID)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Tùy chọn Chữ hoa / chữ thường */}
+              <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                <span className="block text-[11px] font-bold text-slate-800">
+                  3. Định dạng kiểu chữ (Case):
+                </span>
+                <div className="grid grid-cols-2 gap-1 text-xs text-slate-800">
+                  <label className="flex items-center gap-1.5 cursor-pointer p-1 bg-slate-50 border border-slate-200">
+                    <input
+                      type="radio"
+                      name="cleanCaseOption"
+                      checked={cleanCaseOption === "upper"}
+                      onChange={() => setCleanCaseOption("upper")}
+                      className="text-[#286e42]"
+                    />
+                    <span className="font-bold text-emerald-900">CHỮ HOA TOÀN BỘ</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer p-1 bg-slate-50 border border-slate-200">
+                    <input
+                      type="radio"
+                      name="cleanCaseOption"
+                      checked={cleanCaseOption === "lower"}
+                      onChange={() => setCleanCaseOption("lower")}
+                      className="text-[#286e42]"
+                    />
+                    <span>chữ thường toàn bộ</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer p-1 bg-slate-50 border border-slate-200">
+                    <input
+                      type="radio"
+                      name="cleanCaseOption"
+                      checked={cleanCaseOption === "title"}
+                      onChange={() => setCleanCaseOption("title")}
+                      className="text-[#286e42]"
+                    />
+                    <span>Viết Hoa Chữ Đầu Từ</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer p-1 bg-slate-50 border border-slate-200">
+                    <input
+                      type="radio"
+                      name="cleanCaseOption"
+                      checked={cleanCaseOption === "none"}
+                      onChange={() => setCleanCaseOption("none")}
+                      className="text-[#286e42]"
+                    />
+                    <span>Giữ nguyên kiểu chữ</span>
+                  </label>
+                </div>
+
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-700 pt-1">
+                  <input
+                    type="checkbox"
+                    checked={cleanRemoveAccents}
+                    onChange={e => setCleanRemoveAccents(e.target.checked)}
+                    className="rounded-none text-[#286e42]"
+                  />
+                  <span>Chuyển thành tiếng Việt KHÔNG DẤU</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Cột phải: Danh sách các cột để chọn & Nút bấm thực hiện > */}
+            <div className="md:col-span-7 bg-white p-2.5 border border-amber-300 space-y-2 flex flex-col justify-between h-full">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-800 uppercase">
+                    4. Tích chọn các cột cần xử lý:
+                  </span>
+                  <div className="flex items-center gap-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setCleanSelectedCols([...availableColumnsForClean])}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] border border-slate-300 cursor-pointer"
+                    >
+                      Chọn tất cả
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleQuickSelectTextCols}
+                      className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] border border-amber-300 cursor-pointer font-bold"
+                      title="Chọn nhanh các cột Mã định danh, MST, Họ tên, Địa chỉ..."
+                    >
+                      ⚡ Chọn cột Mã/Tên
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCleanSelectedCols([])}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] border border-slate-300 cursor-pointer"
+                    >
+                      Bỏ chọn
+                    </button>
+                  </div>
+                </div>
+
+                {/* Danh sách các cột dạng checkbox grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-[160px] overflow-y-auto p-1.5 border border-slate-200 bg-slate-50/60">
+                  {availableColumnsForClean.map(col => {
+                    const isChecked = cleanSelectedCols.includes(col);
+                    return (
+                      <label
+                        key={col}
+                        className={`flex items-center gap-1.5 text-xs px-2 py-1 border cursor-pointer transition-colors select-none ${
+                          isChecked
+                            ? "bg-emerald-50 border-emerald-500 font-bold text-emerald-950 shadow-2xs"
+                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setCleanSelectedCols(cleanSelectedCols.filter(c => c !== col));
+                            } else {
+                              setCleanSelectedCols([...cleanSelectedCols, col]);
+                            }
+                          }}
+                          className="rounded-none text-[#286e42]"
+                        />
+                        <span className="truncate" title={col}>
+                          {col}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Nút to, rõ ràng ấn nút > để thực hiện */}
+              <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[11px] text-slate-600">
+                  Mẫu thử nghiệm:{" "}
+                  <code className="bg-slate-100 px-1 py-0.5 text-slate-800 border">
+                    {cleanStringHelper("   hộ   kinh   doanh   nguyễn văn a  ")}
+                  </code>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleExecuteCleanColumns}
+                  disabled={cleanSelectedCols.length === 0}
+                  className="px-4 py-2 bg-[#286e42] hover:bg-[#205835] disabled:bg-slate-300 disabled:text-slate-500 text-white font-bold text-xs rounded-none shadow-xs transition-all flex items-center gap-2 cursor-pointer border-0 ring-2 ring-emerald-400"
+                >
+                  <Wand2 className="w-4 h-4" />
+                  <span>LÀM SẠCH KHOẢNG CÁCH &amp; CHỮ HOA/THƯỜNG</span>
+                  <ArrowRight className="w-4 h-4 font-extrabold" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GỢI Ý KHÓA TỰ ĐỘNG */}
+      {compareData.length > 0 && detectedMatchingPairs.length > 0 && (
+        <div className="mx-3.5 px-2.5 py-1.5 bg-amber-50/80 border border-amber-200 rounded-none flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold text-amber-900 shrink-0 flex items-center gap-1">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            Gợi ý khóa:
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {detectedMatchingPairs.map((pair, pIdx) => (
+              <button
+                key={pIdx}
+                type="button"
+                onClick={() => {
+                  setKeyColA(pair.col1);
+                  setKeyColB(pair.col2);
+                }}
+                className={`text-[11px] px-2 py-0.5 rounded-none border flex items-center gap-1 transition-colors cursor-pointer ${
+                  keyColA === pair.col1 && keyColB === pair.col2
+                    ? "bg-[#286e42] text-white border-[#1d4f2f] font-bold shadow-2xs"
+                    : "bg-white text-slate-800 border-amber-300 hover:bg-amber-100/70"
+                }`}
+              >
+                <span className="font-semibold text-indigo-700">{pair.col1}</span>
+                <span className="text-slate-400">↔</span>
+                <span className="font-semibold text-emerald-700">{pair.col2}</span>
+                <span className="text-[10px] text-amber-700">({(pair.similarity * 100).toFixed(0)}%)</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* CẤU HÌNH KHÓA & BỎ QUA YẾU TỐ */}
+      {compareData.length > 0 && (
+        <div className="mx-3.5 bg-white border border-sky-200 rounded-none p-3 space-y-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                1. Khóa 1 (Tệp A):
+              </label>
+              <select
+                value={keyColA}
+                onChange={e => setKeyColA(e.target.value)}
+                className="w-full text-xs border border-slate-300 rounded-none px-2.5 py-1 bg-white font-medium focus:outline-none focus:border-sky-500"
+              >
+                <option value="">-- Chọn khóa 1 --</option>
+                {mainColumns.map(c => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                2. Khóa 2 (Tệp B):
+              </label>
+              <select
+                value={keyColB}
+                onChange={e => setKeyColB(e.target.value)}
+                className="w-full text-xs border border-slate-300 rounded-none px-2.5 py-1 bg-white font-medium focus:outline-none focus:border-sky-500"
+              >
+                <option value="">-- Chọn khóa 2 --</option>
+                {compareColumns.map(c => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                3. Số liệu 1:
+              </label>
+              <select
+                value={compareValColA}
+                onChange={e => setCompareValColA(e.target.value)}
+                className="w-full text-xs border border-slate-300 rounded-none px-2.5 py-1 bg-white font-medium focus:outline-none focus:border-sky-500"
+              >
+                <option value="">-- Tùy chọn (đối soát số liệu) --</option>
+                {mainColumns.map(c => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                4. Số liệu 2:
+              </label>
+              <select
+                value={compareValColB}
+                onChange={e => setCompareValColB(e.target.value)}
+                className="w-full text-xs border border-slate-300 rounded-none px-2.5 py-1 bg-white font-medium focus:outline-none focus:border-sky-500"
+              >
+                <option value="">-- Tùy chọn (đối soát số liệu) --</option>
+                {compareColumns.map(c => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* CÁC TÙY CHỌN BỎ QUA */}
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-3 text-xs text-slate-700">
+            <span className="font-bold text-slate-900 text-[11px] flex items-center gap-1">
+              <Sliders className="w-3.5 h-3.5 text-[#286e42]" /> Bỏ qua:
+            </span>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={ignoreSpaces}
+                onChange={e => setIgnoreSpaces(e.target.checked)}
+                className="rounded-none border-slate-300 text-[#286e42] focus:ring-[#286e42]"
+              />
+              <span>Khoảng trắng</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={ignoreDiacritics}
+                onChange={e => setIgnoreDiacritics(e.target.checked)}
+                className="rounded-none border-slate-300 text-[#286e42] focus:ring-[#286e42]"
+              />
+              <span>Dấu tiếng Việt</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={ignorePunctuation}
+                onChange={e => setIgnorePunctuation(e.target.checked)}
+                className="rounded-none border-slate-300 text-[#286e42] focus:ring-[#286e42]"
+              />
+              <span>Ký tự đặc biệt</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={ignoreCase}
+                onChange={e => setIgnoreCase(e.target.checked)}
+                className="rounded-none border-slate-300 text-[#286e42] focus:ring-[#286e42]"
+              />
+              <span>Hoa/thường</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={trimLeadingZeros}
+                onChange={e => setTrimLeadingZeros(e.target.checked)}
+                className="rounded-none border-slate-300 text-[#286e42] focus:ring-[#286e42]"
+              />
+              <span>Số 0 đầu</span>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* BẢNG ĐIỀU KHIỂN NHẶT / CHUYỂN CỘT TỪ TỆP B SANG TỆP A (SUB-PANEL) */}
+      {showTransferPanel && compareData.length > 0 && (
+        <div className="mx-3.5 bg-sky-50/70 border border-sky-300 rounded-none p-3.5 space-y-3 animate-slide-up">
+          <div className="flex items-center justify-between pb-1.5 border-b border-sky-200">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-[#0284c7]" />
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                Lấy Cột Từ Tệp B Chuyển Sang Bảng Chính (Kỳ 1)
+              </h4>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowTransferPanel(false)}
+              className="text-slate-500 hover:text-slate-800 text-xs font-bold bg-transparent border-0 cursor-pointer"
+            >
+              ✕ Đóng
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                1. Chọn cột từ Tệp B cần lấy sang:
+              </label>
+              <select
+                value={selectedColToTransfer}
+                onChange={e => {
+                  setSelectedColToTransfer(e.target.value);
+                  if (!targetColName) setTargetColName(e.target.value);
+                }}
+                className="w-full text-xs border border-slate-300 rounded-none px-2.5 py-1.5 bg-white font-medium focus:outline-none focus:border-sky-500"
+              >
+                <option value="">-- Chọn cột cần lấy từ B --</option>
+                {compareColumns.map(c => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                2. Tên cột mới hiển thị ở Kỳ 1 (Tệp A):
+              </label>
+              <input
+                type="text"
+                value={targetColName}
+                onChange={e => setTargetColName(e.target.value)}
+                placeholder="Nhập tên cột ở Tệp A..."
+                className="w-full text-xs border border-slate-300 rounded-none px-2.5 py-1.5 bg-white font-medium focus:outline-none focus:border-sky-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                3. Quy tắc cập nhật:
+              </label>
+              <select
+                value={transferMode}
+                onChange={e => setTransferMode(e.target.value as any)}
+                className="w-full text-xs border border-slate-300 rounded-none px-2.5 py-1.5 bg-white font-medium focus:outline-none focus:border-sky-500"
+              >
+                <option value="new_col">Tạo cột mới / Ghi đè cột cũ</option>
+                <option value="empty_only">Chỉ điền vào khi ô của Tệp A còn trống</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-slate-600">
+              Khóa ghép nối: <strong className="text-indigo-700">{keyColA || "Chưa chọn"}</strong> (A) ↔{" "}
+              <strong className="text-emerald-700">{keyColB || "Chưa chọn"}</strong> (B)
+            </span>
+            <button
+              type="button"
+              onClick={handleTransferColumnToA}
+              disabled={!selectedColToTransfer || !keyColA || !keyColB}
+              className="px-3.5 py-1.5 bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold rounded-none shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 border-0"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Xác nhận chuyển cột này sang Tệp A</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================================= */}
+      {/* 2. KHU VỰC HIỂN THỊ KẾT QUẢ SO SÁNH: DANH SÁCH TRÙNG, LỆCH & BẢNG TỔNG HỢP */}
+      {/* ======================================================================= */}
+      {comparisonResults && stats && (
+        <div className="mx-3.5 space-y-3">
+          {/* HỆ THỐNG THẺ CHỈ SỐ TỔNG HỢP NHANH (CARDS) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {/* Card 1: Tổng số bản ghi 2 kỳ */}
+            <div className="bg-white p-3 border border-sky-300 rounded-none shadow-2xs">
+              <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold uppercase mb-1">
+                <span>Tổng bản ghi</span>
+                <GitCompare className="w-4 h-4 text-sky-600" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-bold text-slate-900 font-mono">
+                  {stats.totalA.toLocaleString("vi-VN")}
+                </span>
+                <span className="text-xs text-slate-500">↔</span>
+                <span className="text-lg font-bold text-emerald-800 font-mono">
+                  {stats.totalB.toLocaleString("vi-VN")}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-600 mt-1 flex items-center justify-between">
+                <span>Kỳ 1: {stats.totalA.toLocaleString("vi-VN")}</span>
+                <span>Kỳ 2: {stats.totalB.toLocaleString("vi-VN")}</span>
+              </div>
+            </div>
+
+            {/* Card 2: Danh sách TRÙNG */}
+            <div
+              onClick={() => setActiveResultTab("same")}
+              className={`p-3 border rounded-none shadow-2xs cursor-pointer transition-all ${
+                activeResultTab === "same"
+                  ? "bg-emerald-50 border-emerald-600 ring-2 ring-emerald-500"
+                  : "bg-white border-emerald-300 hover:bg-emerald-50/50"
+              }`}
+            >
+              <div className="flex items-center justify-between text-emerald-800 text-[11px] font-bold uppercase mb-1">
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Trùng khớp
+                </span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1 py-0.2 font-mono">
+                  {stats.matchRate.toFixed(1)}%
+                </span>
+              </div>
+              <div className="text-xl font-bold text-emerald-900 font-mono">
+                {stats.same.toLocaleString("vi-VN")}
+                <span className="text-xs font-normal text-emerald-700 ml-1">dòng</span>
+              </div>
+              <div className="text-[11px] text-emerald-700 mt-1">
+                Khớp cả 2 kỳ
+              </div>
+            </div>
+
+            {/* Card 3: Danh sách LỆCH */}
+            <div
+              onClick={() => {
+                setActiveResultTab("diff");
+                setDiffSubFilter("all");
+              }}
+              className={`p-3 border rounded-none shadow-2xs cursor-pointer transition-all ${
+                activeResultTab === "diff"
+                  ? "bg-amber-50 border-amber-600 ring-2 ring-amber-500"
+                  : "bg-white border-amber-300 hover:bg-amber-50/50"
+              }`}
+            >
+              <div className="flex items-center justify-between text-amber-900 text-[11px] font-bold uppercase mb-1">
+                <span className="flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> Sai lệch
+                </span>
+                <span className="text-[10px] bg-amber-100 text-amber-900 px-1 py-0.2 font-mono">
+                  {(100 - stats.matchRate).toFixed(1)}%
+                </span>
+              </div>
+              <div className="text-xl font-bold text-amber-900 font-mono">
+                {stats.totalDiff.toLocaleString("vi-VN")}
+                <span className="text-xs font-normal text-amber-800 ml-1">dòng</span>
+              </div>
+              <div className="text-[11px] text-amber-800 mt-1 flex items-center justify-between">
+                <span>Lệch số: {stats.diff}</span>
+                <span>Chỉ ở A: {stats.onlyA}</span>
+                <span>Chỉ ở B: {stats.onlyB}</span>
+              </div>
+            </div>
+
+            {/* Card 4: Tổng giá trị số liệu 2 kỳ */}
+            <div className="bg-white p-3 border border-indigo-300 rounded-none shadow-2xs">
+              <div className="flex items-center justify-between text-indigo-900 text-[11px] font-bold uppercase mb-1">
+                <span>Chênh lệch số liệu</span>
+                {stats.sumDiffVal >= 0 ? (
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <TrendingDown className="w-4 h-4 text-rose-600" />
+                )}
+              </div>
+              <div className="text-lg font-bold font-mono text-slate-900">
+                {stats.hasValCol ? (
+                  <span className={stats.sumDiffVal >= 0 ? "text-emerald-700" : "text-rose-700"}>
+                    {stats.sumDiffVal >= 0 ? "+" : ""}
+                    {stats.sumDiffVal.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400 font-normal">Chưa chọn cột số liệu</span>
+                )}
+              </div>
+              {stats.hasValCol && (
+                <div className="text-[11px] text-slate-600 mt-1 flex items-center justify-between truncate font-mono">
+                  <span>K1: {stats.sumValA.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}</span>
+                  <span>K2: {stats.sumValB.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* DẢI TABS ĐIỀU HƯỚNG XEM KẾT QUẢ & CÁC NÚT XUẤT EXCEL */}
+          <div className="bg-white p-2 border border-sky-300 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* Tab 1: Tổng hợp */}
+              <button
+                type="button"
+                onClick={() => setActiveResultTab("summary")}
+                className={`px-3 py-1.5 text-xs font-bold rounded-none border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activeResultTab === "summary"
+                    ? "bg-[#286e42] text-white border-[#1d4f2f] shadow-2xs ring-1 ring-emerald-600"
+                    : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>📊 TỔNG HỢP</span>
+              </button>
+
+              {/* Tab 2: Danh sách TRÙNG */}
+              <button
+                type="button"
+                onClick={() => setActiveResultTab("same")}
+                className={`px-3 py-1.5 text-xs font-bold rounded-none border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activeResultTab === "same"
+                    ? "bg-[#059669] text-white border-[#047857] shadow-2xs ring-1 ring-emerald-600"
+                    : "bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100"
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                <span>✅ TRÙNG ({stats.same.toLocaleString("vi-VN")})</span>
+              </button>
+
+              {/* Tab 3: Danh sách LỆCH */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveResultTab("diff");
+                  setDiffSubFilter("all");
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-none border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activeResultTab === "diff"
+                    ? "bg-[#ea580c] text-white border-[#c2410c] shadow-2xs ring-1 ring-amber-600"
+                    : "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100"
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />
+                <span>⚠️ LỆCH ({stats.totalDiff.toLocaleString("vi-VN")})</span>
+              </button>
+
+              {/* Tab 4: Toàn bộ danh sách */}
+              <button
+                type="button"
+                onClick={() => setActiveResultTab("all")}
+                className={`px-3 py-1.5 text-xs font-bold rounded-none border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activeResultTab === "all"
+                    ? "bg-[#0284c7] text-white border-[#0369a1] shadow-2xs"
+                    : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
+                }`}
+              >
+                <span>📑 TOÀN BỘ ({stats.totalAll.toLocaleString("vi-VN")})</span>
+              </button>
+            </div>
+
+            {/* Các nút xuất danh sách riêng biệt */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleExportMatchingList}
+                className="px-2.5 py-1 text-xs font-bold bg-[#059669] hover:bg-[#047857] text-white rounded-none cursor-pointer border-0 shadow-2xs flex items-center gap-1"
+                title="Tải riêng danh sách các bản ghi trùng khớp ra Excel"
+              >
+                <Download className="w-3 h-3" />
+                <span>Xuất trùng</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportDiscrepancyList}
+                className="px-2.5 py-1 text-xs font-bold bg-[#ea580c] hover:bg-[#c2410c] text-white rounded-none cursor-pointer border-0 shadow-2xs flex items-center gap-1"
+                title="Tải riêng danh sách các bản ghi sai lệch ra Excel"
+              >
+                <Download className="w-3 h-3" />
+                <span>Xuất lệch</span>
+              </button>
+            </div>
+          </div>
+
+          {/* =================================================================== */}
+          {/* NỘI DUNG TAB 1: BẢNG TỔNG HỢP CHI TIẾT ĐỐI SOÁT 2 KỲ */}
+          {/* =================================================================== */}
+          {activeResultTab === "summary" && (
+            <div className="space-y-3 animate-fade-in">
+              {/* Bảng phân tích chi tiết từng nhóm */}
+              <div className="bg-white border border-sky-300 rounded-none overflow-hidden shadow-xs">
+                <div className="p-3 bg-sky-100/70 border-b border-sky-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-[#286e42]" />
+                    <h4 className="text-xs font-bold text-slate-900 uppercase">
+                      Bảng Tổng Hợp Phân Tích Đối Soát Số Liệu Giữa 2 Kỳ
+                    </h4>
+                  </div>
+                  <span className="text-[11px] text-slate-600 font-medium">
+                    Khóa liên kết: <b className="font-mono text-indigo-700">{keyColA}</b> (Kỳ 1) ↔{" "}
+                    <b className="font-mono text-emerald-700">{keyColB}</b> (Kỳ 2)
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead className="bg-[#286e42] text-white font-bold border-b border-[#1d4f2f]">
+                      <tr>
+                        <th className="py-2.5 px-3 border-r border-[#1d4f2f] w-12 text-center">STT</th>
+                        <th className="py-2.5 px-3 border-r border-[#1d4f2f]">NHÓM ĐỐI SOÁT</th>
+                        <th className="py-2.5 px-3 border-r border-[#1d4f2f] text-right">SỐ BẢN GHI</th>
+                        <th className="py-2.5 px-3 border-r border-[#1d4f2f] text-right">TỶ LỆ (%)</th>
+                        <th className="py-2.5 px-3 border-r border-[#1d4f2f] text-right">
+                          TỔNG GIÁ TRỊ KỲ 1 ({compareValColA || "Kỳ 1"})
+                        </th>
+                        <th className="py-2.5 px-3 border-r border-[#1d4f2f] text-right">
+                          TỔNG GIÁ TRỊ KỲ 2 ({compareValColB || "Kỳ 2"})
+                        </th>
+                        <th className="py-2.5 px-3 border-r border-[#1d4f2f] text-right">CHÊNH LỆCH (K2 - K1)</th>
+                        <th className="py-2.5 px-3 text-center">XEM CHI TIẾT</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {/* Hàng 1: Trùng khớp */}
+                      <tr className="hover:bg-emerald-50/60 bg-emerald-50/20">
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-900 border-r border-slate-100">
+                          1
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-emerald-900 border-r border-slate-100 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <div>🟢 Trùng khớp hoàn toàn (Khớp mã &amp; số liệu)</div>
+                            <div className="text-[10px] font-normal text-slate-500">
+                              Bản ghi có mặt ở cả 2 kỳ và chỉ tiêu khớp hoàn toàn
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-900 border-r border-slate-100">
+                          {stats.same.toLocaleString("vi-VN")}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-800 border-r border-slate-100">
+                          {stats.matchRate.toFixed(1)}%
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-800 border-r border-slate-100">
+                          {stats.sameSumA.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-800 border-r border-slate-100">
+                          {stats.sameSumB.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 border-r border-slate-100">
+                          0
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setActiveResultTab("same")}
+                            className="text-[11px] px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-none cursor-pointer border-0 shadow-2xs"
+                          >
+                            Xem {stats.same} dòng &gt;
+                          </button>
+                        </td>
+                      </tr>
+
+                      {/* Hàng 2: Lệch số liệu */}
+                      <tr className="hover:bg-amber-50/60 bg-amber-50/20">
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-amber-900 border-r border-slate-100">
+                          2
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-amber-900 border-r border-slate-100 flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <div>
+                            <div>🟠 Trùng khóa nhưng sai lệch số liệu</div>
+                            <div className="text-[10px] font-normal text-slate-500">
+                              Cùng mã định danh nhưng giá trị chỉ tiêu so sánh khác nhau
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-900 border-r border-slate-100">
+                          {stats.diff.toLocaleString("vi-VN")}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-amber-800 border-r border-slate-100">
+                          {stats.totalAll > 0 ? ((stats.diff / stats.totalAll) * 100).toFixed(1) : 0}%
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-800 border-r border-slate-100">
+                          {stats.diffSumA.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-800 border-r border-slate-100">
+                          {stats.diffSumB.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold border-r border-slate-100">
+                          <span
+                            className={
+                              stats.diffSumB - stats.diffSumA >= 0 ? "text-emerald-700" : "text-rose-700"
+                            }
+                          >
+                            {stats.diffSumB - stats.diffSumA >= 0 ? "+" : ""}
+                            {(stats.diffSumB - stats.diffSumA).toLocaleString("vi-VN", {
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveResultTab("diff");
+                              setDiffSubFilter("diff_val");
+                            }}
+                            className="text-[11px] px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-none cursor-pointer border-0 shadow-2xs"
+                          >
+                            Xem {stats.diff} dòng &gt;
+                          </button>
+                        </td>
+                      </tr>
+
+                      {/* Hàng 3: Chỉ có ở Kỳ 1 */}
+                      <tr className="hover:bg-rose-50/60 bg-rose-50/20">
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-rose-900 border-r border-slate-100">
+                          3
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-rose-900 border-r border-slate-100 flex items-center gap-2">
+                          <Minus className="w-4 h-4 text-rose-600 shrink-0" />
+                          <div>
+                            <div>🔴 Chỉ có ở Kỳ 1 (Thiếu ở Kỳ 2)</div>
+                            <div className="text-[10px] font-normal text-slate-500">
+                              Bản ghi có ở Kỳ 1 nhưng không tìm thấy trong Kỳ 2
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-900 border-r border-slate-100">
+                          {stats.onlyA.toLocaleString("vi-VN")}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-rose-800 border-r border-slate-100">
+                          {stats.totalAll > 0 ? ((stats.onlyA / stats.totalAll) * 100).toFixed(1) : 0}%
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-800 border-r border-slate-100">
+                          {stats.onlyASumA.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-400 border-r border-slate-100">
+                          -
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700 border-r border-slate-100">
+                          -{stats.onlyASumA.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveResultTab("diff");
+                              setDiffSubFilter("only_in_a");
+                            }}
+                            className="text-[11px] px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-none cursor-pointer border-0 shadow-2xs"
+                          >
+                            Xem {stats.onlyA} dòng &gt;
+                          </button>
+                        </td>
+                      </tr>
+
+                      {/* Hàng 4: Chỉ có ở Kỳ 2 */}
+                      <tr className="hover:bg-indigo-50/60 bg-indigo-50/20">
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-indigo-900 border-r border-slate-100">
+                          4
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-indigo-900 border-r border-slate-100 flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <div>
+                            <div>🔵 Chỉ có ở Kỳ 2 (Mới phát sinh)</div>
+                            <div className="text-[10px] font-normal text-slate-500">
+                              Bản ghi mới xuất hiện trong Kỳ 2 mà Kỳ 1 chưa có
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-indigo-900 border-r border-slate-100">
+                          {stats.onlyB.toLocaleString("vi-VN")}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-indigo-800 border-r border-slate-100">
+                          {stats.totalAll > 0 ? ((stats.onlyB / stats.totalAll) * 100).toFixed(1) : 0}%
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-400 border-r border-slate-100">
+                          -
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-800 border-r border-slate-100">
+                          {stats.onlyBSumB.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 border-r border-slate-100">
+                          +{stats.onlyBSumB.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveResultTab("diff");
+                              setDiffSubFilter("only_in_b");
+                            }}
+                            className="text-[11px] px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-none cursor-pointer border-0 shadow-2xs"
+                          >
+                            Xem {stats.onlyB} dòng &gt;
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+
+                    {/* DÒNG TỔNG CỘNG FOOTER */}
+                    <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
+                      <tr>
+                        <td colSpan={2} className="py-3 px-3 text-center uppercase tracking-wide border-r border-slate-300">
+                          TỔNG CỘNG TOÀN BỘ ĐỐI SOÁT
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono text-sm border-r border-slate-300">
+                          {stats.totalAll.toLocaleString("vi-VN")}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono border-r border-slate-300">100.0%</td>
+                        <td className="py-3 px-3 text-right font-mono border-r border-slate-300">
+                          {stats.sumValA.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono border-r border-slate-300">
+                          {stats.sumValB.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono text-sm border-r border-slate-300">
+                          <span className={stats.sumDiffVal >= 0 ? "text-emerald-700" : "text-rose-700"}>
+                            {stats.sumDiffVal >= 0 ? "+" : ""}
+                            {stats.sumDiffVal.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={handleExportFullSummaryExcel}
+                            className="text-[11px] px-2.5 py-1 bg-[#286e42] hover:bg-[#205835] text-white font-bold rounded-none cursor-pointer border-0 shadow-2xs flex items-center justify-center gap-1 mx-auto"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>Xuất Excel</span>
+                          </button>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =================================================================== */}
+          {/* NỘI DUNG TAB 2, 3, 4: BẢNG CHI TIẾT DANH SÁCH TRÙNG / LỆCH / TOÀN BỘ */}
+          {/* =================================================================== */}
+          {activeResultTab !== "summary" && (
+            <div className="space-y-2 animate-fade-in">
+              {/* Bộ lọc con cho Danh Sách Lệch */}
+              {activeResultTab === "diff" && (
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50/80 p-2 border border-amber-300">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-bold text-amber-950 uppercase mr-1 flex items-center gap-1">
+                      <Filter className="w-3.5 h-3.5" /> Lọc loại lệch:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDiffSubFilter("all")}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-none border cursor-pointer ${
+                        diffSubFilter === "all"
+                          ? "bg-amber-600 text-white border-amber-700"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-amber-100/50"
+                      }`}
+                    >
+                      Tất cả lệch ({stats.totalDiff})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiffSubFilter("diff_val")}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-none border cursor-pointer ${
+                        diffSubFilter === "diff_val"
+                          ? "bg-amber-600 text-white border-amber-700"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-amber-100/50"
+                      }`}
+                    >
+                      Lệch số liệu ({stats.diff})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiffSubFilter("only_in_a")}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-none border cursor-pointer ${
+                        diffSubFilter === "only_in_a"
+                          ? "bg-rose-600 text-white border-rose-700"
+                          : "bg-white text-rose-800 border-rose-200 hover:bg-rose-50"
+                      }`}
+                    >
+                      Chỉ có ở Kỳ 1 ({stats.onlyA})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiffSubFilter("only_in_b")}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-none border cursor-pointer ${
+                        diffSubFilter === "only_in_b"
+                          ? "bg-indigo-600 text-white border-indigo-700"
+                          : "bg-white text-indigo-800 border-indigo-200 hover:bg-indigo-50"
+                      }`}
+                    >
+                      Chỉ có ở Kỳ 2 ({stats.onlyB})
+                    </button>
+                  </div>
+
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Tìm mã hoặc số liệu..."
+                      className="pl-7 pr-2.5 py-1 text-xs border border-slate-300 rounded-none bg-white w-48 font-medium focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Ô tìm kiếm cho Tab Trùng hoặc Toàn Bộ */}
+              {activeResultTab !== "diff" && (
+                <div className="flex items-center justify-between gap-2 bg-slate-50 p-2 border border-slate-200">
+                  <span className="text-xs font-bold text-slate-700">
+                    {activeResultTab === "same" ? "DANH SÁCH BẢN GHI TRÙNG KHỚP" : "TOÀN BỘ DỮ LIỆU ĐỐI SOÁT"} (
+                    {currentDisplayList.length.toLocaleString("vi-VN")} bản ghi)
+                  </span>
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Tìm kiếm mã hoặc giá trị..."
+                      className="pl-7 pr-2.5 py-1 text-xs border border-slate-300 rounded-none bg-white w-56 font-medium focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* BẢNG CHI TIẾT HIỂN THỊ TẤT CẢ CÁC CỘT CỦA CẢ 2 TỆP */}
+              <div className="border border-sky-300 rounded-none overflow-x-auto max-h-[540px] overflow-y-auto bg-white shadow-inner">
+                <table className="w-full text-left border-collapse text-xs min-w-max">
+                  <thead className="sticky top-0 z-10 shadow-xs">
+                    {/* HÀNG TIÊU ĐỀ 1: PHÂN NHÓM TỆP A & TỆP B */}
+                    <tr className="text-white text-[11px] font-bold uppercase tracking-wider">
+                      <th
+                        rowSpan={2}
+                        className="bg-[#286e42] py-2 px-2.5 w-10 text-center border-r border-[#1d4f2f] sticky left-0 z-20"
+                      >
+                        #
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="bg-[#286e42] py-2 px-3 border-r border-[#1d4f2f] whitespace-nowrap sticky left-10 z-20"
+                      >
+                        Trạng thái
+                      </th>
+                      {stats?.hasValCol && (
+                        <th
+                          rowSpan={2}
+                          className="bg-[#1f5c35] py-2 px-3 border-r border-[#1d4f2f] text-right whitespace-nowrap"
+                        >
+                          Chênh lệch (K2 - K1)
+                        </th>
+                      )}
+                      <th
+                        colSpan={mainColumns.length}
+                        className="bg-[#0369a1] py-1.5 px-3 text-center border-r border-[#0284c7] font-bold"
+                      >
+                        Tệp A (Kỳ 1) • {mainColumns.length} cột
+                      </th>
+                      <th
+                        colSpan={compareColumns.length}
+                        className="bg-[#047857] py-1.5 px-3 text-center font-bold"
+                      >
+                        Tệp B (Kỳ 2) • {compareColumns.length} cột
+                      </th>
+                    </tr>
+
+                    {/* HÀNG TIÊU ĐỀ 2: TÊN CÁC CỘT CỦA TỆP A VÀ TỆP B */}
+                    <tr className="text-[11px] font-semibold">
+                      {mainColumns.map(colA => (
+                        <th
+                          key={`th-a-${colA}`}
+                          className={`py-1.5 px-2.5 border-r border-sky-600 whitespace-nowrap ${
+                            colA === keyColA
+                              ? "bg-sky-900 text-amber-300 font-bold"
+                              : "bg-[#0284c7] text-white"
+                          }`}
+                          title={`Tệp A: ${colA}${colA === keyColA ? " (Khóa 1)" : ""}`}
+                        >
+                          <span className="opacity-75 mr-1 font-mono text-[10px]">[A]</span>
+                          {colA}
+                          {colA === keyColA && <span className="ml-1 text-amber-300">🔑</span>}
+                        </th>
+                      ))}
+                      {compareColumns.map(colB => (
+                        <th
+                          key={`th-b-${colB}`}
+                          className={`py-1.5 px-2.5 border-r border-emerald-600 whitespace-nowrap ${
+                            colB === keyColB
+                              ? "bg-emerald-950 text-amber-300 font-bold"
+                              : "bg-[#059669] text-white"
+                          }`}
+                          title={`Tệp B: ${colB}${colB === keyColB ? " (Khóa 2)" : ""}`}
+                        >
+                          <span className="opacity-75 mr-1 font-mono text-[10px]">[B]</span>
+                          {colB}
+                          {colB === keyColB && <span className="ml-1 text-amber-300">🔑</span>}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-200">
+                    {currentDisplayList.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={mainColumns.length + compareColumns.length + (stats?.hasValCol ? 3 : 2)}
+                          className="py-8 text-center text-slate-400 italic"
+                        >
+                          Không có bản ghi nào khớp với điều kiện lọc hiện tại.
+                        </td>
+                      </tr>
+                    ) : (
+                      currentDisplayList.slice(0, 300).map((d: any, idx: number) => {
+                        const rowA = d.rowA;
+                        const rowB = d.rowB;
+                        return (
+                          <tr
+                            key={idx}
+                            className={`hover:bg-amber-50/50 transition-colors ${
+                              d.status === "diff"
+                                ? "bg-amber-50/40"
+                                : d.status === "only_in_a"
+                                ? "bg-rose-50/30"
+                                : d.status === "only_in_b"
+                                ? "bg-indigo-50/30"
+                                : idx % 2 === 1
+                                ? "bg-slate-50/50"
+                                : "bg-white"
+                            }`}
+                          >
+                            {/* Cột 1: STT */}
+                            <td className="py-1 px-2.5 text-center text-slate-500 font-mono text-[11px] border-r border-slate-200 sticky left-0 bg-inherit z-5">
+                              {idx + 1}
+                            </td>
+
+                            {/* Cột 2: Trạng thái */}
+                            <td className="py-1 px-2.5 border-r border-slate-200 text-xs font-medium whitespace-nowrap sticky left-10 bg-inherit z-5">
+                              {d.status === "same" ? (
+                                <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Trùng khớp
+                                </span>
+                              ) : d.status === "diff" ? (
+                                <span className="text-amber-800 font-bold flex items-center gap-1">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> Lệch số
+                                </span>
+                              ) : d.status === "only_in_a" ? (
+                                <span className="text-rose-700 font-bold flex items-center gap-1">
+                                  <Minus className="w-3 h-3 text-rose-600" /> Chỉ ở A
+                                </span>
+                              ) : (
+                                <span className="text-indigo-700 font-bold flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-indigo-600" /> Chỉ ở B
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Cột Chênh lệch nếu có */}
+                            {stats?.hasValCol && (
+                              <td className="py-1 px-2.5 text-right font-mono font-bold border-r border-slate-200 whitespace-nowrap">
+                                {d.valDiff !== undefined && !isNaN(d.valDiff) ? (
+                                  <span
+                                    className={
+                                      d.valDiff > 0
+                                        ? "text-emerald-700"
+                                        : d.valDiff < 0
+                                        ? "text-rose-700"
+                                        : "text-slate-600"
+                                    }
+                                  >
+                                    {d.valDiff > 0 ? "+" : ""}
+                                    {d.valDiff.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                                  </span>
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                            )}
+
+                            {/* TẤT CẢ CÁC CỘT CỦA TỆP A */}
+                            {mainColumns.map(colA => {
+                              const val = rowA ? rowA[colA] : undefined;
+                              return (
+                                <td
+                                  key={`td-a-${colA}`}
+                                  className={`py-1 px-2.5 border-r border-slate-200 font-mono text-[11px] whitespace-nowrap ${
+                                    colA === keyColA ? "font-bold text-sky-950 bg-sky-100/40" : "text-slate-700"
+                                  }`}
+                                >
+                                  {val !== undefined && val !== null && val !== "" ? String(val) : "-"}
+                                </td>
+                              );
+                            })}
+
+                            {/* TẤT CẢ CÁC CỘT CỦA TỆP B */}
+                            {compareColumns.map(colB => {
+                              const val = rowB ? rowB[colB] : undefined;
+                              return (
+                                <td
+                                  key={`td-b-${colB}`}
+                                  className={`py-1 px-2.5 border-r border-slate-200 font-mono text-[11px] whitespace-nowrap ${
+                                    colB === keyColB ? "font-bold text-emerald-950 bg-emerald-100/40" : "text-slate-700"
+                                  }`}
+                                >
+                                  {val !== undefined && val !== null && val !== "" ? String(val) : "-"}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+
+                  {/* DÒNG TỔNG CỘNG CHO DANH SÁCH CHI TIẾT */}
+                  {tableFooterSummary && tableFooterSummary.hasNumbers && (
+                    <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 sticky bottom-0 text-slate-900 z-10">
+                      <tr>
+                        <td
+                          colSpan={stats?.hasValCol ? 2 : 2}
+                          className="py-2.5 px-3 text-center uppercase tracking-wide border-r border-slate-300"
+                        >
+                          TỔNG CỘNG ({currentDisplayList.length.toLocaleString("vi-VN")} DÒNG)
+                        </td>
+                        {stats?.hasValCol && (
+                          <td className="py-2.5 px-3 text-right font-mono border-r border-slate-300">
+                            <span className={tableFooterSummary.sumDiff >= 0 ? "text-emerald-700" : "text-rose-700"}>
+                              {tableFooterSummary.sumDiff >= 0 ? "+" : ""}
+                              {tableFooterSummary.sumDiff.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}
+                            </span>
+                          </td>
+                        )}
+                        <td
+                          colSpan={mainColumns.length + compareColumns.length}
+                          className="py-2.5 px-3 text-xs text-slate-500 italic"
+                        >
+                          {compareValColA && (
+                            <span className="mr-3">
+                              {compareValColA}: <strong>{tableFooterSummary.sumA.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}</strong>
+                            </span>
+                          )}
+                          {compareValColB && (
+                            <span>
+                              {compareValColB}: <strong>{tableFooterSummary.sumB.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}</strong>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+
+              {currentDisplayList.length > 300 && (
+                <div className="text-center text-[11px] text-slate-500 italic">
+                  Đang hiển thị 300 / {currentDisplayList.length.toLocaleString("vi-VN")} bản ghi. Hãy dùng nút xuất Excel để tải toàn bộ.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* THÔNG ĐIỆP KHI CHƯA TẢI ĐỦ TỆP HOẶC THIẾU TỆP (GOM VÀO 1 MỐI ĐỂ TẢI NHANH) */}
+      {(activeMainData.length === 0 || compareData.length === 0) && (
+        <div className="p-6 bg-white mx-3.5 my-2 border border-dashed border-sky-300 space-y-4 text-center">
+          <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+            <GitCompare className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+              {activeMainData.length === 0 && compareData.length === 0
+                ? "Nạp Dữ Liệu 2 Kỳ Để Đối Soát (Tải File A & Tải File B)"
+                : activeMainData.length === 0
+                ? "Chưa Nạp Dữ Liệu File A (Kỳ 1)"
+                : "Chưa Nạp Dữ Liệu File B (Kỳ 2 Đối Chiếu)"}
+            </h4>
+            <p className="text-xs text-slate-600 max-w-lg mx-auto">
+              Vui lòng tải lên cả 2 tệp dữ liệu vào bảng dưới đây để hệ thống tự động tìm khóa chung, phát hiện bản ghi trùng khớp và đối soát chênh lệch số liệu.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Cột 1: File nguồn và Loại đối chiếu */}
-            <div className="space-y-4 md:col-span-1 border-r border-slate-100 pr-0 md:pr-6">
-              <span className="text-xs font-extrabold text-amber-700 tracking-wider uppercase font-mono block">
-                📂 1. CHỌN DỮ LIỆU NGUỒN CHUỖI THỜI GIAN
-              </span>
-
-              <label className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-sm font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer w-full justify-center">
-                <FileUp className="w-4 h-4 text-amber-500" /> TẢI LÊN FILE CHUỖI THỜI GIAN
-                <input
-                  type="file"
-                  accept=".xlsx, .xls, .csv"
-                  onChange={(e) => handleLocalFileUpload(e, "ts")}
-                  className="hidden"
-                />
-              </label>
-
-              {mainData && mainData.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTsData(mainData);
-                    setTsFileName(fileName || "Dữ liệu chính hệ thống");
-                    autoGuessTSConfigs(mainData);
-                  }}
-                  className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-[11px] px-3 py-2 rounded-xl border border-amber-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                >
-                  📥 SỬ DỤNG FILE CHÍNH ĐÃ NẠP
-                </button>
-              )}
-
-              {tsFileName && (
-                <div className="bg-amber-50/50 border border-amber-100 p-3 rounded-lg text-xs flex justify-between items-center text-slate-700 shadow-xs">
-                  <span className="truncate max-w-[180px] font-semibold">📄 {tsFileName}</span>
-                  <span className="font-mono text-amber-800 bg-amber-100/50 px-1.5 py-0.5 rounded">{tsData.length} dòng</span>
-                </div>
-              )}
-
-              {/* Loại đối chiếu */}
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3 shadow-xs">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider block font-mono">Phương thức so sánh:</label>
-                  <div className="space-y-1.5">
-                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="comparisonType"
-                        checked={comparisonType === "adjacent"}
-                        onChange={() => setComparisonType("adjacent")}
-                        className="text-amber-500 focus:ring-amber-400 h-3.5 w-3.5"
-                      />
-                      So sánh giữa các tháng gần nhau kề tiếp
-                    </label>
-                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="comparisonType"
-                        checked={comparisonType === "yoy"}
-                        onChange={() => setComparisonType("yoy")}
-                        className="text-amber-500 focus:ring-amber-400 h-3.5 w-3.5"
-                      />
-                      Cùng kỳ năm trước (YoY) (Ví dụ: Tháng 2 vs Tháng 2 năm ngoái)
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Cột 2: Cấu hình Cột định danh và Cột thời gian */}
-            <div className="space-y-4 md:col-span-1 border-r border-slate-100 pr-0 md:pr-6">
-              <span className="text-xs font-extrabold text-indigo-700 tracking-wider uppercase font-mono block">
-                ⚙️ 2. ÁNH XẠ CỘT CHUỖI THỜI GIAN
-              </span>
-
-              {/* Khóa định danh địa bàn */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block">
-                  🔑 Khóa định danh địa bàn/thực thể (Entity Key):
-                </label>
-                <select
-                  value={tsKey}
-                  onChange={(e) => setTsKey(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-amber-500"
-                >
-                  <option value="">-- Chọn cột định danh địa bàn --</option>
-                  {Object.keys((tsData.length > 0 ? tsData : mainData)[0] || {}).map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-400">Dùng mã này để nhóm các giá trị của một địa bàn qua thời kỳ.</p>
-              </div>
-
-              {/* Cột chỉ tiêu định lượng */}
-              <div className="space-y-1 pt-1">
-                <label className="text-xs font-bold text-slate-700 block">
-                  📈 Cột Chỉ tiêu cần phân tích:
-                </label>
-                <select
-                  value={metricCol}
-                  onChange={(e) => setMetricCol(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-amber-500"
-                >
-                  <option value="">-- Chọn cột chỉ tiêu số liệu --</option>
-                  {Object.keys((tsData.length > 0 ? tsData : mainData)[0] || {}).map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-400">Ví dụ: Doanh thu, số lượng doanh nghiệp đạt, v.v.</p>
-              </div>
-
-              {/* Cấu hình thời gian */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 shadow-xs">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider block font-mono">Dạng thức thời gian:</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={timeConfigType === "separate"}
-                        onChange={() => setTimeConfigType("separate")}
-                        className="text-amber-500"
-                      />
-                      Cột Tháng & Năm riêng biệt
-                    </label>
-                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={timeConfigType === "single"}
-                        onChange={() => setTimeConfigType("single")}
-                        className="text-amber-500"
-                      />
-                      Một cột ngày tháng chung
-                    </label>
-                  </div>
-                </div>
-
-                {timeConfigType === "separate" ? (
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-600 block">Cột chứa Tháng:</label>
-                      <select
-                        value={monthCol}
-                        onChange={(e) => setMonthCol(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-800"
-                      >
-                        <option value="">-- Tháng --</option>
-                        {Object.keys((tsData.length > 0 ? tsData : mainData)[0] || {}).map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-600 block">Cột chứa Năm:</label>
-                      <select
-                        value={yearCol}
-                        onChange={(e) => setYearCol(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-800"
-                      >
-                        <option value="">-- Năm --</option>
-                        {Object.keys((tsData.length > 0 ? tsData : mainData)[0] || {}).map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-1 pt-1">
-                    <label className="text-[10px] font-bold text-slate-600 block">Cột Ngày Tháng chung:</label>
-                    <select
-                      value={singleDateCol}
-                      onChange={(e) => setSingleDateCol(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800"
-                    >
-                      <option value="">-- Chọn cột thời gian --</option>
-                      {Object.keys((tsData.length > 0 ? tsData : mainData)[0] || {}).map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Cột 3: Thực hiện hành động & Xem trước xu hướng nhanh */}
-            <div className="space-y-4 md:col-span-1">
-              <span className="text-xs font-extrabold text-emerald-800 tracking-wider uppercase font-mono block">
-                ⚡ 3. TIẾN HÀNH PHÂN TÍCH
-              </span>
-
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Sau khi ánh xạ thành công các thuộc tính cấu trúc thời gian và mã khóa, bấm nút dưới để hệ thống khởi chạy thuật toán tính toán tăng trưởng.
-              </p>
-
-              <button
-                onClick={handleTimeSeriesCompare}
-                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs px-6 py-4 rounded-xl border-b-4 border-amber-800 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <TrendingUp className="w-4 h-4" /> BẮT ĐẦU ĐỐI CHIẾU CHUỖI THỜI GIAN
-              </button>
-
-              {tsResultRows.length > 0 && (
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 shadow-xs">
-                  <span className="text-[11px] font-black text-slate-500 block uppercase font-mono">📈 Xu hướng địa bàn cụ thể:</span>
-                  <div className="space-y-2">
-                    <select
-                      value={selectedChartEntity}
-                      onChange={(e) => setSelectedChartEntity(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-800"
-                    >
-                      {Array.from(new Set(tsResultRows.map(r => r[tsKey]))).map(entity => (
-                        <option key={entity} value={entity}>{entity}</option>
-                      ))}
-                    </select>
-
-                    <div className="h-28">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartDataForSelected} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="name" tick={{ fontSize: 9 }} />
-                          <YAxis tick={{ fontSize: 9 }} />
-                          <Tooltip contentStyle={{ fontSize: 10 }} />
-                          <Line type="monotone" dataKey="Kỳ này" stroke="#d97706" strokeWidth={2} name="Kỳ này" dot={{ r: 3 }} />
-                          <Line type="monotone" dataKey="Kỳ trước" stroke="#475569" strokeWidth={1.5} name="Kỳ trước" dot={{ r: 2 }} strokeDasharray="4 4" />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* CHẾ ĐỘ 3: MỤC LƯU TRỮ VÀ SO SÁNH DỮ LIỆU CÁC THỜI KỲ */}
-      {subMode === "saved-snapshots" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            {/* Cột trái (Lớp quản lý kho lưu trữ) */}
-            <div className="lg:col-span-5 space-y-6">
-              
-              {/* Thêm mới vào kho */}
-              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5 space-y-4 text-slate-800">
-                <h3 className="text-sm font-extrabold text-emerald-800 tracking-wider uppercase font-mono flex items-center gap-2">
-                  <Database className="w-5 h-5 text-emerald-600" /> 1. Lưu trữ dữ liệu mới vào kho
-                </h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Bạn có thể tải lên một tệp Excel/CSV bất kỳ để lưu trữ lâu dài vào cơ sở dữ liệu trình duyệt, hoặc lưu trực tiếp bảng dữ liệu đang phân tích trên màn hình.
-                </p>
-
-                {/* Drag drop or selector area */}
-                <div className="border-2 border-dashed border-emerald-200 hover:border-emerald-400 bg-emerald-50/20 hover:bg-emerald-50/50 rounded-xl p-4 transition-all text-center space-y-2 relative">
-                  <input
-                    type="file"
-                    onChange={handleSnapFileUpload}
-                    accept=".xlsx,.xls,.csv"
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <div className="flex flex-col items-center justify-center gap-1">
-                    <FileUp className="w-8 h-8 text-emerald-500" />
-                    <span className="text-xs font-bold text-slate-700">Kéo thả hoặc Click để nạp tệp tin mới</span>
-                    <span className="text-[10px] text-slate-400">Chấp nhận .XLSX, .XLS, .CSV</span>
-                  </div>
-                </div>
-
-                {/* Hoặc lấy dữ liệu hệ thống */}
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <div className="h-px bg-slate-200 flex-1"></div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase font-mono">Hoặc</span>
-                  <div className="h-px bg-slate-200 flex-1"></div>
-                </div>
-
-                <button
-                  onClick={handleSaveActiveDataAsSnapshot}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-lg border border-slate-300 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Lấy từ Dữ liệu đang chạy ngoài màn hình chính
-                </button>
-
-                {/* Thông tin metadata tệp nạp tạm */}
-                {newSnapFile && (
-                  <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-4 space-y-3 text-slate-800">
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" />
-                      <div className="space-y-0.5">
-                        <span className="text-xs font-bold text-slate-800 block leading-tight">Đã tải tạm tệp tin thành công!</span>
-                        <span className="text-[10px] text-slate-500 block font-mono">Tên file: {newSnapFileName} ({newSnapFile.length} dòng)</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3.5 pt-2 border-t border-amber-200">
-                      <div>
-                        <label className="text-[10px] font-black text-slate-600 uppercase block mb-1">Tên gợi nhớ của Snapshot:</label>
-                        <input
-                          type="text"
-                          value={newSnapName}
-                          onChange={(e) => setNewSnapName(e.target.value)}
-                          placeholder="Ví dụ: Cá thể quý 1, Doanh nghiệp lớn tháng 5..."
-                          className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-500 font-bold"
-                        />
-                      </div>
-
-                      {/* PHÂN LOẠI MỤC LƯU TRỮ */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-600 uppercase block">Thư mục / Mục lưu trữ dữ liệu:</label>
-                        <div className="grid grid-cols-1 gap-2">
-                          <select
-                            value={newSnapCategory}
-                            onChange={(e) => setNewSnapCategory(e.target.value)}
-                            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-500 font-semibold"
-                          >
-                            {uniqueCategories.map((cat) => (
-                              <option key={cat} value={cat}>📁 {cat}</option>
-                            ))}
-                            <option value="custom">➕ Tạo mục lưu trữ mới...</option>
-                          </select>
-
-                          {newSnapCategory === "custom" && (
-                            <div className="animate-fade-in space-y-1">
-                              <input
-                                type="text"
-                                value={newCustomCategory}
-                                onChange={(e) => setNewCustomCategory(e.target.value)}
-                                placeholder="Nhập tên mục mới (Ví dụ: Lưu Cá Thể, Lưu Doanh Nghiệp...)"
-                                className="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-emerald-800 focus:ring-1 focus:ring-emerald-500 font-bold animate-pulse"
-                              />
-                              <p className="text-[9px] text-slate-400">Các tệp tin lưu vào cùng mục này sẽ được gộp chung vào một thư mục trực quan.</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* CHU KỲ BÁO CÁO */}
-                      <div className="space-y-1.5 bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs">
-                        <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Chu kỳ đối chiếu:</label>
-                        <div className="flex gap-1.5 mb-2">
-                          {(["month", "quarter", "year"] as const).map((type) => (
-                            <button
-                              key={type}
-                              type="button"
-                              onClick={() => {
-                                setNewSnapCycleType(type);
-                                if (type === "quarter") {
-                                  setNewSnapCycleValue(1);
-                                } else if (type === "month") {
-                                  setNewSnapCycleValue(new Date().getMonth() + 1);
-                                }
-                              }}
-                              className={`flex-1 text-[10px] font-bold py-1 px-1.5 rounded-md border transition-all ${
-                                newSnapCycleType === type
-                                  ? "bg-emerald-50 border-emerald-400 text-emerald-700 shadow-xs"
-                                  : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                              }`}
-                            >
-                              {type === "month" ? "Theo Tháng" : type === "quarter" ? "Theo Quý" : "Theo Năm"}
-                            </button>
-                          ))}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          {newSnapCycleType === "month" && (
-                            <div>
-                              <label className="text-[9px] font-bold text-slate-500 block mb-0.5">Chọn Tháng:</label>
-                              <select
-                                value={newSnapCycleValue}
-                                onChange={(e) => setNewSnapCycleValue(parseInt(e.target.value))}
-                                className="w-full bg-slate-50 border border-slate-300 rounded-md px-2 py-1 text-xs font-semibold text-slate-800"
-                              >
-                                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                                  <option key={m} value={m}>Tháng {m}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-
-                          {newSnapCycleType === "quarter" && (
-                            <div>
-                              <label className="text-[9px] font-bold text-slate-500 block mb-0.5">Chọn Quý:</label>
-                              <select
-                                value={newSnapCycleValue}
-                                onChange={(e) => setNewSnapCycleValue(parseInt(e.target.value))}
-                                className="w-full bg-slate-50 border border-slate-300 rounded-md px-2 py-1 text-xs font-semibold text-slate-800"
-                              >
-                                {Array.from({ length: 4 }, (_, i) => i + 1).map((q) => (
-                                  <option key={q} value={q}>Quý {q}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-
-                          <div className={newSnapCycleType === "year" ? "col-span-2" : ""}>
-                            <label className="text-[9px] font-bold text-slate-500 block mb-0.5 font-mono">Chọn Năm:</label>
-                            <select
-                              value={newSnapYear}
-                              onChange={(e) => setNewSnapYear(parseInt(e.target.value))}
-                              className="w-full bg-slate-50 border border-slate-300 rounded-md px-2 py-1 text-xs font-semibold text-slate-800"
-                            >
-                              {Array.from({ length: 11 }, (_, i) => 2020 + i).map((y) => (
-                                <option key={y} value={y}>Năm {y}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handleSaveSnapshot}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-lg border-b-2 border-emerald-800 transition-all cursor-pointer flex items-center justify-center gap-1.5 mt-2"
-                      >
-                        <Save className="w-3.5 h-3.5" /> LƯU VÀO KHO LƯU TRỮ VĨNH VIỄN
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Hướng dẫn ngắn */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 text-slate-800 shadow-sm">
-                <span className="text-xs font-black text-indigo-750 uppercase tracking-wider font-mono block flex items-center gap-1.5">
-                  💡 QUY TRÌNH 4 BƯỚC THAO TÁC SO SÁNH LIÊN KỲ:
+          {/* KHỐI 2 TỆP VÀO 1 MỐI ĐỂ TẢI NHANH */}
+          <div className="max-w-xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-left">
+            {/* Thẻ File A */}
+            <div className={`p-3.5 border rounded-none shadow-2xs ${activeMainData.length > 0 ? "bg-sky-50/70 border-sky-400" : "bg-slate-50 border-slate-300"}`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold text-sky-950 uppercase flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-sky-600 inline-block" /> File A (Kỳ 1)
                 </span>
-                
-                <div className="space-y-4 relative pl-3 border-l border-indigo-200 ml-1.5">
-                  <div className="relative">
-                    <div className="absolute -left-[17px] top-0.5 bg-indigo-600 text-white font-mono text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm">1</div>
-                    <p className="text-xs font-bold text-slate-800 leading-none">Bước 1: Nạp dữ liệu nguồn</p>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                      Kéo thả file Excel/CSV bất kỳ vào khung phía trên, hoặc nhấn nút <b>"Lấy từ Dữ liệu đang chạy ngoài màn hình chính"</b> để nạp bảng đang làm việc.
-                    </p>
-                  </div>
-
-                  <div className="relative">
-                    <div className="absolute -left-[17px] top-0.5 bg-indigo-600 text-white font-mono text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm">2</div>
-                    <p className="text-xs font-bold text-slate-800 leading-none">Bước 2: Gán Kỳ báo cáo & Lưu kho</p>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                      Kiểm tra thông tin, đặt tên gợi nhớ dễ hiểu (ví dụ: <i>Doanh thu tháng 5</i>), chọn đúng <b>Tháng</b> và <b>Năm báo cáo</b>, sau đó nhấn <b>"LƯU VÀO KHO LƯU TRỮ VĨNH VIỄN"</b>.
-                    </p>
-                  </div>
-
-                  <div className="relative">
-                    <div className="absolute -left-[17px] top-0.5 bg-indigo-600 text-white font-mono text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm">3</div>
-                    <p className="text-xs font-bold text-slate-800 leading-none">Bước 3: Chọn kỳ đối chiếu & Ánh xạ</p>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                      Chọn 2 kỳ bạn cần đối chiếu ở mục 3 (<b>Bản gốc</b> đại diện kỳ trước, <b>Bản so khớp</b> đại diện kỳ này). Hệ thống tự động gợi ý chọn Cột khóa định danh và Cột chỉ tiêu muốn rà soát.
-                    </p>
-                  </div>
-
-                  <div className="relative">
-                    <div className="absolute -left-[17px] top-0.5 bg-indigo-600 text-white font-mono text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm">4</div>
-                    <p className="text-xs font-bold text-slate-800 leading-none">Bước 4: Chạy rà soát & Xuất Excel</p>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                      Nhấn <b>"TIẾN HÀNH ĐỐI CHIẾU 2 KỲ BÁO CÁO"</b> để xem bảng chênh lệch chi tiết, tỷ lệ % tăng trưởng cùng trạng thái phân loại trực quan, hỗ trợ kết xuất tệp Excel sạch ngay sau khi chạy xong.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Cột phải (Danh sách kho lưu trữ và giao diện so sánh đối chiếu) */}
-            <div className="lg:col-span-7 space-y-6">
-              
-              {/* Danh sách Kho dữ liệu */}
-              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5 space-y-4 text-slate-800">
-                <h3 className="text-sm font-extrabold text-slate-800 tracking-wider uppercase font-mono flex items-center gap-2">
-                  <FolderOpen className="w-5 h-5 text-amber-500" /> 2. Danh sách kho dữ liệu lưu trữ ({savedSnapshots.length})
-                </h3>
-
-                {/* Reassurance Security Banner */}
-                <div className="bg-emerald-50/50 border border-emerald-150 rounded-xl p-3 flex items-start gap-3">
-                  <span className="text-xl">🛡️</span>
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-emerald-800 leading-none">Lưu trữ Bảo mật tại chỗ (An toàn 100%)</h4>
-                    <p className="text-[10.5px] text-emerald-700/90 leading-relaxed">
-                      Dữ liệu được lưu trực tiếp vào <b>bộ nhớ cục bộ IndexedDB bảo mật của Trình duyệt</b> trên thiết bị này. 
-                      Hệ thống <b>hoàn toàn không tải dữ liệu lên Máy chủ, Đám mây (Firebase) hay Đĩa cứng của bạn</b>, đảm bảo bảo mật tuyệt đối và không phát sinh bất kỳ đường dẫn vật lý nào xâm phạm hệ thống.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Google Drive Cloud Sync Center */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-black text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
-                      <CloudLightning className="w-4 h-4 text-emerald-500 shrink-0" />
-                      Sao lưu &amp; Khôi phục bằng Google Drive
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={() => setShowDrivePanel(!showDrivePanel)}
-                      className="text-[10px] text-indigo-600 hover:underline font-bold"
-                    >
-                      {showDrivePanel ? "Ẩn bảng điều khiển" : "Hiện bảng điều khiển"}
-                    </button>
-                  </div>
-
-                  {showDrivePanel && (
-                    <div className="space-y-3 text-xs border-t border-slate-200/60 pt-3">
-                      <p className="text-[10.5px] text-slate-500 leading-relaxed">
-                        Cho phép bạn lưu trữ toàn bộ kho dữ liệu IndexedDB của thiết bị này lên Google Drive cá nhân của bạn để bảo quản lâu dài hoặc tải về trên thiết bị khác.
-                      </p>
-
-                      <div className="flex flex-wrap gap-2 items-center">
-                        {googleAccessToken ? (
-                          <div className="flex flex-wrap gap-2 items-center">
-                            <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
-                              <CheckCircle className="w-3.5 h-3.5" />
-                              Đã kết nối tài khoản Google
-                            </span>
-                            <button
-                              type="button"
-                              onClick={handleBackupSnapshotsToDrive}
-                              disabled={isDriveSyncing || savedSnapshots.length === 0}
-                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10.5px] rounded-lg transition-colors cursor-pointer disabled:bg-slate-300"
-                            >
-                              {isDriveSyncing ? "Đang đẩy lên..." : "Sao lưu kho lên Google Drive"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={fetchDriveBackups}
-                              className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 border border-slate-250 cursor-pointer"
-                              title="Tải lại danh sách từ Drive"
-                            >
-                              <RefreshCw className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={signInWithGoogle}
-                            className="flex items-center gap-2 bg-white text-slate-700 border border-slate-300 rounded-lg px-3.5 py-1.5 hover:bg-slate-50 transition shadow-xs font-bold text-[10.5px] cursor-pointer"
-                          >
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 48 48">
-                              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                            </svg>
-                            <span>Kết nối tài khoản Google Drive</span>
-                          </button>
-                        )}
-                      </div>
-
-                      {driveSyncLogs.length > 0 && (
-                        <div className="bg-slate-900 text-slate-300 font-mono text-[9px] p-2 rounded-lg space-y-0.5 max-h-20 overflow-y-auto">
-                          {driveSyncLogs.map((log, idx) => (
-                            <div key={idx}>{log}</div>
-                          ))}
-                        </div>
-                      )}
-
-                      {googleAccessToken && (
-                        <div className="space-y-1.5 border-t border-slate-200/60 pt-2.5">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase block">Danh sách tệp sao lưu trên Google Drive:</span>
-                          {loadingDriveBackups ? (
-                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Đang tải danh sách...</span>
-                            </div>
-                          ) : driveBackups.length === 0 ? (
-                            <span className="text-[10px] text-slate-400 italic">Không tìm thấy bản sao lưu nào. Hãy nhấn nút sao lưu ở trên để tạo bản đầu tiên.</span>
-                          ) : (
-                            <div className="space-y-1 max-h-32 overflow-y-auto">
-                              {driveBackups.map((bk) => (
-                                <div key={bk.id} className="flex justify-between items-center bg-white border border-slate-200 rounded-lg p-2 hover:bg-slate-100/50 transition">
-                                  <div className="space-y-0.5">
-                                    <span className="font-mono text-[10px] font-bold text-indigo-700 block truncate max-w-[250px]">{bk.name}</span>
-                                    <span className="text-[9px] text-slate-400 block">{new Date(bk.createdTime).toLocaleString()} • {bk.size ? `${(bk.size / 1024).toFixed(1)} KB` : "Chưa rõ dung lượng"}</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRestoreFromDrive(bk.id, bk.name)}
-                                    disabled={isDriveSyncing}
-                                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[9.5px] rounded-md border border-emerald-200 cursor-pointer transition"
-                                  >
-                                    Khôi phục về máy
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {savedSnapshots.length === 0 ? (
-                  <div className="border border-dashed border-slate-200 rounded-xl p-8 text-center text-slate-400 space-y-1">
-                    <AlertCircle className="w-8 h-8 text-slate-300 mx-auto" />
-                    <p className="text-xs font-bold">Kho lưu trữ đang trống</p>
-                    <p className="text-[10px]">Vui lòng nạp tệp tin và lưu trữ ở khung bên trái để bắt đầu tích lũy dữ liệu.</p>
-                  </div>
+                {activeMainData.length > 0 ? (
+                  <span className="text-[10px] bg-sky-200 text-sky-900 px-1.5 py-0.5 font-bold">
+                    ✓ {activeMainData.length.toLocaleString("vi-VN")} dòng
+                  </span>
                 ) : (
-                  <div className="space-y-3">
-                    {(Object.entries(groupedSnapshots) as [string, SavedSnapshot[]][]).map(([catName, snaps]) => {
-                      const isCollapsed = collapsedFolders[catName] ?? false;
-                      return (
-                        <div key={catName} className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                          {/* Folder Header */}
-                          <button
-                            type="button"
-                            onClick={() => setCollapsedFolders(prev => ({ ...prev, [catName]: !isCollapsed }))}
-                            className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100/80 px-4 py-3 text-left transition-colors border-b border-slate-200"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <span className="text-amber-500 font-bold text-lg">📁</span>
-                              <div>
-                                <span className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">{catName}</span>
-                                <span className="text-[10px] text-slate-500 ml-2 font-mono bg-slate-200/60 px-1.5 py-0.5 rounded-full">{snaps.length} bản ghi</span>
-                              </div>
-                            </div>
-                            <span className="text-slate-400 text-xs font-bold font-mono">
-                              {isCollapsed ? "Mở rộng ▽" : "Thu gọn △"}
-                            </span>
-                          </button>
-
-                          {/* Folder Contents */}
-                          {!isCollapsed && (
-                            <div className="overflow-x-auto max-h-60 overflow-y-auto">
-                              <table className="w-full text-left border-collapse text-xs">
-                                <thead>
-                                  <tr className="bg-slate-50/40 border-b border-slate-150 font-mono text-[9px] font-bold text-slate-500">
-                                    <th className="px-3 py-2">Chu kỳ</th>
-                                    <th className="px-3 py-2">Tên gợi nhớ / Tệp gốc</th>
-                                    <th className="px-3 py-2 text-right">Số dòng</th>
-                                    <th className="px-3 py-2 text-center">Thao tác</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                  {snaps.map((snap) => (
-                                    <tr key={snap.id} className="hover:bg-slate-50/30 transition-all text-slate-700">
-                                      <td className="px-3 py-2.5 font-bold">
-                                        <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded">
-                                          {getFormattedPeriod(snap)}
-                                        </span>
-                                      </td>
-                                      <td className="px-3 py-2.5">
-                                        <span className="font-bold block text-slate-800">{snap.name}</span>
-                                        <span className="text-[9px] text-slate-400 block font-mono truncate max-w-[200px]" title={snap.fileName}>
-                                          {snap.fileName}
-                                        </span>
-                                      </td>
-                                      <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-600">
-                                        {snap.data.length.toLocaleString()}
-                                      </td>
-                                      <td className="px-3 py-2.5">
-                                        <div className="flex items-center justify-center gap-1.5">
-                                          <button
-                                            onClick={() => handleLoadSnapshotAsActive(snap)}
-                                            title="Nạp vào màn hình chính để phân tích hoặc chỉnh sửa"
-                                            className="bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800 font-bold text-[10px] px-2 py-1 rounded transition-all cursor-pointer"
-                                          >
-                                            Nạp bảng chính
-                                          </button>
-                                          <button
-                                            onClick={() => handleDeleteSnapshot(snap.id, snap.name)}
-                                            title="Xóa vĩnh viễn khỏi kho"
-                                            className="text-red-500 hover:bg-red-50 hover:text-red-700 p-1 rounded transition-all cursor-pointer"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <span className="text-[10px] bg-amber-100 text-amber-900 px-1.5 py-0.5 font-semibold">
+                    Chưa tải
+                  </span>
                 )}
               </div>
+              <p className="text-[11px] text-slate-600 mb-3 truncate" title={activeFileName || ""}>
+                {activeFileName ? `Tệp: ${activeFileName}` : "Chưa chọn tệp dữ liệu A"}
+              </p>
+              <label className="w-full bg-[#0369a1] hover:bg-[#0284c7] text-white font-bold text-xs py-2 px-3 rounded-none transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer">
+                <Upload className="w-3.5 h-3.5" />
+                <span>Tải file A</span>
+                <input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFileUploadA} className="hidden" />
+              </label>
+            </div>
 
-              {/* Giao diện Đối chiếu kỳ */}
-              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5 space-y-4 text-slate-800">
-                <h3 className="text-sm font-extrabold text-slate-800 tracking-wider uppercase font-mono flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-sky-500 animate-pulse" /> 3. Đối chiếu liên kỳ động giữa các tháng/năm
-                </h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Chọn 2 bản ghi từ kho dữ liệu, cấu hình các cột tương khớp và bấm bắt đầu để so sánh sự thay đổi doanh số/lao động giữa 2 kỳ.
-                </p>
-
-                {savedSnapshots.length < 2 ? (
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center text-slate-500 text-xs font-mono">
-                    ⚠️ Cần ít nhất 2 Bản ghi lưu trữ trong Kho để thực hiện chức năng so sánh đối chiếu này.
-                  </div>
+            {/* Thẻ File B */}
+            <div className={`p-3.5 border rounded-none shadow-2xs ${compareData.length > 0 ? "bg-emerald-50/70 border-emerald-400" : "bg-slate-50 border-slate-300"}`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold text-emerald-950 uppercase flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block" /> File B (Kỳ 2)
+                </span>
+                {compareData.length > 0 ? (
+                  <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 font-bold">
+                    ✓ {compareData.length.toLocaleString("vi-VN")} dòng
+                  </span>
                 ) : (
-                  <div className="space-y-4">
-                    {/* Select Snapshots */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Bản A - Kỳ trước */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                        <span className="text-[10px] font-black text-slate-400 uppercase font-mono block">A. Bản ghi gốc (Kỳ trước/Năm ngoái):</span>
-                        <select
-                          value={snapAId}
-                          onChange={(e) => setSnapAId(e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800"
-                        >
-                          <option value="">-- Chọn Snapshot gốc --</option>
-                          {(Object.entries(groupedSnapshots) as [string, SavedSnapshot[]][]).map(([catName, snaps]) => (
-                            <optgroup key={catName} label={`📂 ${catName.toUpperCase()}`}>
-                              {snaps.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                  [{getFormattedPeriod(s)}] - {s.name} ({s.data.length} dòng)
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-
-                        {snapAId && (
-                          <div className="grid grid-cols-2 gap-2 pt-1">
-                            <div>
-                              <label className="text-[9px] font-bold text-slate-500 block">Cột khóa định danh:</label>
-                              <select
-                                value={snapAKeyCol}
-                                onChange={(e) => setSnapAKeyCol(e.target.value)}
-                                className="w-full bg-white border border-slate-300 rounded-md px-1.5 py-1 text-[11px]"
-                              >
-                                {savedSnapshots.find(s => s.id === snapAId)?.columns.map((col) => (
-                                  <option key={col} value={col}>{col}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-[9px] font-bold text-slate-500 block">Cột chỉ tiêu số:</label>
-                              <select
-                                value={snapAMetricCol}
-                                onChange={(e) => setSnapAMetricCol(e.target.value)}
-                                className="w-full bg-white border border-slate-300 rounded-md px-1.5 py-1 text-[11px]"
-                              >
-                                {savedSnapshots.find(s => s.id === snapAId)?.columns.map((col) => (
-                                  <option key={col} value={col}>{col}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Bản B - Kỳ này */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                        <span className="text-[10px] font-black text-slate-400 uppercase font-mono block">B. Bản ghi so khớp (Kỳ này/Năm nay):</span>
-                        <select
-                          value={snapBId}
-                          onChange={(e) => setSnapBId(e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800"
-                        >
-                          <option value="">-- Chọn Snapshot so sánh --</option>
-                          {(Object.entries(groupedSnapshots) as [string, SavedSnapshot[]][]).map(([catName, snaps]) => (
-                            <optgroup key={catName} label={`📂 ${catName.toUpperCase()}`}>
-                              {snaps.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                  [{getFormattedPeriod(s)}] - {s.name} ({s.data.length} dòng)
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-
-                        {snapBId && (
-                          <div className="grid grid-cols-2 gap-2 pt-1">
-                            <div>
-                              <label className="text-[9px] font-bold text-slate-500 block">Cột khóa định danh:</label>
-                              <select
-                                value={snapBKeyCol}
-                                onChange={(e) => setSnapBKeyCol(e.target.value)}
-                                className="w-full bg-white border border-slate-300 rounded-md px-1.5 py-1 text-[11px]"
-                              >
-                                {savedSnapshots.find(s => s.id === snapBId)?.columns.map((col) => (
-                                  <option key={col} value={col}>{col}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-[9px] font-bold text-slate-500 block">Cột chỉ tiêu số:</label>
-                              <select
-                                value={snapBMetricCol}
-                                onChange={(e) => setSnapBMetricCol(e.target.value)}
-                                className="w-full bg-white border border-slate-300 rounded-md px-1.5 py-1 text-[11px]"
-                              >
-                                {savedSnapshots.find(s => s.id === snapBId)?.columns.map((col) => (
-                                  <option key={col} value={col}>{col}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Compare Button */}
-                    <button
-                      onClick={handleCompareTwoSnapshots}
-                      className="w-full bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl border-b-4 border-sky-800 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <TrendingUp className="w-4 h-4 animate-bounce" /> TIẾN HÀNH ĐỐI CHIẾU 2 KỲ BÁO CÁO
-                    </button>
-                  </div>
+                  <span className="text-[10px] bg-amber-100 text-amber-900 px-1.5 py-0.5 font-semibold">
+                    Chưa tải
+                  </span>
                 )}
               </div>
-
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* HIỂN THỊ KẾT QUẢ ĐỐI CHIẾU KHO LƯU TRỮ */}
-      {subMode === "saved-snapshots" && snapCompareResult && snapCompareResult.length > 0 && (
-        <div className="space-y-6">
-          
-          {/* Dashboard phân tích nhanh */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-slate-800">
-            
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-              <span className="text-[10px] font-black text-slate-400 uppercase font-mono">Tổng số đơn vị khớp:</span>
-              <span className="text-2xl font-black text-slate-800 font-mono mt-1">{snapCompareResult.length.toLocaleString()}</span>
-              <span className="text-[10px] text-slate-400 mt-2 block">Tổng số liên kết được tìm thấy</span>
-            </div>
-
-            <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
-              <span className="text-[10px] font-black text-emerald-600 uppercase font-mono">Tăng trưởng dương (📈):</span>
-              <span className="text-2xl font-black text-emerald-700 font-mono mt-1">
-                {snapCompareResult.filter(r => r["Trạng thái"] === "📈 Tăng").length.toLocaleString()}
-              </span>
-              <span className="text-[10px] text-emerald-600/80 mt-2 block">Số lượng đơn vị tăng chỉ tiêu</span>
-            </div>
-
-            <div className="bg-red-50/50 border border-red-100 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
-              <span className="text-[10px] font-black text-red-600 uppercase font-mono">Tăng trưởng âm (📉):</span>
-              <span className="text-2xl font-black text-red-700 font-mono mt-1">
-                {snapCompareResult.filter(r => r["Trạng thái"] === "📉 Giảm").length.toLocaleString()}
-              </span>
-              <span className="text-[10px] text-red-600/80 mt-2 block">Số lượng đơn vị giảm chỉ tiêu</span>
-            </div>
-
-            <div className="bg-sky-50/50 border border-sky-100 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
-              <span className="text-[10px] font-black text-sky-600 uppercase font-mono">Mới xuất hiện (✅):</span>
-              <span className="text-2xl font-black text-sky-700 font-mono mt-1">
-                {snapCompareResult.filter(r => r["Trạng thái"] === "✅ Mới thêm").length.toLocaleString()}
-              </span>
-              <span className="text-[10px] text-sky-600/80 mt-2 block">Đơn vị mới bổ sung kỳ này</span>
-            </div>
-
-          </div>
-
-          {/* Bảng dữ liệu chính */}
-          <MainDataInlinePreview
-            data={snapCompareResult}
-            columns={Object.keys(snapCompareResult[0] || {})}
-            title="KẾT QUẢ ĐỐI CHIẾU MỤC LƯU TRỮ CÁC KỲ"
-            subtitle={`Đã hoàn tất phân tích đối chiếu chéo! Tìm thấy ${snapCompareResult.length} đơn vị có khóa liên kết tương ứng.`}
-            onExportExcel={onExportExcel}
-          />
-        </div>
-      )}
-
-      {/* HIỂN THỊ KẾT QUẢ SO SÁNH GIỮA CÁC KỲ */}
-      {subMode === "diff" && compareResultData && compareResultData.length > 0 && (
-        <MainDataInlinePreview
-          data={compareResultData}
-          columns={Object.keys(compareResultData[0] || {})}
-          title="KẾT QUẢ SO SÁNH ĐỐI CHIẾU CÁC KỲ"
-          subtitle={`Đã so sánh đối chiếu thành công! Tìm thấy tổng số: ${compareResultData.length} dòng dữ liệu khóa liên kết với trạng thái thay đổi tương ứng.`}
-          onExportExcel={onExportExcel}
-        />
-      )}
-
-      {/* HIỂN THỊ KẾT QUẢ SO SÁNH THEO THỜI GIAN */}
-      {subMode === "time-series" && tsResultRows.length > 0 && (
-        <div className="space-y-6">
-          {/* Biểu đồ động đầy đủ */}
-          <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 space-y-4">
-            <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase font-mono">
-              <BarChart2 className="w-4 h-4 text-amber-500 animate-pulse" /> Biểu đồ so sánh tăng trưởng - Địa bàn: {selectedChartEntity}
-            </h4>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartDataForSelected} margin={{ top: 20, right: 10, left: -10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="Kỳ này" fill="#f59e0b" name="Số liệu Kỳ này" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Kỳ trước" fill="#94a3b8" name="Số liệu Kỳ trước" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <p className="text-[11px] text-slate-600 mb-3 truncate" title={compareSheetName || compareFile?.name || ""}>
+                {compareSheetName || compareFile?.name ? `Tệp: ${compareSheetName || compareFile?.name}` : "Chưa chọn tệp đối chiếu B"}
+              </p>
+              <label className="w-full bg-[#047857] hover:bg-[#059669] text-white font-bold text-xs py-2 px-3 rounded-none transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer">
+                <Upload className="w-3.5 h-3.5" />
+                <span>Tải file B</span>
+                <input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFileUpload} className="hidden" />
+              </label>
             </div>
           </div>
 
-          <MainDataInlinePreview
-            data={tsResultRows.map(row => {
-              // Loại bỏ các trường ẩn phục vụ vẽ biểu đồ trước khi đưa ra preview
-              const { _year, _month, ...previewRow } = row;
-              return previewRow;
-            })}
-            columns={Object.keys(tsResultRows[0] || {}).filter(k => !k.startsWith("_"))}
-            title={`BẢNG SO SÁNH CHI TIẾT CHUỖI THỜI GIAN (${comparisonType === "adjacent" ? "LIÊN TIẾP" : "CÙNG KỲ NĂM TRƯỚC"})`}
-            subtitle={`Đã xử lý chuỗi thời gian hoàn tất! Tìm thấy tổng số: ${tsResultRows.length} điểm đối chiếu liên kết có chênh lệch tăng trưởng.`}
-            onExportExcel={onExportExcel}
-          />
+          {detectedSheets.length > 1 && (
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+              <span className="text-xs text-slate-600 font-medium">Hoặc chọn nhanh Sheet từ cùng tệp Excel:</span>
+              <select
+                onChange={e => {
+                  if (e.target.value) handleSelectSheetFromWorkbook(e.target.value);
+                }}
+                defaultValue=""
+                className="bg-white border border-emerald-500 text-emerald-900 font-bold text-xs px-2.5 py-1.5 rounded-none cursor-pointer"
+              >
+                <option value="" disabled>
+                  Chọn Sheet làm File B...
+                </option>
+                {detectedSheets.map(s => (
+                  <option key={s} value={s}>
+                    Sheet: {s} ({sheetDataStore[s]?.data?.length || 0} dòng)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* XEM TRƯỚC FILE NGUỒN CŨ (Trong Mode Diff) */}
-      {subMode === "diff" && oldData.length > 0 && (
-        <MainDataInlinePreview
-          data={oldData}
-          columns={Object.keys(oldData[0] || {})}
-          title="DỮ LIỆU NGUỒN CŨ"
-          subtitle="Xem trước bảng niên độ cũ đang chuẩn bị đem so sánh."
-        />
       )}
     </div>
   );
-}
+};
+
+export default DataComparison;
