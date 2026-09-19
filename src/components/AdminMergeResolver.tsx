@@ -634,33 +634,33 @@ export const AdminMergeResolver: React.FC<AdminMergeResolverProps> = ({
     return (
       <div className="space-y-3 font-sans">
         {/* THANH CHUYỂN ĐỔI CHẾ ĐỘ ĐỐI SOÁT */}
-        <div className="bg-slate-900 text-white p-2.5 flex flex-wrap items-center justify-between gap-2 border border-slate-700 shadow-sm">
+        <div className="bg-slate-900 text-white p-2 flex flex-wrap items-center justify-between gap-2 border border-slate-700 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold uppercase text-amber-300">Chế độ giải quyết bài toán:</span>
+            <span className="text-xs font-bold uppercase text-amber-300">Chế độ:</span>
             <div className="inline-flex border border-slate-700 overflow-hidden shadow-xs">
               <button
                 type="button"
                 onClick={() => setResolverMode("village_crosswalk")}
-                className="px-3 py-1.5 text-xs font-bold bg-[#286e42] text-white border-0 cursor-pointer flex items-center gap-1.5 shadow-inner"
+                className="px-2.5 py-1 text-xs font-bold bg-[#286e42] text-white border-0 cursor-pointer flex items-center gap-1 shadow-inner"
               >
                 <MapPin className="w-3.5 h-3.5 text-amber-300" />
-                <span>1. ĐỐI SOÁT HƠN 1000 ĐỊA BÀN & THÔN (Tên Thôn + Tổng Số Hộ)</span>
+                <span>1. Đối soát địa bàn &amp; thôn</span>
               </button>
               <button
                 type="button"
                 onClick={() => setResolverMode("household_cluster")}
-                className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1.5 transition-colors"
+                className="px-2.5 py-1 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1 transition-colors"
               >
                 <Users className="w-3.5 h-3.5 text-amber-400" />
-                <span>2. ĐỐI SOÁT CỤM HỘ DÂN (≥ 30 Người Trùng Tên ➔ Tạm Tính Cùng Địa Bàn)</span>
+                <span>2. So cụm hộ dân</span>
               </button>
               <button
                 type="button"
                 onClick={() => setResolverMode("household_matching")}
-                className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1.5 transition-colors"
+                className="px-2.5 py-1 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1 transition-colors"
               >
                 <UserCheck className="w-3.5 h-3.5 text-sky-400" />
-                <span>3. ĐỐI SOÁT DANH SÁCH CHỦ HỘ (Cấp Hộ Gia Đình)</span>
+                <span>3. Đối soát chủ hộ</span>
               </button>
             </div>
           </div>
@@ -694,33 +694,33 @@ export const AdminMergeResolver: React.FC<AdminMergeResolverProps> = ({
     return (
       <div className="space-y-3 font-sans">
         {/* THANH CHUYỂN ĐỔI CHẾ ĐỘ ĐỐI SOÁT */}
-        <div className="bg-slate-900 text-white p-2.5 flex flex-wrap items-center justify-between gap-2 border border-slate-700 shadow-sm">
+        <div className="bg-slate-900 text-white p-2 flex flex-wrap items-center justify-between gap-2 border border-slate-700 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold uppercase text-amber-300">Chế độ giải quyết bài toán:</span>
+            <span className="text-xs font-bold uppercase text-amber-300">Chế độ:</span>
             <div className="inline-flex border border-slate-700 overflow-hidden shadow-xs">
               <button
                 type="button"
                 onClick={() => setResolverMode("village_crosswalk")}
-                className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1.5 transition-colors"
+                className="px-2.5 py-1 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1 transition-colors"
               >
                 <MapPin className="w-3.5 h-3.5 text-amber-300" />
-                <span>1. ĐỐI SOÁT HƠN 1000 ĐỊA BÀN & THÔN (Tên Thôn + Tổng Số Hộ)</span>
+                <span>1. Đối soát địa bàn &amp; thôn</span>
               </button>
               <button
                 type="button"
                 onClick={() => setResolverMode("household_cluster")}
-                className="px-3 py-1.5 text-xs font-bold bg-[#1e5430] text-white border-0 cursor-pointer flex items-center gap-1.5 shadow-inner"
+                className="px-2.5 py-1 text-xs font-bold bg-[#1e5430] text-white border-0 cursor-pointer flex items-center gap-1 shadow-inner"
               >
                 <Users className="w-3.5 h-3.5 text-amber-300" />
-                <span>2. ĐỐI SOÁT CỤM HỘ DÂN (≥ 30 Người Trùng Tên ➔ Tạm Tính Cùng Địa Bàn)</span>
+                <span>2. So cụm hộ dân</span>
               </button>
               <button
                 type="button"
                 onClick={() => setResolverMode("household_matching")}
-                className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1.5 transition-colors"
+                className="px-2.5 py-1 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1 transition-colors"
               >
                 <UserCheck className="w-3.5 h-3.5 text-sky-400" />
-                <span>3. ĐỐI SOÁT DANH SÁCH CHỦ HỘ (Cấp Hộ Gia Đình)</span>
+                <span>3. Đối soát chủ hộ</span>
               </button>
             </div>
           </div>
@@ -753,33 +753,33 @@ export const AdminMergeResolver: React.FC<AdminMergeResolverProps> = ({
   return (
     <div className="bg-slate-50 border-2 border-indigo-400 rounded-none shadow-md overflow-hidden space-y-3 font-sans">
       {/* THANH CHUYỂN ĐỔI CHẾ ĐỘ ĐỐI SOÁT */}
-      <div className="bg-slate-900 text-white p-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 shadow-sm">
+      <div className="bg-slate-900 text-white p-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold uppercase text-amber-300">Chế độ giải quyết bài toán:</span>
+          <span className="text-xs font-bold uppercase text-amber-300">Chế độ:</span>
           <div className="inline-flex border border-slate-700 overflow-hidden shadow-xs">
             <button
               type="button"
               onClick={() => setResolverMode("village_crosswalk")}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1.5 transition-colors"
+              className="px-2.5 py-1 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1 transition-colors"
             >
               <MapPin className="w-3.5 h-3.5 text-amber-300" />
-              <span>1. ĐỐI SOÁT HƠN 1000 ĐỊA BÀN & THÔN (Tên Thôn + Tổng Số Hộ)</span>
+              <span>1. Đối soát địa bàn &amp; thôn</span>
             </button>
             <button
               type="button"
               onClick={() => setResolverMode("household_cluster")}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1.5 transition-colors"
+              className="px-2.5 py-1 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border-0 cursor-pointer flex items-center gap-1 transition-colors"
             >
               <Users className="w-3.5 h-3.5 text-amber-400" />
-              <span>2. ĐỐI SOÁT CỤM HỘ DÂN (≥ 30 Người Trùng Tên ➔ Tạm Tính Cùng Địa Bàn)</span>
+              <span>2. So cụm hộ dân</span>
             </button>
             <button
               type="button"
               onClick={() => setResolverMode("household_matching")}
-              className="px-3 py-1.5 text-xs font-bold bg-indigo-700 text-white border-0 cursor-pointer flex items-center gap-1.5 shadow-inner"
+              className="px-2.5 py-1 text-xs font-bold bg-indigo-700 text-white border-0 cursor-pointer flex items-center gap-1 shadow-inner"
             >
               <UserCheck className="w-3.5 h-3.5 text-sky-400" />
-              <span>3. ĐỐI SOÁT DANH SÁCH CHỦ HỘ (Cấp Hộ Gia Đình)</span>
+              <span>3. Đối soát chủ hộ</span>
             </button>
           </div>
         </div>

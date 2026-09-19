@@ -786,35 +786,30 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
   return (
     <div className="bg-white border border-slate-300 shadow-sm space-y-4 font-sans text-slate-800">
       {/* 1. HEADER CHÍNH CỦA CÔNG CỤ */}
-      <div className="bg-[#286e42] text-white p-3 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 bg-white/10 flex items-center justify-center border border-white/20 shrink-0">
-            <MapPin className="w-6 h-6 text-amber-300" />
+      <div className="bg-[#286e42] text-white p-2.5 sm:p-3 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-white/10 flex items-center justify-center border border-white/20 shrink-0">
+            <MapPin className="w-5 h-5 text-amber-300" />
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm sm:text-base font-bold uppercase tracking-wider text-white">
-                ĐỐI SOÁT ĐỊA BÀN &amp; THÔN SÁP NHẬP (HƠN 1000 ĐỊA BÀN)
-              </h3>
-              <span className="bg-amber-400 text-slate-900 font-black text-[10px] px-2 py-0.5 uppercase shadow-2xs">
-                Tên Thôn Chuẩn Hóa + Tổng Số Hộ
-              </span>
-            </div>
-            <p className="text-xs text-emerald-100 font-normal m-0 pt-0.5 leading-relaxed">
-              Tích hợp sẵn <strong>310 xã sáp nhập chính thức</strong> (từ tài liệu 10 trang của bạn), tự động bóc tiền tố TDP/Thôn và so khớp chéo <strong>Tổng số hộ</strong> để tìm địa bàn mới chính xác 100%.
+            <h3 className="text-sm font-bold uppercase tracking-wider text-white m-0">
+              ĐỐI SOÁT ĐỊA BÀN &amp; THÔN SÁP NHẬP
+            </h3>
+            <p className="text-[11px] text-emerald-100 font-normal m-0 pt-0.5">
+              Tự động đối chiếu thôn và số hộ theo danh mục 310 xã sáp nhập.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={() => setShowCommuneClusterMatrix(true)}
-            className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs px-2.5 py-1.5 flex items-center gap-1 cursor-pointer border-0 shadow-sm"
+            className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs px-2.5 py-1.5 flex items-center gap-1 cursor-pointer border-0 shadow-sm"
             title="Gom xã mới: Tìm đủ toàn bộ xã cũ tương ứng để gom đủ số địa bàn"
           >
             <Layers className="w-4 h-4 text-emerald-950" />
-            <span>Gom xã mới (65 xã)</span>
+            <span>Gom xã mới</span>
           </button>
 
           <button
@@ -840,18 +835,18 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
           <button
             type="button"
             onClick={handleLoadSampleFromUserImages}
-            className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs px-3 py-1.5 flex items-center gap-1.5 cursor-pointer shadow-xs border-0"
-            title="Nạp ngay 15 địa bàn thực tế từ 2 ảnh bảng kê của bạn để thử nghiệm"
+            className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs px-2.5 py-1.5 flex items-center gap-1 cursor-pointer shadow-xs border-0"
+            title="Nạp dữ liệu mẫu thử nghiệm"
           >
-            <Sparkles className="w-4 h-4 text-slate-950" />
-            <span>⚡ Nạp dữ liệu mẫu từ ảnh của bạn</span>
+            <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+            <span>Dữ liệu mẫu</span>
           </button>
 
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="text-white/80 hover:text-white cursor-pointer bg-white/10 hover:bg-white/20 px-2.5 py-1.5 text-xs border border-white/20"
+              className="text-white/80 hover:text-white cursor-pointer bg-white/10 hover:bg-white/20 px-2 py-1.5 text-xs border border-white/20"
             >
               ✕ Đóng
             </button>
@@ -861,7 +856,7 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
 
       {/* THÔNG BÁO GÁN MÃ VÀO BẢNG LÀM VIỆC */}
       {appliedMsg && (
-        <div className="mx-3.5 p-3 bg-emerald-50 border-2 border-emerald-500 text-emerald-950 text-xs font-bold flex items-center justify-between gap-2 shadow-xs">
+        <div className="mx-3.5 p-2.5 bg-emerald-50 border-2 border-emerald-500 text-emerald-950 text-xs font-bold flex items-center justify-between gap-2 shadow-xs">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
             <span>{appliedMsg}</span>
@@ -877,18 +872,18 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
       )}
 
       {/* 2. KHUNG CHỌN TỆP & CẤU HÌNH CỘT (2 CỘT SONG SONG) */}
-      <div className="p-3 sm:p-4 space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="p-3 sm:p-4 space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {/* TỆP A: ĐỊA BÀN CŨ (LÚC CHƯA SÁP NHẬP) */}
-          <div className="bg-sky-50/50 border border-sky-300 p-3 space-y-3">
-            <div className="flex items-center justify-between border-b border-sky-200 pb-2">
+          <div className="bg-sky-50/50 border border-sky-300 p-2.5 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-sky-200 pb-1.5">
               <div>
                 <span className="text-xs font-bold text-sky-950 uppercase flex items-center gap-1.5">
                   <FileSpreadsheet className="w-4 h-4 text-sky-700" />
-                  1. TỆP A: DANH SÁCH ĐỊA BÀN CŨ (CHƯA SÁP NHẬP)
+                  1. Tệp A: Địa bàn cũ
                 </span>
                 <span className="text-[11px] text-sky-800 font-medium block">
-                  {dataA.length > 0 ? `Đã nạp: ${dataA.length.toLocaleString("vi-VN")} địa bàn (${fileNameA})` : "Chưa có dữ liệu"}
+                  {dataA.length > 0 ? `${dataA.length.toLocaleString("vi-VN")} dòng (${fileNameA})` : "Chưa có dữ liệu"}
                 </span>
               </div>
 
@@ -903,10 +898,10 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                 <button
                   type="button"
                   onClick={() => fileInputRefA.current?.click()}
-                  className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-[11px] px-2.5 py-1 flex items-center gap-1 cursor-pointer border-0 shadow-xs"
+                  className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs px-2.5 py-1 flex items-center gap-1 cursor-pointer border-0 shadow-xs"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  {dataA.length > 0 ? "Đổi Tệp A..." : "Tải Tệp A (Excel)..."}
+                  {dataA.length > 0 ? "Đổi tệp A" : "Tải tệp A"}
                 </button>
               </div>
             </div>
@@ -916,14 +911,14 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block">
-                      Tên Thôn, Tổ dân phố <span className="text-rose-600">*</span>:
+                      Tên thôn/TDP <span className="text-rose-600">*</span>:
                     </label>
                     <select
                       value={colVillageNameA}
                       onChange={e => setColVillageNameA(e.target.value)}
                       className="w-full border border-sky-300 bg-white p-1 text-xs font-bold text-sky-900"
                     >
-                      <option value="">-- Chọn Cột --</option>
+                      <option value="">-- Chọn cột --</option>
                       {columnsA.map(c => (
                         <option key={c} value={c}>
                           {c}
@@ -934,14 +929,14 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
 
                   <div>
                     <label className="text-[11px] font-bold text-emerald-800 block">
-                      Tổng số hộ của thôn (Đường mở) <span className="text-rose-600">*</span>:
+                      Tổng số hộ <span className="text-rose-600">*</span>:
                     </label>
                     <select
                       value={colHouseholdsA}
                       onChange={e => setColHouseholdsA(e.target.value)}
                       className="w-full border border-emerald-400 bg-emerald-50/50 p-1 text-xs font-bold text-emerald-950"
                     >
-                      <option value="">-- Chọn Cột Số Hộ --</option>
+                      <option value="">-- Chọn cột số hộ --</option>
                       {columnsA.map(c => (
                         <option key={c} value={c}>
                           {c}
@@ -951,9 +946,9 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-600 block">Tên Xã cũ:</label>
+                    <label className="text-[10px] font-semibold text-slate-600 block">Tên xã cũ:</label>
                     <select
                       value={colCommuneNameA}
                       onChange={e => setColCommuneNameA(e.target.value)}
@@ -968,7 +963,7 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-600 block">Mã Xã cũ:</label>
+                    <label className="text-[10px] font-semibold text-slate-600 block">Mã xã cũ:</label>
                     <select
                       value={colCommuneCodeA}
                       onChange={e => setColCommuneCodeA(e.target.value)}
@@ -983,7 +978,7 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-600 block">Mã Thôn cũ:</label>
+                    <label className="text-[10px] font-semibold text-slate-600 block">Mã thôn cũ:</label>
                     <select
                       value={colVillageCodeA}
                       onChange={e => setColVillageCodeA(e.target.value)}
@@ -1001,21 +996,21 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
               </div>
             ) : (
               <div className="text-[11px] text-slate-500 italic p-3 text-center bg-white border border-dashed border-sky-200">
-                Hãy tải lên Tệp danh sách địa bàn cũ hoặc bấm &ldquo;Nạp mẫu từ ảnh&rdquo; ở trên.
+                Hãy tải lên tệp địa bàn cũ hoặc bấm &ldquo;Dữ liệu mẫu&rdquo; ở trên.
               </div>
             )}
           </div>
 
           {/* TỆP B: ĐỊA BÀN MỚI NĂM NAY (ĐÃ SÁP NHẬP) */}
-          <div className="bg-emerald-50/50 border border-emerald-300 p-3 space-y-3">
-            <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
+          <div className="bg-emerald-50/50 border border-emerald-300 p-2.5 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-emerald-200 pb-1.5">
               <div>
                 <span className="text-xs font-bold text-emerald-950 uppercase flex items-center gap-1.5">
                   <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-                  2. TỆP B: DANH SÁCH ĐỊA BÀN MỚI NĂM NAY
+                  2. Tệp B: Địa bàn mới
                 </span>
                 <span className="text-[11px] text-emerald-800 font-medium block">
-                  {dataB.length > 0 ? `Đã nạp: ${dataB.length.toLocaleString("vi-VN")} địa bàn (${fileNameB})` : "Chưa có dữ liệu"}
+                  {dataB.length > 0 ? `${dataB.length.toLocaleString("vi-VN")} dòng (${fileNameB})` : "Chưa có dữ liệu"}
                 </span>
               </div>
 
@@ -1030,10 +1025,10 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                 <button
                   type="button"
                   onClick={() => fileInputRefB.current?.click()}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] px-2.5 py-1 flex items-center gap-1 cursor-pointer border-0 shadow-xs"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-2.5 py-1 flex items-center gap-1 cursor-pointer border-0 shadow-xs"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  {dataB.length > 0 ? "Đổi Tệp B..." : "Tải Tệp B (Excel)..."}
+                  {dataB.length > 0 ? "Đổi tệp B" : "Tải tệp B"}
                 </button>
               </div>
             </div>
@@ -1043,14 +1038,14 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block">
-                      Tên Thôn / TDP mới <span className="text-rose-600">*</span>:
+                      Tên thôn/TDP mới <span className="text-rose-600">*</span>:
                     </label>
                     <select
                       value={colVillageNameB}
                       onChange={e => setColVillageNameB(e.target.value)}
                       className="w-full border border-emerald-300 bg-white p-1 text-xs font-bold text-emerald-900"
                     >
-                      <option value="">-- Chọn Cột --</option>
+                      <option value="">-- Chọn cột --</option>
                       {columnsB.map(c => (
                         <option key={c} value={c}>
                           {c}
@@ -1061,14 +1056,14 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
 
                   <div>
                     <label className="text-[11px] font-bold text-emerald-800 block">
-                      Tổng số hộ của thôn/TDP mới <span className="text-rose-600">*</span>:
+                      Tổng số hộ mới <span className="text-rose-600">*</span>:
                     </label>
                     <select
                       value={colHouseholdsB}
                       onChange={e => setColHouseholdsB(e.target.value)}
                       className="w-full border border-emerald-400 bg-emerald-50/50 p-1 text-xs font-bold text-emerald-950"
                     >
-                      <option value="">-- Chọn Cột Số Hộ --</option>
+                      <option value="">-- Chọn cột số hộ --</option>
                       {columnsB.map(c => (
                         <option key={c} value={c}>
                           {c}
@@ -1078,9 +1073,9 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-600 block">Tên Xã mới:</label>
+                    <label className="text-[10px] font-semibold text-slate-600 block">Tên xã mới:</label>
                     <select
                       value={colCommuneNameB}
                       onChange={e => setColCommuneNameB(e.target.value)}
@@ -1095,7 +1090,7 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-600 block">Mã Xã mới:</label>
+                    <label className="text-[10px] font-semibold text-slate-600 block">Mã xã mới:</label>
                     <select
                       value={colCommuneCodeB}
                       onChange={e => setColCommuneCodeB(e.target.value)}
@@ -1110,7 +1105,7 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-600 block">Mã Thôn/TDP mới:</label>
+                    <label className="text-[10px] font-semibold text-slate-600 block">Mã thôn mới:</label>
                     <select
                       value={colVillageCodeB}
                       onChange={e => setColVillageCodeB(e.target.value)}
@@ -1129,7 +1124,7 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                 {/* Các cột ĐBĐT (Địa bàn điều tra) */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-emerald-200">
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-600 block">Tên ĐBĐT:</label>
+                    <label className="text-[10px] font-semibold text-slate-600 block">Tên ĐB:</label>
                     <select
                       value={colDbdtNameB}
                       onChange={e => setColDbdtNameB(e.target.value)}
@@ -1144,7 +1139,7 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-600 block">Mã ĐBĐT:</label>
+                    <label className="text-[10px] font-semibold text-slate-600 block">Mã ĐB:</label>
                     <select
                       value={colDbdtCodeB}
                       onChange={e => setColDbdtCodeB(e.target.value)}
@@ -1159,7 +1154,7 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-600 block">Số hộ ĐBĐT:</label>
+                    <label className="text-[10px] font-semibold text-slate-600 block">Số hộ ĐB:</label>
                     <select
                       value={colDbdtHouseholdsB}
                       onChange={e => setColDbdtHouseholdsB(e.target.value)}
@@ -1177,45 +1172,42 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
               </div>
             ) : (
               <div className="text-[11px] text-slate-500 italic p-3 text-center bg-white border border-dashed border-emerald-200">
-                Hãy tải lên Tệp danh sách địa bàn mới hoặc bấm &ldquo;Nạp mẫu từ ảnh&rdquo; ở trên.
+                Hãy tải lên tệp địa bàn mới hoặc bấm &ldquo;Dữ liệu mẫu&rdquo; ở trên.
               </div>
             )}
           </div>
         </div>
 
         {/* KHUNG CẤU HÌNH PHẠM VI THEO XÃ (CHẠY THEO XÃ & NỘI BỘ XÃ VỚI NHAU) */}
-        <div className="bg-amber-50/80 border-2 border-amber-300 p-3 space-y-2.5">
+        <div className="bg-amber-50/80 border border-amber-300 p-2.5 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Building2 className="w-4 h-4 text-amber-800" />
-              <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
-                PHẠM VI ĐỐI SOÁT THEO XÃ (CHẠY & LỌC TỪNG XÃ):
-              </span>
-              <span className="text-[11px] text-amber-900 bg-amber-200/70 font-semibold px-2 py-0.5">
-                Chạy riêng từng xã để bóc tách làm dần
+              <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                Lọc theo xã:
               </span>
             </div>
 
-            <label className="flex items-center gap-1.5 text-xs text-amber-950 font-bold cursor-pointer select-none bg-white px-2.5 py-1 border border-amber-300">
+            <label className="flex items-center gap-1.5 text-xs text-amber-950 font-bold cursor-pointer select-none bg-white px-2 py-0.5 border border-amber-300">
               <input
                 type="checkbox"
                 checked={strictCommuneScoped}
                 onChange={e => setStrictCommuneScoped(e.target.checked)}
-                className="w-4 h-4 text-emerald-700 rounded cursor-pointer"
+                className="w-3.5 h-3.5 text-emerald-700 rounded cursor-pointer"
               />
-              <span>🔒 Khóa chặt đối soát nội bộ xã / cặp sáp nhập (Tránh nhầm thôn xã khác & Tăng tốc 20x)</span>
+              <span>🔒 Khóa theo xã sáp nhập</span>
             </label>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs">
-            <div className="flex items-center gap-2 flex-1 min-w-[300px]">
-              <label className="font-bold text-slate-800 shrink-0">Chọn xã để đối soát:</label>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5 flex-1 min-w-[260px]">
+              <label className="font-bold text-slate-700 shrink-0 text-xs">Xã:</label>
               <select
                 value={selectedCommuneA}
                 onChange={e => setSelectedCommuneA(e.target.value)}
-                className="w-full bg-white border-2 border-amber-400 p-1.5 text-xs font-bold text-slate-900 shadow-2xs"
+                className="w-full bg-white border border-amber-400 p-1 text-xs font-bold text-slate-900 shadow-2xs"
               >
-                <option value="ALL">🌐 Tất cả các xã ({uniqueCommunesA.length} xã, {dataA.length.toLocaleString("vi-VN")} địa bàn)</option>
+                <option value="ALL">Tất cả các xã ({uniqueCommunesA.length} xã, {dataA.length.toLocaleString("vi-VN")} địa bàn)</option>
                 {uniqueCommunesA.map(c => (
                   <option key={c.name} value={c.name}>
                     📍 {c.name} ({c.count} địa bàn)
@@ -1228,45 +1220,35 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
               <button
                 type="button"
                 onClick={() => setSelectedCommuneA("ALL")}
-                className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-2.5 py-1.5 text-xs font-bold cursor-pointer border border-slate-400"
+                className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-2.5 py-1 text-xs font-bold cursor-pointer border border-slate-300"
               >
-                ✕ Hủy chọn (Chạy tất cả các xã)
+                ✕ Tất cả
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => setShowCommuneClusterMatrix(true)}
-              className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 flex items-center gap-1 cursor-pointer border border-emerald-500 shadow-xs sm:ml-auto"
-              title="Gom xã mới: Bắt từ cấp xã trước để tìm đủ toàn bộ xã cũ tương ứng, gom đủ số địa bàn"
-            >
-              <Layers className="w-4 h-4 text-amber-300" />
-              <span>Gom 65 xã mới</span>
-            </button>
           </div>
         </div>
 
         {/* NÚT KHỞI CHẠY ĐỐI SOÁT */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100 p-3 border border-slate-300">
-          <div className="text-xs text-slate-700">
-            <span className="font-bold text-slate-900">Quy tắc tự động:</span> Tự động lọc theo 310 xã sáp nhập • Bóc tách tiền tố TDP/Thôn • So khớp số hộ chéo • Ưu tiên số hộ bằng nhau chằn chặn.
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-100 p-2.5 border border-slate-300">
+          <div className="text-xs text-slate-600">
+            Tự động so khớp theo tên thôn &amp; số hộ theo xã sáp nhập.
           </div>
 
           <button
             type="button"
             onClick={handleRunCrosswalk}
             disabled={isProcessing || dataA.length === 0 || dataB.length === 0}
-            className="bg-[#286e42] hover:bg-[#205835] disabled:bg-slate-300 text-white font-bold text-xs px-6 py-2.5 flex items-center gap-2 cursor-pointer shadow-sm border-0 transition-all active:scale-95"
+            className="bg-[#286e42] hover:bg-[#205835] disabled:bg-slate-300 text-white font-bold text-xs px-5 py-2 flex items-center gap-1.5 cursor-pointer shadow-sm border-0 transition-all active:scale-95"
           >
             {isProcessing ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Đang rà soát và đối chiếu...</span>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Đang rà soát...</span>
               </>
             ) : (
               <>
-                <GitMerge className="w-4 h-4" />
-                <span>🚀 TIẾN HÀNH ĐỐI SOÁT & GẮN MÃ ĐỊA BÀN MỚI</span>
+                <GitMerge className="w-3.5 h-3.5" />
+                <span>TIẾN HÀNH ĐỐI SOÁT</span>
               </>
             )}
           </button>
@@ -1344,31 +1326,31 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
               </div>
             </div>
 
-            {/* KHUNG BÓC TÁCH & KHO LƯU TRỮ (LẤY ĐÚNG RA TRƯỚC CẤT ĐI - CHỈ CÒN LẠI CHƯA KHỚP) */}
-            <div className="bg-emerald-50/70 border-2 border-emerald-400 p-3 space-y-3 shadow-xs">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            {/* KHUNG BÓC TÁCH & KHO LƯU TRỮ */}
+            <div className="bg-emerald-50/70 border border-emerald-300 p-2.5 space-y-2 shadow-xs">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <Archive className="w-5 h-5 text-emerald-800" />
-                    <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
-                      QUY TRÌNH BÓC TÁCH: LẤY ĐÚNG RA TRƯỚC CẤT ĐI, CHỈ CÒN LẠI CHƯA KHỚP ĐỂ LÀM DẦN
+                  <div className="flex items-center gap-1.5">
+                    <Archive className="w-4 h-4 text-emerald-800" />
+                    <span className="text-xs font-bold text-emerald-950 uppercase tracking-wide">
+                      Kho lưu trữ dòng đã khớp
                     </span>
                   </div>
-                  <p className="text-xs text-emerald-900 m-0 pt-1 leading-relaxed">
-                    Cất các địa bàn đã khớp đúng vào <strong>Kho Lưu Trữ</strong> an toàn để bảng làm việc thu gọn lại, giúp bạn tập trung lọc các địa bàn khó chưa khớp mà không bị rối mắt.
+                  <p className="text-[11px] text-emerald-800 m-0 pt-0.5">
+                    Cất các dòng đã khớp đúng để bảng làm việc thu gọn lại.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                   {matchingResults.filter(r => r.matchedB !== null && r.matchGrade !== "UNMATCHED").length > 0 && (
                     <button
                       type="button"
                       onClick={() => handleStashAllMatched(false)}
-                      className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs px-3.5 py-2 flex items-center gap-1.5 cursor-pointer shadow-xs border border-emerald-600 active:scale-95"
-                      title="Cất tất cả các địa bàn đã khớp đúng vào Kho Lưu Trữ để bảng chỉ còn lại các địa bàn chưa khớp"
+                      className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs px-3 py-1.5 flex items-center gap-1 cursor-pointer shadow-xs border border-emerald-600 active:scale-95"
+                      title="Cất tất cả các địa bàn đã khớp vào kho"
                     >
-                      <Archive className="w-4 h-4 text-amber-300" />
-                      <span>📦 CẤT TOÀN BỘ ĐÃ KHỚP ({matchingResults.filter(r => r.matchedB !== null && r.matchGrade !== "UNMATCHED").length} ĐỊA BÀN)</span>
+                      <Archive className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Cất đã khớp ({matchingResults.filter(r => r.matchedB !== null && r.matchGrade !== "UNMATCHED").length})</span>
                     </button>
                   )}
 
@@ -1376,11 +1358,11 @@ export const VillageAreaCrosswalkResolver: React.FC<VillageAreaCrosswalkResolver
                     <button
                       type="button"
                       onClick={() => handleStashAllMatched(true)}
-                      className="bg-sky-800 hover:bg-sky-900 text-white font-bold text-xs px-3 py-2 flex items-center gap-1.5 cursor-pointer shadow-xs border border-sky-600 active:scale-95"
-                      title="Chỉ cất các địa bàn khớp hoàn hảo 100% và rất cao ≥95%"
+                      className="bg-sky-800 hover:bg-sky-900 text-white font-bold text-xs px-3 py-1.5 flex items-center gap-1 cursor-pointer shadow-xs border border-sky-600 active:scale-95"
+                      title="Chỉ cất các địa bàn khớp ≥95%"
                     >
-                      <CheckSquare className="w-4 h-4 text-sky-200" />
-                      <span>Chỉ cất khớp ≥95% ({matchingResults.filter(r => r.matchGrade === "PERFECT" || r.matchGrade === "VERY_HIGH").length})</span>
+                      <CheckSquare className="w-3.5 h-3.5 text-sky-200" />
+                      <span>Cất khớp ≥95% ({matchingResults.filter(r => r.matchGrade === "PERFECT" || r.matchGrade === "VERY_HIGH").length})</span>
                     </button>
                   )}
                 </div>

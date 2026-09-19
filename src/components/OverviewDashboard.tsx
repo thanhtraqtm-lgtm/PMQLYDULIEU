@@ -443,8 +443,8 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             </div>
           )}
 
-          {/* Thanh truy cập nhanh các chức năng cốt lõi (Gọn gàng trong 1 hàng ngang) */}
-          <div className="pt-2 border-t border-sky-100 grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          {/* Thanh truy cập nhanh các chức năng cốt lõi (Gọn gàng) */}
+          <div className="pt-2 border-t border-sky-100 grid grid-cols-2 md:grid-cols-5 gap-2.5">
             <button
               onClick={() => onNavigateTab("xemdulieu")}
               className="flex items-center gap-2 p-2.5 rounded-lg bg-sky-50/50 hover:bg-sky-100/60 border border-sky-200/60 transition-colors text-left cursor-pointer group"
@@ -453,6 +453,20 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               <div className="min-w-0">
                 <div className="text-xs font-bold text-slate-800 truncate">1. Tải &amp; Gán cột</div>
                 <div className="text-[10px] text-slate-500">Xem bảng dữ liệu</div>
+              </div>
+            </button>
+
+            <button
+              id="dash-shortcut-bctcxml"
+              onClick={() => onNavigateTab("bctcxml")}
+              className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition-colors text-left cursor-pointer group shadow-2xs"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-emerald-950 truncate flex items-center gap-1">
+                  BCTC XML <span className="bg-emerald-600 text-white text-[8px] px-1 rounded-sm">MỚI</span>
+                </div>
+                <div className="text-[10px] text-emerald-700 font-medium">Bóc tách HTKK thuế</div>
               </div>
             </button>
 
@@ -474,7 +488,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               <Scale className="w-4 h-4 text-sky-700 shrink-0" />
               <div className="min-w-0">
                 <div className="text-xs font-bold text-slate-800 truncate">3. Kiểm tra logic</div>
-                <div className="text-[10px] text-slate-500">Doanh thu vs L.Động</div>
+                <div className="text-[10px] text-slate-500">Rà soát lỗi DN</div>
               </div>
             </button>
 
