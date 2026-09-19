@@ -8,6 +8,7 @@ import { OverviewDashboard } from "./components/OverviewDashboard";
 const DataEntry = React.lazy(() => import("./components/DataEntry").then(m => ({ default: m.DataEntry })));
 const ExcelSqlAssistant = React.lazy(() => import("./components/ExcelSqlAssistant"));
 const GoogleDriveSync = React.lazy(() => import("./components/GoogleDriveSync").then(m => ({ default: m.GoogleDriveSync })));
+const BctcXmlExtractor = React.lazy(() => import("./components/BctcXmlExtractor").then(m => ({ default: m.BctcXmlExtractor })));
 import { LogIn, Key, HelpCircle, ShieldAlert, Radio, Users, Shield, CheckCircle } from "lucide-react";
 // --- INDEXEDDB STORAGE FOR LARGE FILES (40-50MB+) INTEGRATED DIRECTLY FOR RELIABLE PORTABILITY ---
 const DB_NAME = "VTongDatabase";
@@ -372,7 +373,8 @@ import {
   Menu,
   X,
   ChevronRight,
-  Cloud
+  Cloud,
+  Shuffle
 } from "lucide-react";
 
 import { 
@@ -899,7 +901,7 @@ export function MainAppContent() {
   }, [user]);
 
   useEffect(() => {
-    if (["trangchu", "xemdulieu", "ghepnoi", "tachfile", "chonmau"].includes(activeTab)) {
+    if (["trangchu", "xemdulieu", "ghepnoi", "tachfile", "chonmau", "bctcxml"].includes(activeTab)) {
       setCollapsedBlocks(prev => ({ ...prev, thaotac: false }));
     } else if (["kiemtralogic", "sosanh"].includes(activeTab)) {
       setCollapsedBlocks(prev => ({ ...prev, rasoat: false }));
@@ -8312,6 +8314,28 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   </div>
                   <span className="bg-red-500 text-white text-[8px] px-1 py-0.5 rounded-full font-bold uppercase shrink-0 animate-pulse">MỚI</span>
                 </button>
+                <button 
+                  id="nav-top-bctcxml"
+                  onClick={() => { setActiveTab("bctcxml"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center justify-between px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-emerald-50/60 ${activeTab === "bctcxml" ? "text-emerald-700 bg-emerald-50" : "text-slate-700"}`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Bóc tách BCTC XML (HTKK)</span>
+                  </div>
+                  <span className="bg-emerald-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0">XML</span>
+                </button>
+                <button 
+                  id="nav-top-chonmau"
+                  onClick={() => { setActiveTab("chonmau"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center justify-between px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-emerald-50/60 ${activeTab === "chonmau" ? "text-emerald-700 bg-emerald-50" : "text-slate-700"}`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Shuffle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Phân bổ hộ điều tra cấp xã</span>
+                  </div>
+                  <span className="bg-emerald-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0">CẤP XÃ</span>
+                </button>
               </div>
             )}
           </div>
@@ -8342,10 +8366,10 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
               >
                 <button 
                   onClick={() => { setActiveTab("kiemtralogic"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "kiemtralogic" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "kiemtralogic" || activeTab === "rulesstudio" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
                 >
                   <Brain className="w-4 h-4 text-rose-500 shrink-0" />
-                  Kiểm tra logic đa điều kiện
+                  Kiểm tra &amp; Quy tắc logic (AI)
                 </button>
                 <button 
                   onClick={() => { setActiveTab("outliers"); setOpenDropdown(null); }}
@@ -8353,13 +8377,6 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                 >
                   <Activity className="w-4 h-4 text-amber-500 shrink-0" />
                   Quét lệch quy luật phân phối
-                </button>
-                <button 
-                  onClick={() => { setActiveTab("rulesstudio"); setOpenDropdown(null); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-indigo-50/60 ${activeTab === "rulesstudio" ? "text-indigo-600 bg-indigo-50" : "text-slate-700"}`}
-                >
-                  <Sliders className="w-4 h-4 text-blue-500 shrink-0" />
-                  Quản trị quy tắc logic
                 </button>
               </div>
             )}
@@ -8494,6 +8511,13 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
                   <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
                   Trợ lý Excel &amp; Truy vấn SQL AI
                 </button>
+                <button 
+                  onClick={() => { setActiveTab("bctcxml"); setOpenDropdown(null); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs font-bold transition-colors hover:bg-emerald-50/60 ${activeTab === "bctcxml" ? "text-emerald-700 bg-emerald-50" : "text-slate-700"}`}
+                >
+                  <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                  Bóc tách BCTC XML (HTKK)
+                </button>
               </div>
             )}
           </div>
@@ -8510,6 +8534,8 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
         title: "DỮ LIỆU",
         items: [
           { key: "xemdulieu", label: "Tải & Xem dữ liệu", icon: FileSpreadsheet },
+          { key: "chonmau", label: "Phân bổ hộ điều tra xã", icon: Shuffle, badge: "CẤP XÃ" },
+          { key: "bctcxml", label: "Bóc tách BCTC XML", icon: FileText, badge: "HTKK" },
           { key: "ghepnoi", label: "Ghép nối file Excel", icon: GitMerge },
           { key: "tachfile", label: "Tách file theo cột", icon: Scissors },
           { key: "sosanh", label: "So sánh 2 kỳ dữ liệu", icon: Database, badge: "MỚI" }
@@ -8518,9 +8544,8 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
       {
         title: "RÀ SOÁT LOGIC",
         items: [
-          { key: "kiemtralogic", label: "Kiểm tra logic", icon: CheckSquare },
-          { key: "outliers", label: "Quét bất thường", icon: Activity },
-          { key: "rulesstudio", label: "Quy tắc logic", icon: Sliders }
+          { key: "kiemtralogic", label: "Kiểm tra & Quy tắc logic", icon: CheckSquare },
+          { key: "outliers", label: "Quét bất thường", icon: Activity }
         ]
       },
       {
@@ -11659,8 +11684,8 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
           )}
 
           
-          {/* 8. TAB KIỂM TRA LOGIC ĐA ĐIỀU KIỆN */}
-          {activeTab === "kiemtralogic" && (
+          {/* 8. TAB KIỂM TRA & QUY TẮC LOGIC (GỘP THÀNH 1 PHÂN HỆ DUY NHẤT) */}
+          {(activeTab === "kiemtralogic" || activeTab === "rulesstudio") && (
             <React.Suspense fallback={<LazyTabFallback />}>
             <LogicChecking
               mainData={mainData}
@@ -11781,33 +11806,7 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
 
 
 
-          {/* KHỐI 4: TRUNG TÂM QUẢN TRỊ QUY TẮC LOGIC */}
-          {activeTab === "rulesstudio" && (
-            <div className="space-y-6 animate-fade-in">
-              <React.Suspense fallback={<LazyTabFallback />}>
-              <RulesStudio 
-                mainData={mainData} 
-                columns={columns} 
-                mapping={mapping} 
-                onFilterRows={(indices) => {
-                  setRowIndicesFilter(indices);
-                  setActiveTab("xemdulieu");
-                }}
-                onUpdateMainData={(newData) => {
-                  setMainData(newData);
-                  saveAppState({
-                    mainData: newData,
-                    rawImportedData,
-                    columns,
-                    fileName,
-                    mapping,
-                    customColConfigs
-                  }, true);
-                }}
-              />
-              </React.Suspense>
-            </div>
-          )}
+          {/* KHỐI 4: TRUNG TÂM QUẢN TRỊ QUY TẮC LOGIC ĐÃ ĐƯỢC GỘP VÀO PHÂN HỆ LOGICCHECKING */}
 
           {/* HỆ THỐNG CỘNG TÁC CLOUD - TỰ ĐỘNG ĐƯỢC CHÈN VÀO ROUTER */}
           {activeTab === "dataentry" && (
@@ -11822,6 +11821,14 @@ KHÔNG giải thích, KHÔNG bọc trong khối mã markdown (\`\`\`), KHÔNG ch
             <div className="space-y-6 animate-fade-in">
               <React.Suspense fallback={<LazyTabFallback />}>
                 <ExcelSqlAssistant mainData={mainData} fileName={fileName} />
+              </React.Suspense>
+            </div>
+          )}
+
+          {activeTab === "bctcxml" && (
+            <div className="space-y-6 animate-fade-in">
+              <React.Suspense fallback={<LazyTabFallback />}>
+                <BctcXmlExtractor onNavigateTab={setActiveTab} />
               </React.Suspense>
             </div>
           )}
